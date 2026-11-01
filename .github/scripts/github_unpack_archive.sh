@@ -10,7 +10,7 @@ ls -lrt
 
 mkdir build
 echo "Extracting build archive"
-tar -C build -xf build_src.tar.zst
+gtar -C build -xf build_src.tar.zst
 
 rm build_src.tar.zst
 
