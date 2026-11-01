@@ -1,0 +1,101 @@
+name: Diagnose checkpoint reuse
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Run containing the existing arm64 checkpoint
+        required: true
+        default: '41259224585'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  checkpoint-test:
+    name: Inspect original checkpoint
+    runs-on: macos-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/prepare-environment
+      - uses: actions/download-artifact@v4
+        with:
+          name: github_build_artifact_arm64
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore checkpoint
+        run: ./github_unpack_archive.sh
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+      - name: Inspect state and build a previously completed object twice
+        env:
+          SCCACHE_GHA_ENABLED: 'on'
+          SCCACHE_GHA_VERSION: arm64
+        run: |
+          set -euxo pipefail
+          cd build/src
+          ls -la out/Default/.siso* out/Default/.ninja* || true
+          sccache --stop-server || true
+          export SISO_PATH="$PWD/third_party/siso/cipd/siso"
+          python3 third_party/depot_tools/autoninja.py -C out/Default obj/base/base/important_file_writer_cleaner.o 2>&1 | tee "$GITHUB_WORKSPACE/checkpoint-first.log"
+          python3 third_party/depot_tools/autoninja.py -C out/Default obj/base/base/important_file_writer_cleaner.o 2>&1 | tee "$GITHUB_WORKSPACE/checkpoint-repeat.log"
+          sccache --show-stats
+      - name: Save test checkpoint
+        run: tar -C build -cf - src | zstd -T0 -3 -o "$RUNNER_TEMP/diagnostic-src.tar.zst"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-checkpoint
+          path: ${{ runner.temp }}/diagnostic-src.tar.zst
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostic-first-logs
+          path: checkpoint-*.log
+          if-no-files-found: ignore
+          retention-days: 1
+  restore-test:
+    needs: checkpoint-test
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/prepare-environment
+      - uses: actions/download-artifact@v4
+        with:
+          name: diagnostic-checkpoint
+          path: ${{ runner.temp }}
+      - name: Restore the test checkpoint
+        run: mkdir -p build && tar -C build -xf "$RUNNER_TEMP/diagnostic-src.tar.zst" && rm "$RUNNER_TEMP/diagnostic-src.tar.zst"
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+      - name: Check whether object is rebuilt after restoring
+        env:
+          SCCACHE_GHA_ENABLED: 'on'
+          SCCACHE_GHA_VERSION: arm64
+        run: |
+          set -euxo pipefail
+          cd build/src
+          ls -la out/Default/.siso* out/Default/.ninja* || true
+          sccache --stop-server || true
+          export SISO_PATH="$PWD/third_party/siso/cipd/siso"
+          python3 third_party/depot_tools/autoninja.py -C out/Default obj/base/base/important_file_writer_cleaner.o 2>&1 | tee "$GITHUB_WORKSPACE/checkpoint-restored.log"
+          sccache --show-stats
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostic-restored-log
+          path: checkpoint-restored.log
+          if-no-files-found: ignore
+          retention-days: 1
