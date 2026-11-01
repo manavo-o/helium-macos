@@ -5,7 +5,7 @@ on:
       source_run:
         description: Run containing the existing arm64 checkpoint
         required: true
-        default: '41259224585'
+        default: '41329402353'
 permissions:
   contents: read
   actions: read
@@ -22,11 +22,12 @@ jobs:
       - uses: ./.github/actions/prepare-environment
       - uses: actions/download-artifact@v4
         with:
-          name: github_build_artifact_arm64
+          name: diagnostic-checkpoint
+          path: ${{ runner.temp }}
           run-id: ${{ inputs.source_run }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Restore checkpoint
-        run: ./github_unpack_archive.sh
+        run: mkdir -p build && gtar -C build -xf "$RUNNER_TEMP/diagnostic-src.tar.zst" && rm "$RUNNER_TEMP/diagnostic-src.tar.zst"
       - uses: actions/github-script@v7
         with:
           script: |
@@ -46,7 +47,7 @@ jobs:
           python3 third_party/depot_tools/autoninja.py -C out/Default obj/base/base/important_file_writer_cleaner.o 2>&1 | tee "$GITHUB_WORKSPACE/checkpoint-repeat.log"
           sccache --show-stats
       - name: Save test checkpoint
-        run: tar -C build -cf - src | zstd -T0 -3 -o "$RUNNER_TEMP/diagnostic-src.tar.zst"
+        run: gtar --format=pax -C build -cf - src | zstd -T0 -3 -o "$RUNNER_TEMP/diagnostic-src.tar.zst"
       - uses: actions/upload-artifact@v4
         with:
           name: diagnostic-checkpoint
@@ -74,7 +75,7 @@ jobs:
           name: diagnostic-checkpoint
           path: ${{ runner.temp }}
       - name: Restore the test checkpoint
-        run: mkdir -p build && tar -C build -xf "$RUNNER_TEMP/diagnostic-src.tar.zst" && rm "$RUNNER_TEMP/diagnostic-src.tar.zst"
+        run: mkdir -p build && gtar -C build -xf "$RUNNER_TEMP/diagnostic-src.tar.zst" && rm "$RUNNER_TEMP/diagnostic-src.tar.zst"
       - uses: actions/github-script@v7
         with:
           script: |
