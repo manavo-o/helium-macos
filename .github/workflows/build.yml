@@ -5,7 +5,7 @@ on:
       runner:
         required: false
         description: "Runner image name"
-        default: "macos-latest"
+        default: "xcode-27"
       do-release:
         required: false
         type: boolean

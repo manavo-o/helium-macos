@@ -1,14 +1,14 @@
 #!/bin/bash -eux
 
-BASE_XCODE_PATH=/Applications/Xcode_26.5.app
-TARGET_XCODE_PATH=/Applications/Xcode_26.app
+BASE_XCODE_PATH=/Applications/Xcode_27.1.app
+TARGET_XCODE_PATH=/Applications/Xcode_27.app
 
 REAL_XCODE_PATH="$(readlink -f "$BASE_XCODE_PATH")"
 
 # Cleanup any other Xcode versions
-sudo mv "$REAL_XCODE_PATH" /Applications/tmp_Xcode_26.app
+sudo mv "$REAL_XCODE_PATH" /Applications/tmp_Xcode_27.app
 sudo rm -rf /Applications/Xcode*
-sudo mv /Applications/tmp_Xcode_26.app "$TARGET_XCODE_PATH"
+sudo mv /Applications/tmp_Xcode_27.app "$TARGET_XCODE_PATH"
 
 # Switch to target Xcode and clean simulators
 sudo xcode-select --switch "$TARGET_XCODE_PATH"
