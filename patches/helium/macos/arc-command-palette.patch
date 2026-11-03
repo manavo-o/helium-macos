@@ -1,0 +1,332 @@
+Index: src/chrome/browser/ui/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/BUILD.gn
++++ src/chrome/browser/ui/BUILD.gn
+@@ -632,7 +632,10 @@ if (!is_android) {
+   }
+ 
+   source_set("browser_command_controller") {
+-    public = [ "browser_command_controller.h" ]
++    public = [
++      "browser_command_controller.h",
++      "helium/arc_command_bar.h",
++    ]
+     public_deps = [
+       "//base",
+       "//build:buildflag_header_h",
+Index: src/chrome/browser/ui/browser_command_controller.cc
+===================================================================
+--- src.orig/chrome/browser/ui/browser_command_controller.cc
++++ src/chrome/browser/ui/browser_command_controller.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/browser_command_controller.h"
++#include "chrome/browser/ui/helium/arc_command_bar.h"
+ 
+ #include <stddef.h>
+ 
+@@ -771,7 +772,9 @@ void BrowserCommandController::HandleCom
+       CloseWindow(browser_);
+       break;
+     case IDC_NEW_TAB: {
+-      NewTab(browser_, NewTabTypes::kNewTabCommand);
++      if (!helium::ShowArcCommandBar(browser_)) {
++        NewTab(browser_, NewTabTypes::kNewTabCommand);
++      }
+       break;
+     }
+     case IDC_NEW_TAB_TO_RIGHT: {
+Index: src/chrome/browser/ui/helium/arc_command_bar.h
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/helium/arc_command_bar.h
+@@ -0,0 +1,17 @@
++// Copyright 2026 The Helium Authors
++// Use of this source code is governed by a GPL-3.0 license.
++
++#ifndef CHROME_BROWSER_UI_HELIUM_ARC_COMMAND_BAR_H_
++#define CHROME_BROWSER_UI_HELIUM_ARC_COMMAND_BAR_H_
++
++class BrowserWindowInterface;
++
++namespace helium {
++
++// Opens the deferred-tab command palette. Returns false if no suitable browser
++// view is available, allowing the caller to retain normal new-tab behavior.
++bool ShowArcCommandBar(BrowserWindowInterface* browser);
++
++}  // namespace helium
++
++#endif  // CHROME_BROWSER_UI_HELIUM_ARC_COMMAND_BAR_H_
+Index: src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -37,6 +37,7 @@ source_set("vertical") {
+ 
+ source_set("impl") {
+   sources = [
++    "arc_command_bar_view.cc",
+     "top_container_button.cc",
+     "vertical_new_tab_button.cc",
+     "vertical_tab_strip_bottom_container.cc",
+@@ -47,6 +48,10 @@ source_set("impl") {
+   ]
+ 
+   deps = [
++    "//chrome/browser/autocomplete",
++    "//components/omnibox/browser",
++    "//components/vector_icons",
++    "//third_party/metrics_proto",
+     "//chrome/browser:primitives",
+     "//chrome/browser/glic",
+     "//chrome/browser/glic/browser_ui:glow",
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -0,0 +1,243 @@
++// Copyright 2026 The Helium Authors
++// Use of this source code is governed by a GPL-3.0 license.
++
++#include <array>
++#include <memory>
++#include <optional>
++#include <string>
++#include <string_view>
++
++#include "base/strings/escape.h"
++#include "base/strings/string_util.h"
++#include "base/strings/utf_string_conversions.h"
++#include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/helium/arc_command_bar.h"
++#include "chrome/browser/ui/navigator/browser_navigator.h"
++#include "chrome/browser/ui/navigator/browser_navigator_params.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/multi_contents_view.h"
++#include "components/omnibox/browser/autocomplete_classifier.h"
++#include "components/omnibox/browser/autocomplete_match.h"
++#include "third_party/metrics_proto/omnibox_event.pb.h"
++#include "ui/base/metadata/metadata_header_macros.h"
++#include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/base/page_transition_types.h"
++#include "ui/base/window_open_disposition.h"
++#include "ui/color/color_id.h"
++#include "ui/events/keycodes/keyboard_codes.h"
++#include "ui/gfx/geometry/rounded_corners_f.h"
++#include "ui/views/background.h"
++#include "ui/views/border.h"
++#include "ui/views/controls/label.h"
++#include "ui/views/controls/textfield/textfield.h"
++#include "ui/views/controls/textfield/textfield_controller.h"
++#include "ui/views/layout/box_layout.h"
++#include "ui/views/widget/widget.h"
++#include "ui/views/widget/widget_observer.h"
++#include "url/gurl.h"
++
++namespace {
++
++constexpr int kBarWidth = 640;
++constexpr int kCornerRadius = 16;
++constexpr std::array<std::u16string_view, 27> kQuestionWords = {
++    u"who",   u"what",  u"when",  u"where", u"why",   u"how",  u"which",
++    u"whose", u"whom",  u"is",    u"are",   u"am",    u"was",  u"were",
++    u"do",    u"does",  u"did",   u"can",   u"could", u"should",
++    u"would", u"will",  u"has",   u"have",  u"had",   u"may",  u"might"};
++
++bool IsWordCharacter(char16_t c) {
++  return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z') ||
++         (c >= u'0' && c <= u'9') || c == u'_';
++}
++
++bool LooksLikeQuestion(std::u16string_view input) {
++  const std::u16string trimmed(base::TrimWhitespace(input, base::TRIM_ALL));
++  if (trimmed.find(u'?') != std::u16string::npos) {
++    return true;
++  }
++  for (std::u16string_view word : kQuestionWords) {
++    if (trimmed.size() < word.size()) {
++      continue;
++    }
++    bool equal = true;
++    for (size_t i = 0; i < word.size(); ++i) {
++      char16_t c = trimmed[i];
++      if (c >= u'A' && c <= u'Z') {
++        c += u'a' - u'A';
++      }
++      if (c != word[i]) {
++        equal = false;
++        break;
++      }
++    }
++    if (equal && (trimmed.size() == word.size() ||
++                  !IsWordCharacter(trimmed[word.size()]))) {
++      return true;
++    }
++  }
++  return false;
++}
++
++// This is a browser-owned website handoff. It does not invoke either ChatGPT
++// extension. The URL shape is the official ChatGPT search extension's public
++// search-provider template, and direct navigation was verified to submit.
++GURL ChatGPTSearchURL(std::u16string_view question) {
++  const std::string escaped = base::EscapeQueryParamValue(
++      base::UTF16ToUTF8(question), /*use_plus=*/false);
++  return GURL("https://chatgpt.com/?q=" + escaped +
++              "&hints=search&ref=ext");
++}
++
++class ArcCommandBarView : public views::View,
++                          public views::TextfieldController,
++                          public views::WidgetObserver {
++  METADATA_HEADER(ArcCommandBarView, views::View)
++
++ public:
++  explicit ArcCommandBarView(BrowserWindowInterface* browser)
++      : browser_(browser) {
++    SetBackground(views::CreateRoundedRectBackground(ui::kColorDialogBackground,
++                                                     kCornerRadius));
++    SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(12, 18)));
++    SetLayoutManager(std::make_unique<views::BoxLayout>(
++        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 8));
++    textfield_ = AddChildView(std::make_unique<views::Textfield>());
++    textfield_->SetPlaceholderText(u"Search or enter an address");
++    textfield_->SetPreferredSize(gfx::Size(kBarWidth - 36, 36));
++    textfield_->set_controller(this);
++    textfield_->GetViewAccessibility().SetName(u"Command palette");
++    destination_ = AddChildView(std::make_unique<views::Label>());
++    destination_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    UpdateDestination();
++  }
++  ArcCommandBarView(const ArcCommandBarView&) = delete;
++  ArcCommandBarView& operator=(const ArcCommandBarView&) = delete;
++  ~ArcCommandBarView() override = default;
++
++  views::Textfield* textfield() { return textfield_; }
++
++  void ContentsChanged(views::Textfield* sender,
++                       const std::u16string& new_contents) override {
++    UpdateDestination();
++  }
++
++  bool HandleKeyEvent(views::Textfield* sender,
++                      const ui::KeyEvent& key_event) override {
++    if (key_event.type() != ui::EventType::kKeyPressed) {
++      return false;
++    }
++    if (key_event.key_code() == ui::VKEY_ESCAPE) {
++      GetWidget()->Close();
++      return true;
++    }
++    if (key_event.key_code() == ui::VKEY_TAB) {
++      explicit_chatgpt_ = !ShouldAskChatGPT();
++      UpdateDestination();
++      return true;
++    }
++    if (key_event.key_code() == ui::VKEY_RETURN) {
++      Submit(sender->GetText());
++      return true;
++    }
++    return false;
++  }
++
++  void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
++    if (!active) {
++      widget->RemoveObserver(this);
++      widget->Close();
++    }
++  }
++
++ private:
++  bool ShouldAskChatGPT() const {
++    if (explicit_chatgpt_.has_value()) {
++      return *explicit_chatgpt_;
++    }
++    return !browser_->GetProfile()->IsOffTheRecord() &&
++           LooksLikeQuestion(textfield_->GetText());
++  }
++
++  void UpdateDestination() {
++    destination_->SetText(ShouldAskChatGPT() ? u"Ask ChatGPT · Tab to search"
++                                              : u"Search default engine · Tab to ask ChatGPT");
++  }
++
++  void Submit(const std::u16string& text) {
++    const std::u16string trimmed(base::TrimWhitespace(text, base::TRIM_ALL));
++    if (trimmed.empty()) {
++      return;
++    }
++    AutocompleteMatch match;
++    AutocompleteClassifierFactory::GetForProfile(browser_->GetProfile())
++        ->Classify(trimmed, /*in_keyword_mode=*/false,
++                   /*allow_exact_keyword_match=*/true,
++                   metrics::OmniboxEventProto::INVALID_SPEC, &match, nullptr);
++    if (!match.destination_url.is_valid()) {
++      return;
++    }
++    const bool is_url = !AutocompleteMatch::IsSearchType(match.type);
++    const GURL destination =
++        !is_url && ShouldAskChatGPT() ? ChatGPTSearchURL(trimmed)
++                                     : match.destination_url;
++    if (!destination.is_valid()) {
++      return;
++    }
++    NavigateParams params(browser_.get(), destination,
++                          ui::PAGE_TRANSITION_TYPED);
++    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++    GetWidget()->Close();
++    Navigate(&params);
++  }
++
++  raw_ptr<BrowserWindowInterface> browser_;
++  raw_ptr<views::Textfield> textfield_ = nullptr;
++  raw_ptr<views::Label> destination_ = nullptr;
++  std::optional<bool> explicit_chatgpt_;
++};
++
++BEGIN_METADATA(ArcCommandBarView)
++END_METADATA
++
++}  // namespace
++
++namespace helium {
++
++bool ShowArcCommandBar(BrowserWindowInterface* browser) {
++  auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
++  views::Widget* parent = browser_view ? browser_view->GetWidget() : nullptr;
++  if (!parent || !browser_view->multi_contents_view()) {
++    return false;
++  }
++  auto contents = std::make_unique<ArcCommandBarView>(browser);
++  ArcCommandBarView* bar = contents.get();
++  views::Widget::InitParams params(
++      views::Widget::InitParams::CLIENT_OWNS_WIDGET,
++      views::Widget::InitParams::TYPE_POPUP);
++  params.parent = parent->GetNativeView();
++  params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
++  params.shadow_type = views::Widget::InitParams::ShadowType::kDrop;
++  params.rounded_corners = gfx::RoundedCornersF(kCornerRadius);
++  params.activatable = views::Widget::InitParams::Activatable::kYes;
++  params.name = "ArcCommandBar";
++  const gfx::Rect page =
++      browser_view->multi_contents_view()->GetBoundsInScreen();
++  const gfx::Size size = bar->GetPreferredSize();
++  params.bounds = gfx::Rect(page.CenterPoint().x() - size.width() / 2,
++                            page.y() + page.height() / 4, size.width(),
++                            size.height());
++  auto* widget = new views::Widget();
++  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
++  widget->Init(std::move(params));
++  widget->SetContentsView(std::move(contents));
++  widget->AddObserver(bar);
++  widget->Show();
++  widget->Activate();
++  bar->textfield()->RequestFocus();
++  return true;
++}
++
++}  // namespace helium
