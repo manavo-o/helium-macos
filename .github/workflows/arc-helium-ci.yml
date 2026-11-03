@@ -1,0 +1,20 @@
+name: Build Arc-style Helium (macOS 27, arm64)
+
+on:
+  push:
+    branches:
+      - arc-helium
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: Build on Xcode 27
+    uses: ./.github/workflows/building.yml
+    secrets: inherit
+    with:
+      arch: arm64
+      os: xcode-27
