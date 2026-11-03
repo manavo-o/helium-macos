@@ -87,7 +87,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 ===================================================================
 --- /dev/null
 +++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,400 @@
 +// Copyright 2026 The Helium Authors
 +// You can use, redistribute, and/or modify this source code under
 +// the terms of the GPL-3.0 license that can be found in the LICENSE file.
@@ -97,22 +97,28 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +#include <optional>
 +#include <string>
 +#include <string_view>
++#include <vector>
 +
++#include "base/functional/bind.h"
 +#include "base/strings/escape.h"
 +#include "base/strings/string_util.h"
 +#include "base/strings/utf_string_conversions.h"
 +#include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 +#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/browser_commands.h"
 +#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 +#include "chrome/browser/ui/helium/arc_command_bar.h"
 +#include "chrome/browser/ui/navigator/browser_navigator.h"
 +#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 +#include "chrome/browser/ui/views/frame/browser_view.h"
 +#include "chrome/browser/ui/views/frame/multi_contents_view.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/app/chrome_command_ids.h"
 +#include "chrome/common/pref_names.h"
 +#include "components/prefs/pref_service.h"
 +#include "components/omnibox/browser/autocomplete_classifier.h"
 +#include "components/omnibox/browser/autocomplete_match.h"
++#include "content/public/browser/web_contents.h"
 +#include "third_party/metrics_proto/omnibox_event.pb.h"
 +#include "ui/base/metadata/metadata_header_macros.h"
 +#include "ui/base/metadata/metadata_impl_macros.h"
@@ -124,6 +130,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +#include "ui/views/background.h"
 +#include "ui/views/border.h"
 +#include "ui/views/controls/label.h"
++#include "ui/views/controls/button/label_button.h"
 +#include "ui/views/controls/textfield/textfield.h"
 +#include "ui/views/controls/textfield/textfield_controller.h"
 +#include "ui/views/layout/box_layout.h"
@@ -133,8 +140,9 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +
 +namespace {
 +
-+constexpr int kBarWidth = 640;
++constexpr int kBarWidth = 820;
 +constexpr int kCornerRadius = 16;
++constexpr int kMaxResults = 5;
 +constexpr std::array<std::u16string_view, 27> kQuestionWords = {
 +    u"who",   u"what",  u"when",  u"where", u"why",   u"how",  u"which",
 +    u"whose", u"whom",  u"is",    u"are",   u"am",    u"was",  u"were",
@@ -208,18 +216,37 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 + public:
 +  explicit ArcCommandBarView(BrowserWindowInterface* browser)
 +      : browser_(browser) {
-+    SetBackground(views::CreateRoundedRectBackground(ui::kColorDialogBackground,
++    SetBackground(views::CreateRoundedRectBackground(ui::kColorSysSurface1,
 +                                                     kCornerRadius));
-+    SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(12, 18)));
++    SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(14, 12)));
 +    SetLayoutManager(std::make_unique<views::BoxLayout>(
-+        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 8));
++        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 5));
 +    textfield_ = AddChildView(std::make_unique<views::Textfield>());
-+    textfield_->SetPlaceholderText(u"Search or enter an address");
-+    textfield_->SetPreferredSize(gfx::Size(kBarWidth - 36, 36));
++    textfield_->SetPlaceholderText(u"Search or Enter URL...");
++    textfield_->SetPreferredSize(gfx::Size(kBarWidth - 24, 54));
++    textfield_->SetBackgroundColor(ui::kColorSysSurface1);
++    textfield_->SetTextColorId(ui::kColorSysOnSurface);
 +    textfield_->set_controller(this);
 +    textfield_->GetViewAccessibility().SetName(u"Command palette");
++    results_container_ = AddChildView(std::make_unique<views::View>());
++    results_container_->SetLayoutManager(std::make_unique<views::BoxLayout>(
++        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 4));
++    for (int i = 0; i < kMaxResults; ++i) {
++      auto* row = results_container_->AddChildView(
++          std::make_unique<views::LabelButton>(
++              base::BindRepeating(&ArcCommandBarView::ActivateResult,
++                                  base::Unretained(this), i), u""));
++      row->SetPreferredSize(gfx::Size(kBarWidth - 24, 44));
++      row->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++      row->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(0, 13)));
++      row->SetVisible(false);
++      result_rows_.push_back(row);
++    }
 +    destination_ = AddChildView(std::make_unique<views::Label>());
 +    destination_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    destination_->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(5, 13)));
++    destination_->SetEnabledColor(ui::kColorSysOnSurfaceVariant);
++    UpdateResults();
 +    UpdateDestination();
 +  }
 +  ArcCommandBarView(const ArcCommandBarView&) = delete;
@@ -230,6 +257,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +
 +  void ContentsChanged(views::Textfield* sender,
 +                       const std::u16string& new_contents) override {
++    UpdateResults();
 +    UpdateDestination();
 +  }
 +
@@ -250,7 +278,22 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +      UpdateDestination();
 +      return true;
 +    }
++    if (key_event.key_code() == ui::VKEY_DOWN && !results_.empty()) {
++      selected_result_ = (selected_result_ + 1) % results_.size();
++      UpdateResultAppearance();
++      return true;
++    }
++    if (key_event.key_code() == ui::VKEY_UP && !results_.empty()) {
++      selected_result_ =
++          (selected_result_ + results_.size() - 1) % results_.size();
++      UpdateResultAppearance();
++      return true;
++    }
 +    if (key_event.key_code() == ui::VKEY_RETURN) {
++      if (selected_result_ >= 0) {
++        ActivateResult(selected_result_);
++        return true;
++      }
 +      Submit(sender->GetText());
 +      return true;
 +    }
@@ -265,6 +308,87 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +  }
 +
 + private:
++  struct Result {
++    enum class Kind { kTab, kCommand } kind;
++    int value;
++    std::u16string label;
++  };
++
++  void UpdateResults() {
++    results_.clear();
++    const std::u16string query = base::ToLowerASCII(
++        std::u16string(base::TrimWhitespace(textfield_->GetText(),
++                                            base::TRIM_ALL)));
++    TabStripModel* tabs = browser_->GetTabStripModel();
++    if (tabs) {
++      for (int i = 0; i < tabs->count() &&
++                      results_.size() < kMaxResults; ++i) {
++        content::WebContents* contents = tabs->GetWebContentsAt(i);
++        const std::u16string title = contents->GetTitle();
++        const std::u16string url =
++            base::UTF8ToUTF16(contents->GetVisibleURL().spec());
++        if (!query.empty() &&
++            (base::ToLowerASCII(title).find(query) != std::u16string::npos ||
++             base::ToLowerASCII(url).find(query) != std::u16string::npos)) {
++          results_.push_back({Result::Kind::kTab, i, u"Tab  ·  " + title});
++        }
++      }
++    }
++    constexpr struct {
++      std::u16string_view label;
++      int command;
++    } commands[] = {{u"New window", IDC_NEW_WINDOW},
++                    {u"History", IDC_SHOW_HISTORY},
++                    {u"Downloads", IDC_SHOW_DOWNLOADS}};
++    for (const auto& command : commands) {
++      if (results_.size() == kMaxResults) {
++        break;
++      }
++      if (query.empty() ||
++          base::ToLowerASCII(command.label).find(query) !=
++              std::u16string::npos) {
++        results_.push_back({Result::Kind::kCommand, command.command,
++                            u"Action  ·  " + std::u16string(command.label)});
++      }
++    }
++    selected_result_ = results_.empty() ? -1 : 0;
++    for (size_t i = 0; i < result_rows_.size(); ++i) {
++      result_rows_[i]->SetVisible(i < results_.size());
++      if (i < results_.size()) {
++        result_rows_[i]->SetText(results_[i].label);
++      }
++    }
++    UpdateResultAppearance();
++    if (GetWidget()) {
++      GetWidget()->SetSize(GetPreferredSize());
++    }
++  }
++
++  void UpdateResultAppearance() {
++    for (size_t i = 0; i < results_.size(); ++i) {
++      const bool selected = static_cast<int>(i) == selected_result_;
++      result_rows_[i]->SetBackground(views::CreateRoundedRectBackground(
++          selected ? ui::kColorSysPrimaryContainer : ui::kColorSysSurface1,
++          8));
++      result_rows_[i]->SetEnabledTextColors(
++          selected ? ui::kColorSysOnPrimaryContainer
++                   : ui::kColorSysOnSurface);
++    }
++  }
++
++  void ActivateResult(int index) {
++    if (index < 0 || static_cast<size_t>(index) >= results_.size()) {
++      return;
++    }
++    const Result result = results_[index];
++    GetWidget()->Close();
++    if (result.kind == Result::Kind::kTab) {
++      browser_->GetTabStripModel()->ActivateTabAt(result.value);
++    } else {
++      chrome::ExecuteCommand(browser_, result.value);
++    }
++  }
++
 +  bool ShouldAskChatGPT() const {
 +    if (explicit_chatgpt_.has_value()) {
 +      return *explicit_chatgpt_;
@@ -315,6 +439,10 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +  raw_ptr<BrowserWindowInterface> browser_;
 +  raw_ptr<views::Textfield> textfield_ = nullptr;
 +  raw_ptr<views::Label> destination_ = nullptr;
++  raw_ptr<views::View> results_container_ = nullptr;
++  std::vector<raw_ptr<views::LabelButton>> result_rows_;
++  std::vector<Result> results_;
++  int selected_result_ = -1;
 +  std::optional<bool> explicit_chatgpt_;
 +};
 +
