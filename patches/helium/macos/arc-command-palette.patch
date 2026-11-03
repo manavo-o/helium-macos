@@ -41,9 +41,10 @@ Index: src/chrome/browser/ui/helium/arc_command_bar.h
 ===================================================================
 --- /dev/null
 +++ src/chrome/browser/ui/helium/arc_command_bar.h
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,18 @@
 +// Copyright 2026 The Helium Authors
-+// Use of this source code is governed by a GPL-3.0 license.
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
 +
 +#ifndef CHROME_BROWSER_UI_HELIUM_ARC_COMMAND_BAR_H_
 +#define CHROME_BROWSER_UI_HELIUM_ARC_COMMAND_BAR_H_
@@ -86,9 +87,10 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 ===================================================================
 --- /dev/null
 +++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
-@@ -0,0 +1,243 @@
+@@ -0,0 +1,244 @@
 +// Copyright 2026 The Helium Authors
-+// Use of this source code is governed by a GPL-3.0 license.
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
 +
 +#include <array>
 +#include <memory>
