@@ -10,9 +10,9 @@ sudo mv "$REAL_XCODE_PATH" /Applications/tmp_Xcode_27.app
 sudo rm -rf /Applications/Xcode*
 sudo mv /Applications/tmp_Xcode_27.app "$TARGET_XCODE_PATH"
 
-# Switch to target Xcode and clean simulators
+# Switch to target Xcode. Simulator cleanup is unnecessary for a macOS build
+# and can fail on GitHub runners with stale simulator records.
 sudo xcode-select --switch "$TARGET_XCODE_PATH"
-sudo xcrun simctl delete all
 
 # Make sure metal toolchain is installed
 xcodebuild -downloadComponent MetalToolchain
