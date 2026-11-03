@@ -87,7 +87,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 ===================================================================
 --- /dev/null
 +++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,272 @@
 +// Copyright 2026 The Helium Authors
 +// You can use, redistribute, and/or modify this source code under
 +// the terms of the GPL-3.0 license that can be found in the LICENSE file.
@@ -109,6 +109,8 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 +#include "chrome/browser/ui/views/frame/browser_view.h"
 +#include "chrome/browser/ui/views/frame/multi_contents_view.h"
++#include "chrome/common/pref_names.h"
++#include "components/prefs/pref_service.h"
 +#include "components/omnibox/browser/autocomplete_classifier.h"
 +#include "components/omnibox/browser/autocomplete_match.h"
 +#include "third_party/metrics_proto/omnibox_event.pb.h"
@@ -172,6 +174,22 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +  return false;
 +}
 +
++bool LooksLikeURL(std::u16string_view input) {
++  const std::u16string_view trimmed =
++      base::TrimWhitespace(input, base::TRIM_ALL);
++  if (trimmed.empty() || trimmed.find_first_of(u" \t\r\n") !=
++                             std::u16string_view::npos) {
++    return false;
++  }
++  const std::string candidate = base::UTF16ToUTF8(trimmed);
++  if (candidate.find("://") != std::string::npos ||
++      candidate.starts_with("about:")) {
++    return GURL(candidate).is_valid();
++  }
++  const GURL inferred("https://" + candidate);
++  return inferred.is_valid() && inferred.host().find('.') != std::string::npos;
++}
++
 +// This is a browser-owned website handoff. It does not invoke either ChatGPT
 +// extension. The URL shape is the official ChatGPT search extension's public
 +// search-provider template, and direct navigation was verified to submit.
@@ -225,6 +243,9 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +      return true;
 +    }
 +    if (key_event.key_code() == ui::VKEY_TAB) {
++      if (key_event.IsShiftDown()) {
++        return false;
++      }
 +      explicit_chatgpt_ = !ShouldAskChatGPT();
 +      UpdateDestination();
 +      return true;
@@ -249,12 +270,19 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +      return *explicit_chatgpt_;
 +    }
 +    return !browser_->GetProfile()->IsOffTheRecord() &&
++           browser_->GetProfile()->GetPrefs()->GetBoolean(
++               prefs::kHeliumArcQuestionRouting) &&
 +           LooksLikeQuestion(textfield_->GetText());
 +  }
 +
 +  void UpdateDestination() {
-+    destination_->SetText(ShouldAskChatGPT() ? u"Ask ChatGPT · Tab to search"
-+                                              : u"Search default engine · Tab to ask ChatGPT");
++    if (LooksLikeURL(textfield_->GetText())) {
++      destination_->SetText(u"Open URL");
++    } else {
++      destination_->SetText(ShouldAskChatGPT()
++                                ? u"Ask ChatGPT · Tab to search"
++                                : u"Search default engine · Tab to ask ChatGPT");
++    }
 +  }
 +
 +  void Submit(const std::u16string& text) {
@@ -332,3 +360,60 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +}
 +
 +}  // namespace helium
+Index: src/chrome/browser/extensions/api/settings_private/prefs_util.cc
+===================================================================
+--- src.orig/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ src/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -233,6 +233,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumZenModeTopChromePinned] =
+       settings_api::PrefType::kBoolean;
++  (*s_allowlist)[::prefs::kHeliumArcQuestionRouting] =
++      settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumNativeFrameMaterials] =
+       settings_api::PrefType::kBoolean;
+ 
+Index: src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+===================================================================
+--- src.orig/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -58,6 +58,11 @@ export function getHtml(this: SettingsAp
+       label="$i18n{showProgressBar}">
+   </settings-toggle-button>
+   <settings-toggle-button class="hr"
++      pref-key="helium.browser.arc_question_routing"
++      label="Route questions to ChatGPT in the command palette"
++      sub-label="Private windows always use the default search engine unless you select ChatGPT">
++  </settings-toggle-button>
++  <settings-toggle-button class="hr"
+       pref-key="helium.browser.zen_mode"
+       label="$i18n{browserZenMode}"
+       sub-label="$i18n{browserZenModeDescription}">
+Index: src/chrome/browser/ui/tabs/tab_strip_prefs.cc
+===================================================================
+--- src.orig/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ src/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -38,6 +38,7 @@ void RegisterProfilePrefs(user_prefs::Pr
+   registry->RegisterBooleanPref(prefs::kHeliumZenMode, false);
+   registry->RegisterBooleanPref(prefs::kHeliumZenModeSidebarPinned, false);
+   registry->RegisterBooleanPref(prefs::kHeliumZenModeTopChromePinned, false);
++  registry->RegisterBooleanPref(prefs::kHeliumArcQuestionRouting, true);
+ }
+ 
+ void MigrateHoverCardMemoryPref(PrefService* local_prefs) {
+Index: src/chrome/common/pref_names.h
+===================================================================
+--- src.orig/chrome/common/pref_names.h
++++ src/chrome/common/pref_names.h
+@@ -645,6 +645,11 @@ inline constexpr char kHeliumZenModeSide
+ inline constexpr char kHeliumZenModeTopChromePinned[] =
+     "helium.browser.zen_mode_top_chrome_pinned";
+ 
++// Enables local Cmd+T question detection in regular windows. Private windows
++// always bypass automatic routing, regardless of this profile preference.
++inline constexpr char kHeliumArcQuestionRouting[] =
++    "helium.browser.arc_question_routing";
++
+ // A boolean pref set to true if the address bar should be centered.
+ // When false, the address bar uses the full available width.
+ inline constexpr char kHeliumCenteredLocationBar[] =

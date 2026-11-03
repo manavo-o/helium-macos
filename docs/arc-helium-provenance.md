@@ -29,5 +29,7 @@ The separately installed official ChatGPT search extension is version `1.11`,
 ID `ejcfepkfckglbgocfkanmcdngdijcgld`. Its manifest declares the search
 provider URL `https://chatgpt.com/?q={searchTerms}&hints=search&ref=ext`.
 OpenAI's search documentation says the extension starts a ChatGPT conversation
-from the address bar. Whether navigating directly to that URL submits or only
-prefills must still be tested in the custom build, including signed-out use.
+from the address bar. Direct navigation to that URL in the existing Helium
+profile submitted a harmless test question and produced a conversation; it
+did not invoke the extension's address-bar keyword. The custom build still
+needs signed-out and encoding verification before release.
