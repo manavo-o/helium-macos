@@ -231,7 +231,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +    auto* divider = AddChildView(std::make_unique<views::View>());
 +    divider->SetPreferredSize(gfx::Size(width_ - 24, 1));
 +    divider->SetBackground(
-+        views::CreateSolidBackground(ui::kColorSysOutlineVariant));
++        views::CreateSolidBackground(ui::kColorSysDivider));
 +    results_container_ = AddChildView(std::make_unique<views::View>());
 +    results_container_->SetLayoutManager(std::make_unique<views::BoxLayout>(
 +        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 4));
