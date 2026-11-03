@@ -87,11 +87,12 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 ===================================================================
 --- /dev/null
 +++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
-@@ -0,0 +1,400 @@
+@@ -0,0 +1,407 @@
 +// Copyright 2026 The Helium Authors
 +// You can use, redistribute, and/or modify this source code under
 +// the terms of the GPL-3.0 license that can be found in the LICENSE file.
 +
++#include <algorithm>
 +#include <array>
 +#include <memory>
 +#include <optional>
@@ -214,20 +215,24 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +  METADATA_HEADER(ArcCommandBarView, views::View)
 +
 + public:
-+  explicit ArcCommandBarView(BrowserWindowInterface* browser)
-+      : browser_(browser) {
++  ArcCommandBarView(BrowserWindowInterface* browser, int width)
++      : browser_(browser), width_(width) {
 +    SetBackground(views::CreateRoundedRectBackground(ui::kColorSysSurface1,
 +                                                     kCornerRadius));
 +    SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(14, 12)));
 +    SetLayoutManager(std::make_unique<views::BoxLayout>(
 +        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 5));
 +    textfield_ = AddChildView(std::make_unique<views::Textfield>());
-+    textfield_->SetPlaceholderText(u"Search or Enter URL...");
-+    textfield_->SetPreferredSize(gfx::Size(kBarWidth - 24, 54));
++    textfield_->SetPlaceholderText(u"⌕  Search or Enter URL...");
++    textfield_->SetPreferredSize(gfx::Size(width_ - 24, 54));
 +    textfield_->SetBackgroundColor(ui::kColorSysSurface1);
 +    textfield_->SetTextColorId(ui::kColorSysOnSurface);
 +    textfield_->set_controller(this);
 +    textfield_->GetViewAccessibility().SetName(u"Command palette");
++    auto* divider = AddChildView(std::make_unique<views::View>());
++    divider->SetPreferredSize(gfx::Size(width_ - 24, 1));
++    divider->SetBackground(
++        views::CreateSolidBackground(ui::kColorSysOutlineVariant));
 +    results_container_ = AddChildView(std::make_unique<views::View>());
 +    results_container_->SetLayoutManager(std::make_unique<views::BoxLayout>(
 +        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 4));
@@ -236,7 +241,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +          std::make_unique<views::LabelButton>(
 +              base::BindRepeating(&ArcCommandBarView::ActivateResult,
 +                                  base::Unretained(this), i), u""));
-+      row->SetPreferredSize(gfx::Size(kBarWidth - 24, 44));
++      row->SetPreferredSize(gfx::Size(width_ - 24, 44));
 +      row->SetHorizontalAlignment(gfx::ALIGN_LEFT);
 +      row->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(0, 13)));
 +      row->SetVisible(false);
@@ -437,6 +442,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +  }
 +
 +  raw_ptr<BrowserWindowInterface> browser_;
++  const int width_;
 +  raw_ptr<views::Textfield> textfield_ = nullptr;
 +  raw_ptr<views::Label> destination_ = nullptr;
 +  raw_ptr<views::View> results_container_ = nullptr;
@@ -459,7 +465,10 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +  if (!parent || !browser_view->multi_contents_view()) {
 +    return false;
 +  }
-+  auto contents = std::make_unique<ArcCommandBarView>(browser);
++  const gfx::Rect page =
++      browser_view->multi_contents_view()->GetBoundsInScreen();
++  auto contents = std::make_unique<ArcCommandBarView>(
++      browser, std::min(kBarWidth, std::max(260, page.width() - 32)));
 +  ArcCommandBarView* bar = contents.get();
 +  views::Widget::InitParams params(
 +      views::Widget::InitParams::CLIENT_OWNS_WIDGET,
@@ -470,8 +479,6 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +  params.rounded_corners = gfx::RoundedCornersF(kCornerRadius);
 +  params.activatable = views::Widget::InitParams::Activatable::kYes;
 +  params.name = "ArcCommandBar";
-+  const gfx::Rect page =
-+      browser_view->multi_contents_view()->GetBoundsInScreen();
 +  const gfx::Size size = bar->GetPreferredSize();
 +  params.bounds = gfx::Rect(page.CenterPoint().x() - size.width() / 2,
 +                            page.y() + page.height() / 4, size.width(),
