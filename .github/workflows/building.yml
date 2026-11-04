@@ -17,9 +17,18 @@ on:
       os:
         required: true
         type: string
+      source_run:
+        required: false
+        type: string
+        default: ''
+      repair_arc_checkpoint:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   retrieve-resources:
+    if: ${{ inputs.source_run == '' }}
     name: Retrieve resources required for building
     runs-on: ${{ inputs.os }}
     steps:
@@ -47,11 +56,15 @@ jobs:
 
   build_job_01:
     needs: retrieve-resources
+    if: ${{ !cancelled() && (needs.retrieve-resources.result == 'success' || (needs.retrieve-resources.result == 'skipped' && inputs.source_run != '')) }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      resume: ${{ inputs.source_run != '' }}
+      source_run: ${{ inputs.source_run }}
+      repair_arc_checkpoint: ${{ inputs.repair_arc_checkpoint }}
 
   build_job_02:
     needs: build_job_01

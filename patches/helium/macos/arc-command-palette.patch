@@ -409,7 +409,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +    }
 +  }
 +
-+  void Submit(const std::u16string& text) {
++  void Submit(std::u16string_view text) {
 +    const std::u16string trimmed(base::TrimWhitespace(text, base::TRIM_ALL));
 +    if (trimmed.empty()) {
 +      return;

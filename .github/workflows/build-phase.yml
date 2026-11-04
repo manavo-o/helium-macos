@@ -25,6 +25,10 @@ on:
         required: false
         type: boolean
         default: false
+      repair_arc_checkpoint:
+        required: false
+        type: boolean
+        default: false
     outputs:
       status:
         value: ${{ jobs.build_job.outputs.status }}
@@ -79,6 +83,15 @@ jobs:
       - name: Unpack archive of build
         if: ${{ inputs.resume }}
         run: ./github_unpack_archive.sh
+      - name: Apply verified Arc checkpoint repair
+        if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
+        run: python3 .github/scripts/github_repair_arc_checkpoint.py
+      - name: Compile repaired palette before continuing browser build
+        if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
+        working-directory: build/src
+        run: |
+          export SISO_PATH="$PWD/third_party/siso/cipd/siso"
+          python3 third_party/depot_tools/autoninja.py -C out/Default obj/chrome/browser/ui/views/tabs/vertical/impl/arc_command_bar_view.o
       - uses: ./.github/actions/do-build
         id: build
         with:

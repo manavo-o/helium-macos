@@ -46,10 +46,12 @@ runs:
       shell: bash
 
     - name: Show sccache stats after build
+      if: ${{ !cancelled() }}
       run: sccache --show-stats
       shell: bash
 
     - name: Prepare archive of build as artifact
+      if: ${{ !cancelled() && (steps.build.outcome == 'success' || steps.build.outcome == 'failure') }}
       id: bake
       run: |
         set -o pipefail
@@ -66,12 +68,14 @@ runs:
         PROD_MACOS_NOTARIZATION_PWD: ${{ inputs.PROD_MACOS_NOTARIZATION_PWD }}
         PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64: ${{ inputs.PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64 }}
     - name: Upload part build artifact
+      if: ${{ !cancelled() && steps.bake.outcome == 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: github_build_artifact_${{ inputs.arch }}
         path: upload_part_build/
         overwrite: true
     - name: Upload logs
+      if: ${{ !cancelled() && steps.bake.outcome == 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: github_build_logs_${{ inputs.arch }}

@@ -15,10 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  select-checkpoint:
+    name: Select compatible build checkpoint
+    runs-on: ubuntu-latest
+    outputs:
+      source_run: ${{ steps.checkpoint.outputs.source_run }}
+      repair_arc_checkpoint: ${{ steps.checkpoint.outputs.repair_arc_checkpoint }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: checkpoint
+        run: python3 .github/scripts/github_repair_arc_checkpoint.py --select
   build:
+    needs: select-checkpoint
     name: Build on Xcode 27
     uses: ./.github/workflows/building.yml
     secrets: inherit
     with:
       arch: arm64
       os: xcode-27
+      source_run: ${{ needs.select-checkpoint.outputs.source_run }}
+      repair_arc_checkpoint: ${{ needs.select-checkpoint.outputs.repair_arc_checkpoint == 'true' }}
