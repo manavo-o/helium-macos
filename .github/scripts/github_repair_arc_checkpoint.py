@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Reuse the pinned Arc checkpoint only for its verified one-line repair."""
+"""Resume a verified Arc checkpoint and apply an exact, audited source delta."""
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
+import tempfile
 
 SOURCE_RUN = '41707908336'
 INPUT_SHA256 = '8836d513f6790ff1a6b88f533f1f5e269be5c9f0d50d6cb38ec69a80e89eaac3'
@@ -29,6 +32,64 @@ def source_fingerprint(root):
             (root / os.fsdecode(path)).read_bytes()).hexdigest().encode()
         digest.update(mode + b' ' + path + b'\0' + content + b'\0')
     return digest.hexdigest()
+
+
+
+def file_hash(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
+def compatible_delta(root):
+    manifest = root / '.github/arc-checkpoint-delta.json'
+    if not manifest.is_file():
+        return None
+    data = json.loads(manifest.read_text())
+    if source_fingerprint(root) != data['input_sha256']:
+        return None
+    for patch in data['patches']:
+        if file_hash(root / patch['path']) != patch['sha256']:
+            return None
+    return data
+
+
+def check_sources(source, records, key):
+    return all(file_hash(source / path) == record[key]
+               for path, record in records.items())
+
+
+def patch_tree(root, source, data):
+    executable = shutil.which('gpatch') or shutil.which('patch')
+    if not executable:
+        raise SystemExit('A patch executable is required for checkpoint reuse.')
+    for patch in data['patches']:
+        subprocess.run([executable, '--batch', '--forward', '-p1', '-F0',
+                        '-i', str(root / patch['path'])], cwd=source, check=True)
+
+
+def apply_delta(root, data):
+    source = root / 'build/src'
+    records = data['sources']
+    if check_sources(source, records, 'after'):
+        print('Checkpoint already contains the verified native UI delta.')
+        return
+    if not check_sources(source, records, 'before'):
+        raise SystemExit('Checkpoint source hashes differ; refusing reuse.')
+    # Validate the full ordered patch chain without modifying the checkpoint.
+    # This handles overlapping changes and newly added files.
+    with tempfile.TemporaryDirectory(prefix='arc-checkpoint-') as temporary:
+        mirror = Path(temporary)
+        for path, record in records.items():
+            if record['before'] is not None:
+                destination = mirror / path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source / path, destination)
+        patch_tree(root, mirror, data)
+        if not check_sources(mirror, records, 'after'):
+            raise SystemExit('Patch output differs from the verified manifest.')
+    patch_tree(root, source, data)
+    if not check_sources(source, records, 'after'):
+        raise SystemExit('Checkpoint delta verification failed after patching.')
+    print('Applied verified native UI patches; retained compiled build outputs.')
 
 
 def repair(root):
@@ -56,13 +117,17 @@ def main():
     args = parser.parse_args()
     root = Path(subprocess.check_output(
         ['git', 'rev-parse', '--show-toplevel'], text=True).strip())
+    delta = compatible_delta(root)
     if args.select:
-        compatible = source_fingerprint(root) == INPUT_SHA256
+        compatible = delta is not None or source_fingerprint(root) == INPUT_SHA256
+        selected_run = delta['source_run'] if delta else SOURCE_RUN
         with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-            output.write(f'source_run={SOURCE_RUN if compatible else ""}\n')
+            output.write(f'source_run={selected_run if compatible else ""}\n')
             output.write(f'repair_arc_checkpoint={str(compatible).lower()}\n')
         print('Using pinned Arc checkpoint.' if compatible else
               'Source inputs differ; using a fresh build.')
+    elif delta:
+        apply_delta(root, delta)
     else:
         repair(root)
 

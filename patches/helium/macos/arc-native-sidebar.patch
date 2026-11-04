@@ -1,0 +1,818 @@
+Index: src/chrome/browser/extensions/api/settings_private/prefs_util.cc
+===================================================================
+--- src.orig/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ src/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -235,6 +235,10 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumArcQuestionRouting] =
+       settings_api::PrefType::kBoolean;
++  (*s_allowlist)[::prefs::kHeliumArcPinnedTileSize] =
++      settings_api::PrefType::kNumber;
++  (*s_allowlist)[::prefs::kHeliumArcInterfaceDensity] =
++      settings_api::PrefType::kNumber;
+   (*s_allowlist)[::prefs::kHeliumNativeFrameMaterials] =
+       settings_api::PrefType::kBoolean;
+ 
+Index: src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+===================================================================
+--- src.orig/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -10,45 +10,16 @@ export function getHtml(this: SettingsAp
+   // clang-format off
+   return html`<!--_html_template_start_-->
+ <settings-section page-title="$i18n{layoutPageTitle}">
+-  <settings-radio-group id="browserLayout" is-horizontal
+-      pref-key="helium.browser.layout"
+-      group-aria-label="$i18n{browserLayout}">
+-    ${this.browserLayoutOptions_.map(item => html`
+-      <controlled-radio-button class="browser-layout-option"
+-          name="${item.value}" pref-key="helium.browser.layout"
+-          label="${item.name}" hide-label-text no-extension-indicator>
+-        <div class="browser-layout-preview ${item.preview}"
+-            aria-hidden="true">
+-          <div class="preview-tabs"><div></div><div></div><div></div></div>
+-          <div class="preview-toolbar"></div>
+-          <div class="preview-content"></div>
+-        </div>
+-        <div aria-hidden="true">${item.name}</div>
+-      </controlled-radio-button>
+-    `)}
+-  </settings-radio-group>
++  <div class="settings-row">Helium Sidebar uses a permanent tab sidebar.
++    Drag its divider to resize it from 200 to 480 points.</div>
+   <settings-toggle-button class="hr"
+       ?hidden="${!this.showVerticalSettings_()}"
+       pref-key="helium.browser.vertical_right_aligned"
+       label="$i18n{tabStripRightAlign}">
+   </settings-toggle-button>
+-  <settings-toggle-button class="hr" disabled
+-      ?hidden="${!this.showVerticalTabsExpandOnHoverSetting_() ||
+-                 !this.isExpandOnHoverForcedByZenMode_()}"
+-      .pref="${this.forcedExpandOnHoverPref_}"
+-      label="$i18n{showVerticalTabsExpandOnHover}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr" id="showVerticalTabsExpandOnHover"
+-      ?hidden="${!this.showVerticalTabsExpandOnHoverSetting_() ||
+-                 this.isExpandOnHoverForcedByZenMode_()}"
+-      pref-key="vertical_tabs.expand_on_hover"
+-      label="$i18n{showVerticalTabsExpandOnHover}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr"
+-      ?hidden="${!this.showCenteredLocationBarSetting_()}"
+-      pref-key="helium.browser.centered_location_bar"
+-      label="$i18n{centeredLocationBar}">
+-  </settings-toggle-button>
++
++
++
+   <settings-toggle-button class="hr"
+       pref-key="helium.browser.minimal_location_bar"
+       label="$i18n{minimalLocationBar}">
+@@ -57,6 +28,18 @@ export function getHtml(this: SettingsAp
+       pref-key="helium.browser.show_progress_bar"
+       label="$i18n{showProgressBar}">
+   </settings-toggle-button>
++  <div class="settings-row">
++    <div class="flex">Interface size (applies after relaunch)</div>
++    <settings-dropdown-menu pref-key="helium.browser.arc_interface_density"
++        .menuOptions="${[{value: 0, name: 'Compact'}, {value: 1, name: 'Comfortable'}]}">
++    </settings-dropdown-menu>
++  </div>
++  <div class="settings-row">
++    <div class="flex">Pinned tile size (applies after relaunch)</div>
++    <settings-dropdown-menu pref-key="helium.browser.arc_pinned_tile_size"
++        .menuOptions="${[40, 48, 56, 64, 72].map(value => ({value, name: `${value} points`}))}">
++    </settings-dropdown-menu>
++  </div>
+   <settings-toggle-button class="hr"
+       pref-key="helium.browser.arc_question_routing"
+       label="Route questions to ChatGPT in the command palette"
+Index: src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+===================================================================
+--- src.orig/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -5,6 +5,7 @@
+ import '../controls/controlled_radio_button.js';
+ import '../controls/settings_radio_group.js';
+ import '../controls/settings_toggle_button.js';
++import '../controls/settings_dropdown_menu.js';
+ import '../settings_page/settings_section.js';
+ 
+ import {PrefServiceObserverMixinLit} from '/shared/settings/prefs2/pref_service_observer_mixin_lit.js';
+Index: src/chrome/browser/ui/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/BUILD.gn
++++ src/chrome/browser/ui/BUILD.gn
+@@ -4814,6 +4814,9 @@ source_set("layout_constants") {
+ 
+   deps = [
+     "//base",
++    "//chrome/browser:browser_process",
++    "//chrome/common:constants",
++    "//components/prefs",
+     "//chrome/browser/ui:ui_features",
+     "//chrome/common:chrome_features",
+     "//components/omnibox/common",
+Index: src/chrome/browser/ui/browser_ui_prefs.cc
+===================================================================
+--- src.orig/chrome/browser/ui/browser_ui_prefs.cc
++++ src/chrome/browser/ui/browser_ui_prefs.cc
+@@ -93,6 +93,8 @@ void RegisterBrowserPrefs(PrefRegistrySi
+   registry->RegisterTimePref(prefs::kDefaultBrowserFirstShownTime,
+                              base::Time());
+   registry->RegisterBooleanPref(prefs::kHeliumDefaultBrowserRejected, false);
++  registry->RegisterIntegerPref(prefs::kHeliumArcPinnedTileSize, 48);
++  registry->RegisterIntegerPref(prefs::kHeliumArcInterfaceDensity, 0);
+ 
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+   registry->RegisterTimePref(prefs::kPdfInfoBarLastShown, base::Time());
+Index: src/chrome/browser/ui/helium/helium_layout_state_controller.cc
+===================================================================
+--- src.orig/chrome/browser/ui/helium/helium_layout_state_controller.cc
++++ src/chrome/browser/ui/helium/helium_layout_state_controller.cc
+@@ -56,18 +56,12 @@ bool HeliumLayoutStateController::IsZenM
+ }
+ 
+ void HeliumLayoutStateController::SetBrowserLayout(HeliumLayoutType layout) {
+-  pref_service_->SetInteger(prefs::kHeliumLayout, std::to_underlying(layout));
++  pref_service_->SetInteger(prefs::kHeliumLayout,
++                            std::to_underlying(HeliumLayoutType::kVertical));
+ }
+ 
+ HeliumLayoutType HeliumLayoutStateController::GetBrowserLayout() const {
+-  int layout_value = pref_service_->GetInteger(prefs::kHeliumLayout);
+-
+-  if (layout_value < std::to_underlying(HeliumLayoutType::kClassic) ||
+-      layout_value > std::to_underlying(HeliumLayoutType::kMaxValue)) {
+-    return HeliumLayoutType::kClassic;
+-  }
+-
+-  return static_cast<HeliumLayoutType>(layout_value);
++  return HeliumLayoutType::kVertical;
+ }
+ 
+ base::CallbackListSubscription
+Index: src/chrome/browser/ui/layout_constants.cc
+===================================================================
+--- src.orig/chrome/browser/ui/layout_constants.cc
++++ src/chrome/browser/ui/layout_constants.cc
+@@ -4,11 +4,16 @@
+ 
+ #include "chrome/browser/ui/layout_constants.h"
+ 
++#include <algorithm>
++
+ #include "base/notreached.h"
+ #include "build/build_config.h"
++#include "chrome/browser/browser_process.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/common/pref_names.h"
+ #include "components/omnibox/common/omnibox_features.h"
++#include "components/prefs/pref_service.h"
+ #include "ui/base/pointer/touch_ui_controller.h"
+ #include "ui/base/ui_base_features.h"
+ #include "ui/gfx/geometry/insets.h"
+@@ -17,8 +22,24 @@
+ #include "chromeos/constants/chromeos_features.h"
+ #endif
+ 
++namespace {
++int ArcLayoutPreference(const char* key, int fallback) {
++  PrefService* state =
++      g_browser_process ? g_browser_process->local_state() : nullptr;
++  return state && state->FindPreference(key) ? state->GetInteger(key)
++                                             : fallback;
++}
++}  // namespace
++
++int GetHeliumArcPinnedTileSize() {
++  return std::clamp(ArcLayoutPreference(prefs::kHeliumArcPinnedTileSize, 48),
++                    32, 80);
++}
++
+ int GetLayoutConstant(LayoutConstant constant) {
+   const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
++  const bool comfortable =
++      ArcLayoutPreference(prefs::kHeliumArcInterfaceDensity, 0) == 1;
+   switch (constant) {
+     case LayoutConstant::kHeliumBasePadding:
+       return 3;
+@@ -135,13 +156,17 @@ int GetLayoutConstant(LayoutConstant con
+     case LayoutConstant::kToolbarDividerWidth:
+       return 1;
+     case LayoutConstant::kToolbarElementPadding:
+-      return touch_ui ? 0 : GetLayoutConstant(LayoutConstant::kHeliumBasePadding);
++      return touch_ui ? 0
++                      : GetLayoutConstant(LayoutConstant::kHeliumBasePadding);
+     case LayoutConstant::kToolbarIconDefaultMargin:
+-      return touch_ui ? 0 : GetLayoutConstant(LayoutConstant::kHeliumBasePadding);
++      return touch_ui ? 0
++                      : GetLayoutConstant(LayoutConstant::kHeliumBasePadding);
+     case LayoutConstant::kToolbarButtonRefreshExpandedMargin:
+       return 5;
+     case LayoutConstant::kLocationBarMargin:
+-      return touch_ui ? 12 : GetLayoutConstant(LayoutConstant::kHeliumBasePadding) * 2;
++      return touch_ui
++                 ? 12
++                 : GetLayoutConstant(LayoutConstant::kHeliumBasePadding) * 2;
+     case LayoutConstant::kSidePanelInset:
+       return 8;
+     case LayoutConstant::kPageInfoIconSize:
+@@ -153,9 +178,9 @@ int GetLayoutConstant(LayoutConstant con
+     case LayoutConstant::kVerticalTabCornerRadius:
+       return 8;
+     case LayoutConstant::kVerticalTabHeight:
+-      return 30;
++      return comfortable ? 36 : 30;
+     case LayoutConstant::kVerticalTabPinnedHeight:
+-      return 30;
++      return GetHeliumArcPinnedTileSize();
+     case LayoutConstant::kVerticalTabMinWidth:
+       return 30;
+     case LayoutConstant::kVerticalTabStripHorizontalPadding:
+Index: src/chrome/browser/ui/layout_constants.h
+===================================================================
+--- src.orig/chrome/browser/ui/layout_constants.h
++++ src/chrome/browser/ui/layout_constants.h
+@@ -363,6 +363,9 @@ inline constexpr int kDefaultIconSizeChr
+ // Default icon size for toolbar buttons in touch mode.
+ inline constexpr int kDefaultTouchableIconSize = 24;
+ 
++// Pinned tile size is independent of the interface density.
++int GetHeliumArcPinnedTileSize();
++
+ int GetLayoutConstant(LayoutConstant constant);
+ 
+ gfx::Insets GetLayoutInsets(LayoutInset inset);
+Index: src/chrome/browser/ui/tabs/tab_strip_prefs.cc
+===================================================================
+--- src.orig/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ src/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -33,7 +33,7 @@ void RegisterProfilePrefs(user_prefs::Pr
+                                 kVerticalTabStripDefaultUncollapsedWidth);
+ 
+   registry->RegisterIntegerPref(prefs::kHeliumLayout,
+-                                std::to_underlying(HeliumLayoutType::kClassic));
++                                std::to_underlying(HeliumLayoutType::kVertical));
+   registry->RegisterBooleanPref(prefs::kHeliumVerticalRightAligned, false);
+   registry->RegisterBooleanPref(prefs::kHeliumZenMode, false);
+   registry->RegisterBooleanPref(prefs::kHeliumZenModeSidebarPinned, false);
+Index: src/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+===================================================================
+--- src.orig/chrome/browser/ui/tabs/vertical_tab_strip_state.h
++++ src/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+@@ -7,7 +7,7 @@
+ 
+ namespace tabs {
+ 
+-inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 200;
++inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 260;
+ 
+ // Per-window state for the vertical tab strip.
+ struct VerticalTabStripState {
+Index: src/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+===================================================================
+--- src.orig/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
++++ src/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.h"
+ 
++#include <algorithm>
+ #include <optional>
+ 
+ #include "base/i18n/rtl.h"
+@@ -59,9 +60,9 @@ VerticalTabStripStateControllerImpl::Ver
+       browser_window_(browser_window) {
+   pref_change_registrar_.Init(pref_service_);
+ 
+-  is_vertical_tabs_enabled_ =
+-      pref_service_->GetInteger(prefs::kHeliumLayout) ==
+-      std::to_underlying(HeliumLayoutType::kVertical);
++  pref_service_->SetInteger(prefs::kHeliumLayout,
++                            std::to_underlying(HeliumLayoutType::kVertical));
++  is_vertical_tabs_enabled_ = true;
+ 
+   pref_change_registrar_.AddMultiple(
+       {prefs::kHeliumLayout, prefs::kHeliumVerticalRightAligned},
+@@ -170,6 +171,7 @@ bool VerticalTabStripStateControllerImpl
+ }
+ 
+ void VerticalTabStripStateControllerImpl::SetVerticalTabsEnabled(bool enabled) {
++  enabled = true;
+   // If the user already has a pending mode switch, but tries to change tab
+   // strip mode again, ensure the toast is displayed.
+   if (enable_state_lock_count_ > 0 && enabled != is_vertical_tabs_enabled_ &&
+@@ -209,6 +211,7 @@ VerticalTabStripStateControllerImpl::Get
+ }
+ 
+ void VerticalTabStripStateControllerImpl::RequestCollapse(bool collapse) {
++  collapse = false;
+   if (!delegate_) {
+     return;
+   }
+@@ -235,6 +238,7 @@ int VerticalTabStripStateControllerImpl:
+ }
+ 
+ void VerticalTabStripStateControllerImpl::SetUncollapsedWidth(int width) {
++  width = std::clamp(width, 200, 480);
+   if (state_.uncollapsed_width != width) {
+     state_.uncollapsed_width = width;
+     NotifyCollapseChanged();
+@@ -242,7 +246,7 @@ void VerticalTabStripStateControllerImpl
+ }
+ 
+ bool VerticalTabStripStateControllerImpl::IsExpandOnHoverEnabled() const {
+-  return is_expand_on_hover_enabled_;
++  return false;
+ }
+ 
+ void VerticalTabStripStateControllerImpl::SetExpandOnHoverEnabled(
+@@ -275,9 +279,7 @@ void VerticalTabStripStateControllerImpl
+ }
+ 
+ void VerticalTabStripStateControllerImpl::OnModeChanged() {
+-  const bool new_enabled =
+-      pref_service_->GetInteger(prefs::kHeliumLayout) ==
+-      std::to_underlying(HeliumLayoutType::kVertical);
++  const bool new_enabled = true;
+   if (enable_state_lock_count_ > 0) {
+     if (new_enabled != is_vertical_tabs_enabled_) {
+       MaybeShowDelayedToast(new_enabled);
+@@ -306,6 +308,7 @@ void VerticalTabStripStateControllerImpl
+ }
+ 
+ void VerticalTabStripStateControllerImpl::SetCollapsed(bool collapsed) {
++  collapsed = false;
+   if (state_.collapsed != collapsed) {
+     state_.collapsed = collapsed;
+     NotifyCollapseChanged();
+@@ -328,9 +331,7 @@ void VerticalTabStripStateControllerImpl
+ 
+   if (enable_state_lock_count_ == 0 && mode_changed_while_locked_) {
+     mode_changed_while_locked_ = false;
+-    is_vertical_tabs_enabled_ =
+-        pref_service_->GetInteger(prefs::kHeliumLayout) ==
+-        std::to_underlying(HeliumLayoutType::kVertical);
++    is_vertical_tabs_enabled_ = true;
+     NotifyModeChanged();
+     UpdateCollapseActionItem();
+   }
+Index: src/chrome/browser/ui/views/frame/browser_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/browser_view.cc
++++ src/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1253,6 +1253,10 @@ BrowserView::~BrowserView() {
+   // child views and it is an observer for avatar toolbar button if any.
+   autofill_bubble_handler_.reset();
+ 
++  if (toolbar_) {
++    toolbar_->RestoreArcSidebarControls();
++  }
++
+   // These are raw pointers to child views, so they need to be set to null
+   // before `RemoveAllChildViews()` is called to avoid dangling.
+   browser_widget_ = nullptr;
+@@ -5784,6 +5788,11 @@ void BrowserView::AddedToWidget() {
+ 
+   toolbar_->Init();
+ 
++  if (vertical_tab_strip_region_view_ &&
++      browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
++    vertical_tab_strip_region_view_->AttachArcToolbarControls();
++  }
++
+   if (omnibox::IsWebUIOmniboxInBrowserViewEnabled()) {
+     // When the WebUI Omnibox is embedded directly in the `BrowserView` (instead
+     // of being a separate popup widget), the popup view needs a reference to
+Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -34,10 +34,10 @@
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/view_ids.h"
+ #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
+ #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+-#include "chrome/browser/ui/view_ids.h"
+ #include "chrome/browser/ui/views/frame/custom_corners_background.h"
+ #include "chrome/browser/ui/views/frame/frame_separator.h"
+ #include "chrome/browser/ui/views/frame/safe_invoke/safe_invoke.h"
+@@ -55,6 +55,7 @@
+ #include "chrome/browser/ui/views/tabs/shared/drop_arrow.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
++#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/tabs/public/tab_group.h"
+@@ -72,6 +73,7 @@
+ #include "ui/views/controls/resize_area.h"
+ #include "ui/views/focus/focus_manager.h"
+ #include "ui/views/interaction/element_tracker_views.h"
++#include "ui/views/layout/box_layout.h"
+ #include "ui/views/layout/delegating_layout_manager.h"
+ #include "ui/views/layout/flex_layout.h"
+ #include "ui/views/layout/flex_layout_types.h"
+@@ -138,6 +140,17 @@ VerticalTabStripRegionView::VerticalTabS
+   // --------------
+   // Views that go into the content area below
+ 
++  auto header = std::make_unique<views::View>();
++  auto* header_layout =
++      header->SetLayoutManager(std::make_unique<views::BoxLayout>(
++          views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(6, 6), 6));
++  header_layout->set_cross_axis_alignment(
++      views::BoxLayout::CrossAxisAlignment::kStretch);
++  arc_navigation_ = header->AddChildView(std::make_unique<views::View>());
++  arc_navigation_->SetLayoutManager(std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), 2));
++  arc_header_ = content_area_view_->AddChildView(std::move(header));
++
+   const int region_horizontal_padding =
+       GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
+ 
+@@ -153,8 +166,8 @@ VerticalTabStripRegionView::VerticalTabS
+                                views::MaximumFlexSizeRule::kUnbounded));
+   bottom_button_container_->SetProperty(
+       views::kMarginsKey,
+-      gfx::Insets::TLBR(kBottomContainerGap, region_horizontal_padding,
+-                        0, region_horizontal_padding));
++      gfx::Insets::TLBR(kBottomContainerGap, region_horizontal_padding, 0,
++                        region_horizontal_padding));
+ 
+   gemini_button_ =
+       content_area_view_->AddChildView(std::make_unique<views::View>());
+@@ -210,6 +223,11 @@ VerticalTabStripRegionView::~VerticalTab
+   state_controller_->SetDelegate(nullptr);
+ }
+ 
++void VerticalTabStripRegionView::AttachArcToolbarControls() {
++  browser_view()->toolbar()->AttachArcSidebarControls(arc_navigation_,
++                                                      arc_header_);
++}
++
+ bool VerticalTabStripRegionView::IsAnimatingSize() const {
+   return BrowserAnimationController::From(browser_view()->browser())
+       ->IsAnimating(TabStripAnimations::kVerticalTabStrip);
+@@ -700,7 +718,7 @@ void VerticalTabStripRegionView::OnResiz
+   }
+ 
+   tabs::VerticalTabStripState new_state;
+-  new_state.collapsed = proposed_width <= kCollapseSnapWidth;
++  new_state.collapsed = false;
+   new_state.uncollapsed_width = target_collapse_state_.uncollapsed_width;
+   if (!new_state.collapsed) {
+     new_state.uncollapsed_width =
+@@ -931,9 +949,8 @@ void VerticalTabStripRegionView::UpdateR
+     return;
+   }
+ 
+-  const bool is_fully_expanded =
+-      state_controller_->GetCollapseState() ==
+-      tabs::VerticalTabStripCollapseState::kExpanded;
++  const bool is_fully_expanded = state_controller_->GetCollapseState() ==
++                                 tabs::VerticalTabStripCollapseState::kExpanded;
+   const bool can_resize_collapsed_tab_strip =
+       !state_controller_->IsExpandOnHoverEnabled() ||
+       resize_area_->is_resizing();
+@@ -942,8 +959,8 @@ void VerticalTabStripRegionView::UpdateR
+ }
+ 
+ bool VerticalTabStripRegionView::IsCollapseButtonHovered() const {
+-  const auto* button = browser_view()->GetViewByID(
+-      VIEW_ID_COLLAPSE_VERTICAL_TABS_BUTTON);
++  const auto* button =
++      browser_view()->GetViewByID(VIEW_ID_COLLAPSE_VERTICAL_TABS_BUTTON);
+   return button && button->GetVisible() && button->IsMouseHovered();
+ }
+ 
+Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -66,10 +66,10 @@ class VerticalTabStripRegionView final
+ 
+   // TODO(crbug.com/465833741): Replace constant with derived value based on
+   // caption buttons.
+-  static constexpr int kUncollapsedMinWidth = 160;
++  static constexpr int kUncollapsedMinWidth = 200;
+   // TODO(crbug.com/465832180): Replace constant based width final max width for
+   // view.
+-  static constexpr int kUncollapsedMaxWidth = 400;
++  static constexpr int kUncollapsedMaxWidth = 480;
+   static constexpr int kCollapsedWidth = 42;
+   // TODO(crbug.com/465833741): Determine snapping behavior.
+   static constexpr int kCollapseSnapWidth =
+@@ -88,6 +88,8 @@ class VerticalTabStripRegionView final
+     return bottom_button_container_;
+   }
+ 
++  void AttachArcToolbarControls();
++
+   bool IsPositionInWindowCaption(const gfx::Point& point) override;
+ 
+   void SetHasLeadingExclusionForLayout(bool has_leading_exclusion);
+@@ -269,6 +271,8 @@ class VerticalTabStripRegionView final
+   gfx::Insets interior_margin_;
+ 
+   raw_ptr<VerticalTabStripBottomContainer> bottom_button_container_ = nullptr;
++  raw_ptr<views::View> arc_header_ = nullptr;
++  raw_ptr<views::View> arc_navigation_ = nullptr;
+   raw_ptr<views::View> gemini_button_ = nullptr;
+   raw_ptr<views::ResizeArea> resize_area_ = nullptr;
+   raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;
+Index: src/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
++++ src/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+@@ -389,52 +389,17 @@ views::ProposedLayout PinnedTabContainer
+     return layouts;
+   }
+ 
+-  // Child width will be uniform and match the largest child's width.
+-  bool contains_split = false;
+-  for (const auto& i : collection_node_->children()) {
+-    if (i->type() == TabCollectionNode::Type::SPLIT) {
+-      contains_split = true;
+-    }
+-  }
+-  int child_width = GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth) *
+-                    (contains_split ? 2 : 1);
+-
+-  // If the width is bounded, calculate how many children can fit on a row.
+-  // Since all children are allocated the same width this will be the same for
+-  // every row.
+-  if (size_bounds.width().is_bounded() && size_bounds.width().value() > 0) {
+-    auto collapse_state = GetTabStripCollapseState();
+-
+-    // Apply horizontal padding immediately at start of collapse animation by
+-    // including collapsing state.
+-    int available_width =
+-        size_bounds.width().value() -
+-        GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
+-
+-    // When we are in collapsed state, only one child should be shown per row.
+-    // During collapse animation and other cases, fit as many as possible.
+-    children_on_row =
+-        tabs::IsVerticalTabsExpandOnHoverFeatureEnabled() &&
+-                collapse_state ==
+-                    tabs::VerticalTabStripCollapseState::kCollapsed
+-            ? 1
+-            : std::min(
+-                  children_on_row,
+-                  static_cast<int>(std::floor((available_width - child_width) /
+-                                              (child_width + kTabPadding)) +
+-                                   1));
+-
+-    // Allocate extra space to the tabs.
+-    available_width -=
+-        (children_on_row * child_width) + (kTabPadding * (children_on_row - 1));
+-    child_width += std::floor(available_width / children_on_row);
++  const int child_width = GetHeliumArcPinnedTileSize();
++  if (size_bounds.width().is_bounded()) {
++    children_on_row = std::max(1, std::min(children_on_row,
++        (size_bounds.width().value() + kTabPadding) / (child_width + kTabPadding)));
+   }
+ 
+   int row_index = 0;
+   for (auto* child : children) {
+     gfx::Rect bounds =
+         gfx::Rect(child->GetPreferredSize(views::SizeBounds(child_width, {})));
+-    bounds.set_width(child_width);
++    bounds.set_size(gfx::Size(child_width, GetHeliumArcPinnedTileSize()));
+ 
+     auto drag_data = GetVisualDataForDraggedView(*child);
+     const bool should_show_child = !(drag_data && drag_data->should_hide);
+Index: src/chrome/browser/ui/views/tabs/common/tab_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ src/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -1230,11 +1230,8 @@ void TabView::UpdateBorder() {
+       SetBorder(views::CreateEmptyBorder(gfx::Insets(GetLayoutConstant(
+           LayoutConstant::kVerticalTabPinnedBorderThickness))));
+     } else {
+-      SetBorder(views::CreateRoundedRectBorder(
+-          GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness),
+-          GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius),
+-          IsFrameActive() ? kColorVerticalTabPinnedOutline
+-                          : kColorTabDividerFrameInactive));
++      SetBorder(views::CreateEmptyBorder(gfx::Insets(GetLayoutConstant(
++          LayoutConstant::kVerticalTabPinnedBorderThickness))));
+     }
+   } else if (GetBorder()) {
+     SetBorder(nullptr);
+Index: src/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
++++ src/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+@@ -190,6 +190,10 @@ bool VerticalTabStyleViews::ShouldPaintT
+     TabStyle::TabSelectionState selection_state,
+     bool has_custom_background,
+     bool hovered) const {
++  // Adapted from Biba's pinned tiles: retain a soft surface at rest.
++  if (delegate_->IsPinned()) {
++    return true;
++  }
+   if (helium::ShouldUseNativeFrameMaterials(
+           delegate_->GetBrowserWindowInterface())) {
+     return selection_state != TabStyle::TabSelectionState::kInactive ||
+Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ src/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -761,15 +761,18 @@ void ToolbarView::Init() {
+     bool show_avatar_toolbar_button =
+         AvatarToolbarButtonInterface::CanShowForProfile(browser_->GetProfile());
+ 
+-    const std::string sab_value = base::CommandLine::ForCurrentProcess()->
+-                                  GetSwitchValueASCII("show-avatar-button");
+-    if (sab_value == "always")
++    const std::string sab_value =
++        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
++            "show-avatar-button");
++    if (sab_value == "always") {
+       show_avatar_toolbar_button = true;
+-    else if (sab_value == "incognito-and-guest")
+-      show_avatar_toolbar_button = browser_->GetProfile()->IsIncognitoProfile() ||
+-                                   browser_->GetProfile()->IsGuestSession();
+-    else if (sab_value == "never")
++    } else if (sab_value == "incognito-and-guest") {
++      show_avatar_toolbar_button =
++          browser_->GetProfile()->IsIncognitoProfile() ||
++          browser_->GetProfile()->IsGuestSession();
++    } else if (sab_value == "never") {
+       show_avatar_toolbar_button = false;
++    }
+ 
+     avatar_->SetVisible(show_avatar_toolbar_button);
+   }
+@@ -939,6 +942,54 @@ void ToolbarView::Init() {
+   initialized_ = true;
+ }
+ 
++void ToolbarView::AttachArcSidebarControls(views::View* navigation,
++                                           views::View* header) {
++  if (!location_bar_view_ || display_mode_ != DisplayMode::kNormal ||
++      !arc_transferred_controls_.empty()) {
++    return;
++  }
++  // Save indices before moving any views. This also provides a safe ownership
++  // order during BrowserView teardown, regardless of child destruction order.
++  for (views::View* view : std::array<views::View*, 5>{
++           back_, forward_, reload_, home_, location_bar_view_}) {
++    if (view && view->parent() == this) {
++      arc_transferred_controls_.push_back({view, GetIndexOf(view).value()});
++    }
++  }
++  for (const auto& control : arc_transferred_controls_) {
++    auto owned = RemoveChildViewT(control.view.get());
++    (control.view == location_bar_view_ ? header : navigation)
++        ->AddChildView(std::move(owned));
++  }
++  // Keep extension controls and Chat aligned to the trailing toolbar edge.
++  arc_toolbar_spacer_ = AddChildViewAt(std::make_unique<views::View>(), 0);
++  arc_toolbar_spacer_->SetProperty(
++      views::kFlexBehaviorKey,
++      views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
++                               views::MaximumFlexSizeRule::kUnbounded)
++          .WithWeight(1));
++  if (vertical_tabs_collapse_button_) {
++    vertical_tabs_collapse_button_->SetVisible(false);
++  }
++  InvalidateLayout();
++}
++
++void ToolbarView::RestoreArcSidebarControls() {
++  if (arc_toolbar_spacer_) {
++    RemoveChildViewT(arc_toolbar_spacer_.get());
++    arc_toolbar_spacer_ = nullptr;
++  }
++  for (const auto& control : arc_transferred_controls_) {
++    auto* parent = control.view->parent();
++    if (parent && parent != this) {
++      auto owned = parent->RemoveChildViewT(control.view.get());
++      AddChildViewAt(std::move(owned),
++                     std::min(control.index, children().size()));
++    }
++  }
++  arc_transferred_controls_.clear();
++}
++
+ void ToolbarView::InitGlicContainer() {
+   if (base::FeatureList::IsEnabled(features::kGlicActorUi) &&
+       features::kGlicActorUiTaskIcon.Get()) {
+@@ -1539,7 +1590,8 @@ bool ToolbarView::IsRectInWindowCaption(
+ 
+   // Check each child view to see if the rect intersects with
+   // any clickable elements. If it does, check if the click is actually on that
+-  // element. False if on a clickable element, true if not on a clickable element.
++  // element. False if on a clickable element, true if not on a clickable
++  // element.
+   for (views::View* const child : children()) {
+     if (!child->GetVisible()) {
+       continue;
+@@ -2267,9 +2319,9 @@ void ToolbarView::UpdateToolbarLayout()
+   const bool is_compact_layout = IsCompactLayout();
+   if (location_bar_view_) {
+     if (is_compact_layout) {
+-      location_bar_view_->SetPreferredSize(gfx::Size(
+-          kPreferredCompactWidth,
+-          GetLayoutConstant(LayoutConstant::kLocationBarHeight)));
++      location_bar_view_->SetPreferredSize(
++          gfx::Size(kPreferredCompactWidth,
++                    GetLayoutConstant(LayoutConstant::kLocationBarHeight)));
+       location_bar_view_->SetProperty(
+           views::kMarginsKey, gfx::Insets::TLBR(0, location_bar_margin, 0, 0));
+     } else {
+@@ -2346,10 +2398,10 @@ void ToolbarView::UpdateVerticalTabsColl
+                         !browser_view_->IsZenModeSideChromePinned();
+   const bool should_show = controller && IsVerticalLayout() &&
+                            show_vertical_tabs_collapse_button_.GetValue() &&
+-                           !zen_hide;
++                           !zen_hide && arc_transferred_controls_.empty();
+   // Let overflow layout decide whether the eligible button fits.
+-  if (should_show != layout_manager_->CanBeVisible(
+-          vertical_tabs_collapse_button_)) {
++  if (should_show !=
++      layout_manager_->CanBeVisible(vertical_tabs_collapse_button_)) {
+     vertical_tabs_collapse_button_->SetVisible(should_show);
+   }
+ 
+@@ -2667,7 +2719,8 @@ void ToolbarView::UpdateLocationBarCente
+   const auto layout = layout_manager_->GetProposedLayout(size());
+   const auto* location_bar_layout = layout.GetLayoutFor(location_bar_view_);
+   if (location_bar_layout && location_bar_layout->visible) {
+-    // Recenter using the parent's final bounds without relaying out the toolbar.
++    // Recenter using the parent's final bounds without relaying out the
++    // toolbar.
+     location_bar_view_->SetBoundsRect(GetCenteredLocationBarBounds(
+         location_bar_layout->bounds, layout.host_size.width()));
+   }
+Index: src/chrome/browser/ui/views/toolbar/toolbar_view.h
+===================================================================
+--- src.orig/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ src/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -123,6 +123,11 @@ class ToolbarView : public views::Access
+   // Create the contents of the Browser Toolbar.
+   void Init();
+ 
++  // Reparent the real omnibox and navigation views into the permanent sidebar.
++  // The toolbar remains their delegate and retains all browser integrations.
++  void AttachArcSidebarControls(views::View* navigation, views::View* header);
++  void RestoreArcSidebarControls();
++
+   // Forces the toolbar (and transitively the location bar) to update its
+   // current state.  If |tab| is non-NULL, we're switching (back?) to this tab
+   // and should restore any previous location bar state (such as user editing)
+@@ -425,8 +430,7 @@ class ToolbarView : public views::Access
+ 
+   void OnVerticalTabStripModeChanged(
+       tabs::VerticalTabStripStateController* controller);
+-  void OnVerticalTabStripCollapseChanged(
+-      tabs::VerticalTabStripCollapseState);
++  void OnVerticalTabStripCollapseChanged(tabs::VerticalTabStripCollapseState);
+ 
+   void SetForwardButtonVisibility(bool visible);
+ 
+@@ -578,14 +582,19 @@ class ToolbarView : public views::Access
+   base::CallbackListSubscription vertical_tab_collapse_subscription_;
+ 
+   // Subscription for when contextual tasks button position should update.
+-  base::CallbackListSubscription
+-      contextual_tasks_button_position_subscription_;
++  base::CallbackListSubscription contextual_tasks_button_position_subscription_;
+ 
+   bool should_display_vertical_tabs_ = false;
+   bool should_show_glic_button_ = false;
+   bool should_show_glic_actor_ = false;
+ 
+   bool was_mouse_down_ = false;
++  struct ArcTransferredControl {
++    raw_ptr<views::View> view;
++    size_t index;
++  };
++  std::vector<ArcTransferredControl> arc_transferred_controls_;
++  raw_ptr<views::View> arc_toolbar_spacer_ = nullptr;
+ };
+ 
+ extern const ui::ClassProperty<bool>* const kActionItemUnderlineIndicatorKey;
+Index: src/chrome/common/pref_names.h
+===================================================================
+--- src.orig/chrome/common/pref_names.h
++++ src/chrome/common/pref_names.h
+@@ -649,6 +649,10 @@ inline constexpr char kHeliumZenModeTopC
+ // always bypass automatic routing, regardless of this profile preference.
+ inline constexpr char kHeliumArcQuestionRouting[] =
+     "helium.browser.arc_question_routing";
++inline constexpr char kHeliumArcPinnedTileSize[] =
++    "helium.browser.arc_pinned_tile_size";
++inline constexpr char kHeliumArcInterfaceDensity[] =
++    "helium.browser.arc_interface_density";
+ 
+ // A boolean pref set to true if the address bar should be centered.
+ // When false, the address bar uses the full available width.

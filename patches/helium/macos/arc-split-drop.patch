@@ -1,0 +1,393 @@
+Index: src/chrome/browser/ui/views/frame/browser_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/browser_view.cc
++++ src/chrome/browser/ui/views/frame/browser_view.cc
+@@ -793,7 +793,8 @@ class BrowserView::ExclusiveAccessContex
+   void UpdateExclusiveAccessBubble(
+       const ExclusiveAccessBubbleParams& params,
+       ExclusiveAccessBubbleHideCallback first_hide_callback) override {
+-    if (base::CommandLine::ForCurrentProcess()->HasSwitch("hide-fullscreen-exit-ui")) {
++    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++            "hide-fullscreen-exit-ui")) {
+       return;
+     }
+     // Whether we should remove the bubble if it exists, or not show the bubble.
+@@ -2036,9 +2037,8 @@ void BrowserView::UpdateZenModeRevealFro
+   const bool in_side_chrome = IsPointInZenSideChromeBounds(cursor);
+   const bool moving_out_through_side_gap =
+       previous_cursor && IsLeavingZenSideGap(*previous_cursor, cursor);
+-  const bool reveal_side =
+-      !reveal_top && !moving_out_through_side_gap &&
+-      (in_side_trigger || in_side_chrome);
++  const bool reveal_side = !reveal_top && !moving_out_through_side_gap &&
++                           (in_side_trigger || in_side_chrome);
+ 
+   // Defer the collapse briefly so quick excursions don't cause the
+   // chrome to snap closed.
+@@ -3196,8 +3196,7 @@ TabDragTarget* BrowserView::GetTabDragTa
+       return target;
+     }
+   }
+-  if (multi_contents_view_->IsInSplitView() ||
+-      !multi_contents_view_->IsDragAndDropEnabled()) {
++  if (!multi_contents_view_->IsDragAndDropEnabled()) {
+     return nullptr;
+   }
+   if (!multi_contents_view_->GetBoundsInScreen().Contains(point_in_screen)) {
+@@ -6446,8 +6445,7 @@ void BrowserView::LoadAccelerators() {
+       base::FeatureList::IsEnabled(features::kCustomizableBrowserShortcuts)) {
+     std::erase_if(accelerator_list, [this](const AcceleratorMapping& entry) {
+       return browser_shortcut_service_->HasDefaultAccelerator(
+-          entry.command_id,
+-          ui::Accelerator(entry.keycode, entry.modifiers));
++          entry.command_id, ui::Accelerator(entry.keycode, entry.modifiers));
+     });
+     for (const auto& [accelerator, command_id] :
+          browser_shortcut_service_->GetAcceleratorMap()) {
+Index: src/chrome/browser/ui/views/frame/multi_contents_drop_target_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/multi_contents_drop_target_view.cc
++++ src/chrome/browser/ui/views/frame/multi_contents_drop_target_view.cc
+@@ -53,14 +53,11 @@ gfx::Insets GetOuterContainerMargins(
+   }
+ 
+   const int chrome_edge_margin = side_chrome_attached ? 0 : kOuterPadding;
+-  const int content_edge_margin =
+-      use_content_edge_margin ? kOuterPadding : 0;
++  const int content_edge_margin = use_content_edge_margin ? kOuterPadding : 0;
+   const bool is_start = side == MultiContentsDropTargetView::DropSide::START;
+-  return gfx::Insets::TLBR(0, is_start ? chrome_edge_margin
+-                                       : content_edge_margin,
+-                           kOuterPadding,
+-                           is_start ? content_edge_margin
+-                                    : chrome_edge_margin);
++  return gfx::Insets::TLBR(
++      0, is_start ? chrome_edge_margin : content_edge_margin, kOuterPadding,
++      is_start ? content_edge_margin : chrome_edge_margin);
+ }
+ 
+ gfx::RoundedCornersF GetInnerContainerRadii(
+@@ -77,16 +74,15 @@ gfx::RoundedCornersF GetInnerContainerRa
+       is_start && use_system_top_corner ? system_radius : generic_radius,
+       is_end && use_system_top_corner ? system_radius : generic_radius,
+       (is_end || is_bottom) && use_system_bottom_corner ? system_radius
+-                                                       : generic_radius,
++                                                        : generic_radius,
+       (is_start || is_bottom) && use_system_bottom_corner ? system_radius
+-                                                         : generic_radius);
++                                                          : generic_radius);
+ }
+ 
+-void SetInnerContainerBackground(
+-    views::View* inner_container,
+-    const gfx::RoundedCornersF& radii) {
+-  inner_container->SetBackground(views::CreateLayerBasedRoundedBackground(
+-      ui::kColorSysSurface3, radii));
++void SetInnerContainerBackground(views::View* inner_container,
++                                 const gfx::RoundedCornersF& radii) {
++  inner_container->SetBackground(
++      views::CreateLayerBasedRoundedBackground(ui::kColorSysSurface3, radii));
+   inner_container->background()->SetInternalName(
+       "MultiContentsDropTargetView/InnerContainer");
+ }
+@@ -105,8 +101,7 @@ MultiContentsDropTargetView::MultiConten
+   outer_container_layout_->SetOrientation(views::LayoutOrientation::kVertical)
+       .SetMainAxisAlignment(views::LayoutAlignment::kCenter)
+       .SetCrossAxisAlignment(views::LayoutAlignment::kCenter)
+-      .SetInteriorMargin(GetOuterContainerMargins(side_,
+-                                                  side_chrome_attached_,
++      .SetInteriorMargin(GetOuterContainerMargins(side_, side_chrome_attached_,
+                                                   use_content_edge_margin_))
+       .SetDefault(
+           views::kFlexBehaviorKey,
+@@ -198,6 +193,11 @@ bool MultiContentsDropTargetView::IsVisi
+ int MultiContentsDropTargetView::GetMaxSize(int web_contents_size,
+                                             DropTargetState state,
+                                             DragType drag_type) {
++  // The parent is the available webpage region after browser sidebars.
++  // Tab previews cover exactly its outer quarter, without fixed-size caps.
++  if (drag_type == DragType::kTab && state == DropTargetState::kFull) {
++    return web_contents_size / 4;
++  }
+   int min_size = 0;
+   int max_size = 0;
+   int percentage = 0;
+@@ -359,9 +359,8 @@ void MultiContentsDropTargetView::Update
+ void MultiContentsDropTargetView::UpdateFrameGeometry(
+     bool avoid_propagate_during_layout) {
+   if (outer_container_layout_) {
+-    outer_container_layout_->SetInteriorMargin(
+-        GetOuterContainerMargins(side_, side_chrome_attached_,
+-                                 use_content_edge_margin_));
++    outer_container_layout_->SetInteriorMargin(GetOuterContainerMargins(
++        side_, side_chrome_attached_, use_content_edge_margin_));
+   }
+   const gfx::RoundedCornersF radii = GetInnerContainerRadii(
+       side_, use_system_top_corner_, use_system_bottom_corner_);
+Index: src/chrome/browser/ui/views/frame/multi_contents_view_delegate.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/multi_contents_view_delegate.cc
++++ src/chrome/browser/ui/views/frame/multi_contents_view_delegate.cc
+@@ -146,7 +146,15 @@ void MultiContentsViewDelegateImpl::Hand
+ void MultiContentsViewDelegateImpl::HandleTabDrop(
+     MultiContentsDropTargetView::DropSide side,
+     TabDragTarget::DragController& drag_controller) {
+-  CHECK(!tab_strip_model_->GetActiveTab()->IsSplit());
++  // Keep a stable target across detachment, including same-window drags.
++  base::WeakPtr<tabs::TabInterface> replacement_target;
++  if (auto split = tab_strip_model_->GetActiveTab()->GetSplit()) {
++    const auto panes = tab_strip_model_->GetSplitData(*split)->ListTabs();
++    CHECK_EQ(panes.size(), 2u);
++    replacement_target =
++        panes[side == MultiContentsDropTargetView::DropSide::START ? 0 : 1]
++            ->GetWeakPtr();
++  }
+ 
+   const split_tabs::SplitTabVisualData split_data(
+       side == MultiContentsDropTargetView::DropSide::BOTTOM
+@@ -157,6 +165,19 @@ void MultiContentsViewDelegateImpl::Hand
+       drag_controller.DetachTabAtForInsertion(
+           drag_controller.GetSessionData().source_view_index_);
+ 
++  if (replacement_target && replacement_target->IsSplit()) {
++    const int inserted = tab_strip_model_->InsertDetachedTabAt(
++        tab_strip_model_->count(), std::move(detached_tab),
++        replacement_target->IsPinned() ? AddTabTypes::ADD_PINNED
++                                       : AddTabTypes::ADD_NONE,
++        replacement_target->GetGroup());
++    // kSwap moves the displaced pane into the sidebar instead of closing it.
++    // The existing split visual data and native session events are preserved.
++    tab_strip_model_->UpdateTabInSplit(replacement_target.get(), inserted,
++                                       TabStripModel::SplitUpdateType::kSwap);
++    return;
++  }
++
+   // Insert the tab next to the currently active tab, add it to a split,
+   // then activate it.
+   const int new_tab_idx =
+Index: src/chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller.cc
++++ src/chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller.cc
+@@ -336,35 +336,19 @@ void MultiContentsViewDropTargetControll
+           : MultiContentsDropTargetView::GetMaxSize(
+                 drop_target_parent_view_->width(),
+                 MultiContentsDropTargetView::DropTargetState::kFull, drag_type);
+-  const int drop_entry_point_height = MultiContentsDropTargetView::GetMaxSize(
+-      drop_target_parent_view_->height(),
+-      MultiContentsDropTargetView::DropTargetState::kFull, drag_type);
+-
+   // This differs from drop_target_view_->side() in that it is also std::nullopt
+   // if the drop target view is currently hiding.
+   std::optional<MultiContentsDropTargetView::DropSide> currently_showing_side =
+       drop_target_view_->IsVisibleAndNotClosing() ? drop_target_view_->side()
+                                                   : std::nullopt;
+   MultiContentsDropTargetView::DropSide drop_side;
+-  if (drag_type == MultiContentsDropTargetView::DragType::kTab &&
+-      currently_showing_side == MultiContentsDropTargetView::DropSide::BOTTOM &&
+-      point_in_view.y() >=
+-          drop_target_parent_view_->height() - drop_entry_point_height) {
+-    // If the bottom drop target is already showing during a tab drag, test for
+-    // the bottom drop side first so that going to the corner does not close it.
+-    drop_side = MultiContentsDropTargetView::DropSide::BOTTOM;
+-  } else if (point_in_view.x() <= drop_entry_point_width) {
++  if (point_in_view.x() <= drop_entry_point_width) {
+     drop_side = is_rtl ? MultiContentsDropTargetView::DropSide::END
+                        : MultiContentsDropTargetView::DropSide::START;
+   } else if (point_in_view.x() >=
+              drop_target_parent_view_->width() - drop_entry_point_width) {
+     drop_side = is_rtl ? MultiContentsDropTargetView::DropSide::START
+                        : MultiContentsDropTargetView::DropSide::END;
+-  } else if (base::FeatureList::IsEnabled(tabs::kSplitViewHorizontal) &&
+-             drag_type == MultiContentsDropTargetView::DragType::kTab &&
+-             point_in_view.y() >=
+-                 drop_target_parent_view_->height() - drop_entry_point_height) {
+-    drop_side = MultiContentsDropTargetView::DropSide::BOTTOM;
+   } else {
+     ResetDropTargetTimers();
+     HideDropTarget();
+@@ -391,12 +375,8 @@ void MultiContentsViewDropTargetControll
+       StartNudgeShowTimer(drop_side);
+     }
+   } else {
+-    StartOrUpdateDropTargetTimer(
+-        point_in_view,
+-        drop_side == MultiContentsDropTargetView::DropSide::BOTTOM
+-            ? drop_entry_point_height
+-            : drop_entry_point_width,
+-        drop_side, drag_type);
++    StartOrUpdateDropTargetTimer(point_in_view, drop_entry_point_width,
++                                 drop_side, drag_type);
+   }
+ }
+ 
+Index: src/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
++++ src/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+@@ -95,7 +95,56 @@ void CompareLayouts(const views::Propose
+ }  // namespace
+ 
+ class MultiContentsViewBrowserTest
+-    : public SplitViewBrowserTestMixin<InProcessBrowserTest> {};
++    : public SplitViewBrowserTestMixin<InProcessBrowserTest> {
++ protected:
++  void VerifyPaneReplacement(MultiContentsDropTargetView::DropSide side) {
++    auto* model = browser()->GetTabStripModel();
++    chrome::AddTabAt(browser(), GURL(url::kAboutBlankURL), -1, true);
++    const auto split_id = model->AddToNewSplit(
++        {0}, split_tabs::SplitTabVisualData(),
++        split_tabs::SplitTabCreatedSource::kDragAndDropTab);
++    model->UpdateSplitRatio(split_id, 0.61);
++    const auto panes = model->GetSplitData(split_id)->ListTabs();
++    auto* displaced =
++        panes[side == MultiContentsDropTargetView::DropSide::START ? 0 : 1];
++    auto* retained =
++        panes[side == MultiContentsDropTargetView::DropSide::START ? 1 : 0];
++    auto* source = CreateBrowser(browser()->GetProfile());
++    auto* incoming = source->GetTabStripModel()->GetActiveWebContents();
++    MockDragController controller;
++    DragSessionData data;
++    data.source_view_index_ = 0;
++    EXPECT_CALL(controller, GetSessionData).WillOnce(ReturnRef(data));
++    EXPECT_CALL(controller, DetachTabAtForInsertion(0))
++        .WillOnce(
++            Return(source->GetTabStripModel()->DetachTabAtForInsertion(0)));
++    drop_target_view()->Show(
++        side, MultiContentsDropTargetView::DropTargetState::kFull,
++        MultiContentsDropTargetView::DragType::kTab);
++    multi_contents_view()->drop_target_controller().HandleTabDrop(controller);
++    ASSERT_EQ(3, model->count());
++    EXPECT_GE(model->GetIndexOfTab(displaced), 0);
++    EXPECT_FALSE(displaced->IsSplit());
++    EXPECT_TRUE(retained->IsSplit());
++    const auto after = model->GetSplitData(split_id)->ListTabs();
++    ASSERT_EQ(2u, after.size());
++    EXPECT_EQ(
++        incoming,
++        after[side == MultiContentsDropTargetView::DropSide::START ? 0 : 1]
++            ->GetContents());
++    EXPECT_DOUBLE_EQ(
++        0.61, model->GetSplitData(split_id)->visual_data()->split_ratio());
++  }
++};
++
++IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
++                       ReplaceLeftPaneKeepsDisplacedTab) {
++  VerifyPaneReplacement(MultiContentsDropTargetView::DropSide::START);
++}
++IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
++                       ReplaceRightPaneKeepsDisplacedTab) {
++  VerifyPaneReplacement(MultiContentsDropTargetView::DropSide::END);
++}
+ 
+ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                        HandleDropTargetViewLinkDrop_IsSupported) {
+Index: src/chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller_unittest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller_unittest.cc
++++ src/chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller_unittest.cc
+@@ -314,22 +314,6 @@ class MultiContentsViewDropTargetControl
+     FastForward(kDropTargetAnimationDuration);
+     EXPECT_FALSE(drop_target_view().animation_for_testing().is_animating());
+ 
+-    // Dragging near the bottom edge of the screen should show the drop target
+-    // on the bottom side.
+-    DragTabTo(DragPointForDropTargetShow(DropSide::BOTTOM, rtl));
+-    EXPECT_TRUE(drop_target_view().IsClosing());
+-    FastForward(kDropTargetAnimationDuration);
+-    EXPECT_FALSE(drop_target_view().GetVisible());
+-    FastForward(features::kShowDropTargetForTabDelay.Get() -
+-                kDropTargetAnimationDuration);
+-    EXPECT_TRUE(drop_target_view().GetVisible());
+-    EXPECT_EQ(drop_target_view().side().value(), DropSide::BOTTOM);
+-    EXPECT_EQ(drop_target_view().state().value(),
+-              MultiContentsDropTargetView::DropTargetState::kFull);
+-
+-    FastForward(kDropTargetAnimationDuration);
+-    EXPECT_FALSE(drop_target_view().animation_for_testing().is_animating());
+-
+     // Drag to the end of the screen should show the drop target on the end
+     // side.
+     DragTabTo(DragPointForDropTargetShow(DropSide::END, rtl));
+@@ -486,8 +470,7 @@ INSTANTIATE_TEST_SUITE_P(DropSideRTL,
+                          testing::Values(DropSideRTL{DropSide::START, false},
+                                          DropSideRTL{DropSide::START, true},
+                                          DropSideRTL{DropSide::END, false},
+-                                         DropSideRTL{DropSide::END, true},
+-                                         DropSideRTL{DropSide::BOTTOM, false}));
++                                         DropSideRTL{DropSide::END, true}));
+ 
+ // Tests that the drop target is hidden when the active tab changes.
+ TEST_P(MultiContentsViewDropTargetControllerParamTest,
+@@ -726,11 +709,11 @@ TEST_F(MultiContentsViewDropTargetContro
+   EXPECT_FALSE(drop_target_view().GetVisible());
+ }
+ 
+-// Tests that the bottom drop target is enabled for tab dragging.
++// Only side-by-side splits are offered for tab dragging.
+ TEST_F(MultiContentsViewDropTargetControllerTest, BottomDropTargetTab) {
+   DragTabTo(DragPointForDropTargetShow(DropSide::BOTTOM, false));
+   FastForward(features::kShowDropTargetForTabDelay.Get());
+-  EXPECT_TRUE(drop_target_view().GetVisible());
++  EXPECT_FALSE(drop_target_view().GetVisible());
+ }
+ 
+ // Tests that link dragging does not show a bottom drop target.
+@@ -741,6 +724,21 @@ TEST_F(MultiContentsViewDropTargetContro
+   EXPECT_FALSE(drop_target_view().GetVisible());
+ }
+ 
++TEST_F(MultiContentsViewDropTargetControllerTest, TabDropUsesOuterQuarterOnly) {
++  const int quarter = kMultiContentsViewSize.width() / 4;
++  const int middle_y = kMultiContentsViewSize.height() / 2;
++  DragTabTo(gfx::Point(quarter + 1, middle_y));
++  FastForward(features::kShowDropTargetForTabDelay.Get());
++  EXPECT_FALSE(drop_target_view().GetVisible());
++  DragTabTo(gfx::Point(quarter - 1, middle_y));
++  FastForward(features::kShowDropTargetForTabDelay.Get());
++  EXPECT_TRUE(drop_target_view().GetVisible());
++  EXPECT_EQ(drop_target_view().side(), DropSide::START);
++  DragTabTo(gfx::Point(kMultiContentsViewSize.width() / 2, middle_y));
++  FastForward(kDropTargetAnimationDuration);
++  EXPECT_FALSE(drop_target_view().GetVisible());
++}
++
+ class MultiContentsViewDropTargetControllerHorizontalDisabledTest
+     : public MultiContentsViewDropTargetControllerTest {
+  public:
+Index: src/chrome/browser/ui/views/frame/multi_contents_drop_target_view.h
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/multi_contents_drop_target_view.h
++++ src/chrome/browser/ui/views/frame/multi_contents_drop_target_view.h
+@@ -34,7 +34,7 @@ class MultiContentsDropTargetView : publ
+ 
+   static constexpr int kDropTargetMinSize = 120;
+   static constexpr int kDropTargetMaxSize = 360;
+-  static constexpr int kDropTargetTargetSizePercentage = 20;
++  static constexpr int kDropTargetTargetSizePercentage = 25;
+   static constexpr int kDropTargetForLinkTargetSizePercentage = 20;
+   static constexpr int kNudgeMinSize = 80;
+   static constexpr int kNudgeMaxSize = 200;
+Index: src/chrome/browser/ui/views/frame/multi_contents_drop_target_view_unittest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/multi_contents_drop_target_view_unittest.cc
++++ src/chrome/browser/ui/views/frame/multi_contents_drop_target_view_unittest.cc
+@@ -293,13 +293,11 @@ TEST_P(DropTargetViewTest, GetSizeForAva
+              MultiContentsDropTargetView::DragType::kTab);
+   EXPECT_TRUE(view->GetVisible());
+ 
+-  // Size is clamped to the minimum.
+-  EXPECT_EQ(MultiContentsDropTargetView::kDropTargetMinSize,
+-            view->GetSizeForAvailableSpace(400));
++  // Narrow windows retain quarter-width previews.
++  EXPECT_EQ(100, view->GetSizeForAvailableSpace(400));
+ 
+-  // Size is clamped to the maximum.
+-  EXPECT_EQ(MultiContentsDropTargetView::kDropTargetMaxSize,
+-            view->GetSizeForAvailableSpace(3000));
++  // Wide windows are not capped at a fixed pixel width.
++  EXPECT_EQ(750, view->GetSizeForAvailableSpace(3000));
+ 
+   // Size is the target percentage of the web contents size.
+   EXPECT_EQ(

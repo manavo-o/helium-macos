@@ -33,3 +33,38 @@ from the address bar. Direct navigation to that URL in the existing Helium
 profile submitted a harmless test question and produced a conversation; it
 did not invoke the extension's address-bar keyword. The custom build still
 needs signed-out and encoding verification before release.
+
+
+## Adapted native implementation
+
+`arc-native-sidebar.patch` adapts the real-view reparenting approach from
+PR #2367 without importing its entire patch or moving extension access out of
+the toolbar. Biba's pinned-grid sizing and pinned-tab presentation inform
+`PinnedTabContainerView`/`TabView` changes; Spaces and branding are excluded.
+PR #2747 informs local interface-density preferences and layout constants;
+pinned-tile sizing is independent. All donor revisions above remain pinned.
+
+`arc-local-omnibox.patch` uses Chromium's existing local bookmark, history,
+shortcuts and built-in providers; search/zero-suggest/extension providers are
+excluded. `arc-chat-button.patch` uses the extension toolbar view model and
+existing side-panel host. `arc-default-chat-extension.patch` uses Chromium's
+first-run external-extension loader with the official Web Store update URL,
+preserving ordinary acknowledgement and user opt-out. No extension CRX is
+redistributed. `arc-app-identity.patch` separates the app, profile and keychain.
+`arc-visual-theme.patch` implements the supplied Arc visual references using
+native controls; see [visual design](arc-visual-design.md).
+
+No third-party runtime dependency is introduced by these adaptations. Imported
+Chromium files retain BSD notices; original Helium additions carry GPL headers.
+Runtime extension authentication, private permission and panel conversation
+continuity still require checking in the separately identified app.
+
+
+`arc-split-drop.patch` keeps native swap/separate/resize/session machinery,
+adds outer-quarter horizontal previews, and uses `UpdateTabInSplit(kSwap)` to
+retain the displaced tab. `arc-drag-pinning.patch` selectively adapts Biba's
+sidebar drag region and post-drag pin conversion, using native orientation
+rather than class-name strings, handling unpinning and cancellation, and
+excluding all Spaces dependencies. `arc-release-identity.patch` removes the
+inherited upstream Apple team; signed builds must set their own public
+`ARC_MACOS_TEAM_ID` and signing/notarization secrets.

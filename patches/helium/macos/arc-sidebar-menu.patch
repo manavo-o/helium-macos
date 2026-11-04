@@ -1,0 +1,17 @@
+Index: src/chrome/browser/ui/views/frame/system_menu_model_builder.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/system_menu_model_builder.cc
++++ src/chrome/browser/ui/views/frame/system_menu_model_builder.cc
+@@ -174,12 +174,6 @@ void SystemMenuModelBuilder::BuildSystem
+         std::make_unique<ui::SimpleMenuModel>(&menu_delegate_);
+ 
+     browser_layout_menu_contents_->AddCheckItemWithStringId(
+-        IDC_BROWSER_LAYOUT_CLASSIC, IDS_BROWSER_LAYOUT_CLASSIC);
+-    browser_layout_menu_contents_->AddCheckItemWithStringId(
+-        IDC_BROWSER_LAYOUT_DYNAMIC, IDS_BROWSER_LAYOUT_DYNAMIC);
+-    browser_layout_menu_contents_->AddCheckItemWithStringId(
+-        IDC_BROWSER_LAYOUT_COMPACT, IDS_BROWSER_LAYOUT_COMPACT);
+-    browser_layout_menu_contents_->AddCheckItemWithStringId(
+         IDC_BROWSER_LAYOUT_VERTICAL, IDS_BROWSER_LAYOUT_VERTICAL);
+     auto* layout_controller = HeliumLayoutStateController::From(browser());
+     if (layout_controller && layout_controller->IsVerticalLayout()) {

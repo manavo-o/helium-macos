@@ -1,0 +1,1000 @@
+Index: src/chrome/browser/ui/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/BUILD.gn
++++ src/chrome/browser/ui/BUILD.gn
+@@ -631,6 +631,11 @@ if (!is_android) {
+     }
+   }
+ 
++  source_set("arc_routing_headers") {
++    public = [ "helium/arc_question_routing.h" ]
++    public_deps = [ "//url" ]
++  }
++
+   source_set("browser_command_controller") {
+     public = [
+       "browser_command_controller.h",
+@@ -1793,8 +1798,8 @@ static_library("ui") {
+     "//components/lens",
+     "//components/lens:buildflags",
+     "//components/lens:enterprise_policy",
+-    "//components/metrics/debug:resources",
+     "//components/metrics:metrics_pref_names",
++    "//components/metrics/debug:resources",
+     "//components/metrics/private_metrics",
+     "//components/omnibox/browser:vector_icons",
+     "//components/optimization_guide/content/browser",
+@@ -2303,6 +2308,8 @@ static_library("ui") {
+       # that //chrome/browser:browser has no remaining sources. It registers
+       # WebUI interface binders for desktop, which need this target's headers.
+       "//chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc",
++      "browser.cc",
++      "browser.h",
+       "browser_shortcuts/browser_shortcut_metadata.cc",
+       "browser_shortcuts/browser_shortcut_metadata.h",
+       "browser_shortcuts/browser_shortcut_prefs.cc",
+@@ -2313,8 +2320,6 @@ static_library("ui") {
+       "browser_shortcuts/browser_shortcut_service.h",
+       "browser_shortcuts/browser_shortcut_service_factory.cc",
+       "browser_shortcuts/browser_shortcut_service_factory.h",
+-      "browser.cc",
+-      "browser.h",
+       "browser_tabstrip.cc",
+       "browser_tabstrip.h",
+     ]
+@@ -4815,11 +4820,11 @@ source_set("layout_constants") {
+   deps = [
+     "//base",
+     "//chrome/browser:browser_process",
+-    "//chrome/common:constants",
+-    "//components/prefs",
+     "//chrome/browser/ui:ui_features",
+     "//chrome/common:chrome_features",
++    "//chrome/common:constants",
+     "//components/omnibox/common",
++    "//components/prefs",
+     "//ui/base",
+     "//ui/base:features",
+   ]
+Index: src/chrome/browser/ui/helium/arc_question_routing.h
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/helium/arc_question_routing.h
+@@ -0,0 +1,36 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_HELIUM_ARC_QUESTION_ROUTING_H_
++#define CHROME_BROWSER_UI_HELIUM_ARC_QUESTION_ROUTING_H_
++
++#include <optional>
++#include <string_view>
++
++#include "url/gurl.h"
++
++namespace helium {
++
++enum class ArcDestination { kNavigation, kSearch, kChatGPT };
++
++bool IsArcQuestion(std::u16string_view text);
++ArcDestination ResolveArcFreeText(std::u16string_view text,
++                                  bool is_valid_url,
++                                  std::optional<bool> explicit_chatgpt,
++                                  bool automatic_enabled,
++                                  bool is_private);
++
++// The official extension's public search-provider template, verified to submit
++// when navigated directly. This website handoff never invokes an extension.
++class ChatGPTWebsiteProvider {
++ public:
++  static GURL BuildSubmissionURL(std::u16string_view question);
++};
++
++// Only local omnibox providers are instantiated for the floating palette.
++int ArcLocalAutocompleteProviders();
++
++}  // namespace helium
++
++#endif  // CHROME_BROWSER_UI_HELIUM_ARC_QUESTION_ROUTING_H_
+Index: src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -4,6 +4,7 @@
+ 
+ import("//build/config/ui.gni")
+ import("//chrome/common/features.gni")
++import("//testing/test.gni")
+ 
+ source_set("vertical") {
+   sources = [
+@@ -38,6 +39,7 @@ source_set("vertical") {
+ source_set("impl") {
+   sources = [
+     "arc_command_bar_view.cc",
++    "arc_question_routing.cc",
+     "top_container_button.cc",
+     "vertical_new_tab_button.cc",
+     "vertical_tab_strip_bottom_container.cc",
+@@ -48,15 +50,15 @@ source_set("impl") {
+   ]
+ 
+   deps = [
+-    "//chrome/browser/autocomplete",
+-    "//components/omnibox/browser",
+-    "//components/vector_icons",
+-    "//third_party/metrics_proto",
++    "//chrome/browser/ui/views/frame:multi_contents_view",
+     "//chrome/browser:primitives",
++    "//chrome/browser/autocomplete",
+     "//chrome/browser/glic",
+     "//chrome/browser/glic/browser_ui:glow",
+     "//chrome/browser/glic/browser_ui:glow_controller",
++    "//chrome/browser/search_engines",
+     "//chrome/browser/themes",
++    "//chrome/browser/ui:arc_routing_headers",
+     "//chrome/browser/ui:browser_commands",
+     "//chrome/browser/ui:browser_element_identifiers",
+     "//chrome/browser/ui:layout_constants",
+@@ -82,12 +84,17 @@ source_set("impl") {
+     "//chrome/browser/ui/views/toolbar",
+     "//chrome/browser/ui/window_metadata",
+     "//components/contextual_tasks/public:feature_list",
++    "//components/omnibox/browser",
+     "//components/performance_manager",
++    "//components/search_engines",
+     "//components/tab_groups",
+     "//components/tabs:impl",
++    "//components/vector_icons",
+     "//content/public/browser",
+     "//skia",
+     "//third_party/abseil-cpp:absl",
++    "//third_party/icu",
++    "//third_party/metrics_proto",
+     "//ui/accessibility:ax_base",
+     "//ui/actions",
+     "//ui/base",
+@@ -115,8 +122,9 @@ source_set("impl") {
+ source_set("browser_tests") {
+   testonly = true
+   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+-  sources = []
++  sources = [ "arc_command_bar_browsertest.cc" ]
+   deps = [
++    "//chrome/browser/ui/views/frame:browser_view_header",
+     ":impl",
+     "//base",
+     "//chrome/browser",
+@@ -149,12 +157,14 @@ source_set("browser_tests") {
+ source_set("unit_tests") {
+   testonly = true
+   sources = [
++    "arc_question_routing_unittest.cc",
+     "vertical_tab_strip_expand_on_hover_lock_unittest.cc",
+     "vertical_tab_strip_top_container_unittest.cc",
+   ]
+   deps = [
+     ":impl",
+     "//base/test:test_support",
++    "//chrome/browser/ui:arc_routing_headers",
+     "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/views/tabs/common",
+     "//chrome/browser/ui/views/tabs/common:unit_tests",
+@@ -162,7 +172,9 @@ source_set("unit_tests") {
+     "//chrome/browser/ui/views/tabs/vertical",
+     "//chrome/test:test_support",
+     "//chrome/test:test_support_ui",
++    "//components/omnibox/browser",
+     "//components/tabs:test_support",
++    "//net",
+     "//testing/gtest",
+     "//ui/events:test_support",
+     "//ui/views",
+@@ -204,3 +216,21 @@ source_set("interactive_ui_tests") {
+     "//ui/views",
+   ]
+ }
++
++# Small focused binary; does not link the browser UI implementation.
++test("arc_routing_tests") {
++  sources = [
++    "arc_question_routing.cc",
++    "arc_question_routing_unittest.cc",
++  ]
++  deps = [
++    "//base",
++    "//base/test:run_all_unittests",
++    "//chrome/browser/ui:arc_routing_headers",
++    "//components/omnibox/browser",
++    "//net",
++    "//testing/gtest",
++    "//third_party/icu",
++    "//url",
++  ]
++}
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -0,0 +1,132 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#include "chrome/browser/ui/helium/arc_command_bar.h"
++
++#include "base/run_loop.h"
++#include "base/task/single_thread_task_runner.h"
++#include "base/test/bind.h"
++#include "chrome/app/chrome_command_ids.h"
++#include "chrome/browser/search_engines/template_url_service_factory.h"
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_commands.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/test/base/in_process_browser_test.h"
++#include "chrome/test/base/interactive_test_utils.h"
++#include "components/search_engines/template_url.h"
++#include "components/search_engines/template_url_data.h"
++#include "components/search_engines/template_url_service.h"
++#include "components/search_engines/template_url_service_test_util.h"
++#include "content/public/test/browser_test.h"
++#include "content/public/test/url_loader_interceptor.h"
++#include "ui/events/keycodes/keyboard_codes.h"
++#include "ui/views/controls/textfield/textfield.h"
++#include "ui/views/view_utils.h"
++#include "ui/views/widget/widget.h"
++
++namespace {
++
++views::Textfield* FindInput(views::View* view) {
++  if (auto* input = views::AsViewClass<views::Textfield>(view)) {
++    return input;
++  }
++  for (auto* child : view->children()) {
++    if (auto* input = FindInput(child)) {
++      return input;
++    }
++  }
++  return nullptr;
++}
++
++class ArcCommandBarBrowserTest : public InProcessBrowserTest {
++ protected:
++  void SetUpCommandLine(base::CommandLine* command_line) override {
++    command_line->AppendSwitch("disable-default-apps");
++  }
++  views::Widget* OpenPalette() {
++    EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_NEW_TAB));
++    auto* parent =
++        BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
++    for (auto* widget :
++         views::Widget::GetAllOwnedWidgets(parent->GetNativeView())) {
++      if (widget->GetName() == "ArcCommandBar") {
++        return widget;
++      }
++    }
++    return nullptr;
++  }
++  void Key(views::Widget* widget, ui::KeyboardCode key) {
++    ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
++        widget->GetNativeWindow(), key, false, false, false, false));
++  }
++};
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       EmptyEnterAndCancellationCreateNoTab) {
++  const int count = browser()->tab_strip_model()->count();
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  EXPECT_EQ(count, browser()->tab_strip_model()->count());
++  Key(palette, ui::VKEY_RETURN);
++  EXPECT_EQ(count, browser()->tab_strip_model()->count());
++  Key(palette, ui::VKEY_TAB);
++  Key(palette, ui::VKEY_ESCAPE);
++  base::RunLoop().RunUntilIdle();
++  EXPECT_EQ(count, browser()->tab_strip_model()->count());
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       SubmittingUrlCreatesExactlyOneTab) {
++  const int count = browser()->tab_strip_model()->count();
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  auto* input = FindInput(palette->GetContentsView());
++  ASSERT_TRUE(input);
++  input->SetText(u"about:blank");
++  Key(palette, ui::VKEY_RETURN);
++  base::RunLoop().RunUntilIdle();
++  EXPECT_EQ(count + 1, browser()->tab_strip_model()->count());
++  EXPECT_EQ(
++      GURL("about:blank"),
++      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       TypingNeverRequestsSearchSuggestions) {
++  auto* service =
++      TemplateURLServiceFactory::GetForProfile(browser()->profile());
++  search_test_utils::WaitForTemplateURLServiceToLoad(service);
++  TemplateURLData data;
++  data.SetShortName(u"Test search");
++  data.SetKeyword(u"arc-test");
++  data.SetURL("https://arc-search.invalid/?q={searchTerms}");
++  data.suggestions_url = "https://arc-suggestions.invalid/?q={searchTerms}";
++  auto* engine = service->Add(std::make_unique<TemplateURL>(data));
++  service->SetUserSelectedDefaultSearchProvider(engine);
++  int suggestion_requests = 0;
++  content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
++      [&](content::URLLoaderInterceptor::RequestParams* params) {
++        if (params->url_request.url.host() == "arc-suggestions.invalid") {
++          ++suggestion_requests;
++        }
++        return false;
++      }));
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  // Even the early prefixes, before the text becomes an English question,
++  // must stay away from the search engine's suggestion endpoint.
++  for (const auto key : {ui::VKEY_W, ui::VKEY_H, ui::VKEY_Y, ui::VKEY_SPACE,
++                         ui::VKEY_A, ui::VKEY_B, ui::VKEY_C}) {
++    Key(palette, key);
++  }
++  base::RunLoop settle;
++  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
++      FROM_HERE, settle.QuitClosure(), base::Seconds(1));
++  settle.Run();
++  EXPECT_EQ(0, suggestion_requests);
++  Key(palette, ui::VKEY_ESCAPE);
++}
++
++}  // namespace
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -16,10 +16,16 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
++#include "chrome/browser/autocomplete/chrome_autocomplete_provider_client.h"
++#include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/search_engines/template_url_service_factory.h"
+ #include "chrome/browser/ui/browser_commands.h"
++#include "chrome/browser/ui/browser_window.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+ #include "chrome/browser/ui/helium/arc_command_bar.h"
++#include "chrome/browser/ui/helium/arc_question_routing.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -27,8 +33,14 @@
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/omnibox/browser/autocomplete_classifier.h"
++#include "components/omnibox/browser/autocomplete_controller.h"
++#include "components/omnibox/browser/autocomplete_controller_config.h"
++#include "components/omnibox/browser/autocomplete_input.h"
+ #include "components/omnibox/browser/autocomplete_match.h"
++#include "components/omnibox/browser/autocomplete_result.h"
+ #include "components/prefs/pref_service.h"
++#include "components/search_engines/template_url.h"
++#include "components/search_engines/template_url_service.h"
+ #include "content/public/browser/web_contents.h"
+ #include "third_party/metrics_proto/omnibox_event.pb.h"
+ #include "ui/base/metadata/metadata_header_macros.h"
+@@ -45,6 +57,7 @@
+ #include "ui/views/controls/textfield/textfield.h"
+ #include "ui/views/controls/textfield/textfield_controller.h"
+ #include "ui/views/layout/box_layout.h"
++#include "ui/views/view_tracker.h"
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/widget/widget_observer.h"
+ #include "url/gurl.h"
+@@ -53,46 +66,7 @@ namespace {
+ 
+ constexpr int kBarWidth = 820;
+ constexpr int kCornerRadius = 16;
+-constexpr int kMaxResults = 5;
+-constexpr std::array<std::u16string_view, 27> kQuestionWords = {
+-    u"who",   u"what", u"when", u"where", u"why",   u"how",    u"which",
+-    u"whose", u"whom", u"is",   u"are",   u"am",    u"was",    u"were",
+-    u"do",    u"does", u"did",  u"can",   u"could", u"should", u"would",
+-    u"will",  u"has",  u"have", u"had",   u"may",   u"might"};
+-
+-bool IsWordCharacter(char16_t c) {
+-  return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z') ||
+-         (c >= u'0' && c <= u'9') || c == u'_';
+-}
+-
+-bool LooksLikeQuestion(std::u16string_view input) {
+-  const std::u16string trimmed(base::TrimWhitespace(input, base::TRIM_ALL));
+-  if (trimmed.find(u'?') != std::u16string::npos) {
+-    return true;
+-  }
+-  for (std::u16string_view word : kQuestionWords) {
+-    if (trimmed.size() < word.size()) {
+-      continue;
+-    }
+-    bool equal = true;
+-    for (size_t i = 0; i < word.size(); ++i) {
+-      char16_t c = trimmed[i];
+-      if (c >= u'A' && c <= u'Z') {
+-        c += u'a' - u'A';
+-      }
+-      if (c != word[i]) {
+-        equal = false;
+-        break;
+-      }
+-    }
+-    if (equal && (trimmed.size() == word.size() ||
+-                  !IsWordCharacter(trimmed[word.size()]))) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
++constexpr int kMaxResults = 8;
+ bool LooksLikeURL(std::u16string_view input) {
+   const std::u16string_view trimmed =
+       base::TrimWhitespace(input, base::TRIM_ALL);
+@@ -109,18 +83,10 @@ bool LooksLikeURL(std::u16string_view in
+   return inferred.is_valid() && inferred.host().find('.') != std::string::npos;
+ }
+ 
+-// This is a browser-owned website handoff. It does not invoke either ChatGPT
+-// extension. The URL shape is the official ChatGPT search extension's public
+-// search-provider template, and direct navigation was verified to submit.
+-GURL ChatGPTSearchURL(std::u16string_view question) {
+-  const std::string escaped = base::EscapeQueryParamValue(
+-      base::UTF16ToUTF8(question), /*use_plus=*/false);
+-  return GURL("https://chatgpt.com/?q=" + escaped + "&hints=search&ref=ext");
+-}
+-
+ class ArcCommandBarView : public views::View,
+                           public views::TextfieldController,
+-                          public views::WidgetObserver {
++                          public views::WidgetObserver,
++                          public AutocompleteController::Observer {
+   METADATA_HEADER(ArcCommandBarView, views::View)
+ 
+  public:
+@@ -140,8 +106,7 @@ class ArcCommandBarView : public views::
+     textfield_->GetViewAccessibility().SetName(u"Command palette");
+     auto* divider = AddChildView(std::make_unique<views::View>());
+     divider->SetPreferredSize(gfx::Size(width_ - 24, 1));
+-    divider->SetBackground(
+-        views::CreateSolidBackground(ui::kColorSysDivider));
++    divider->SetBackground(views::CreateSolidBackground(ui::kColorSysDivider));
+     results_container_ = AddChildView(std::make_unique<views::View>());
+     results_container_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+         views::BoxLayout::Orientation::kVertical, gfx::Insets(), 4));
+@@ -161,19 +126,68 @@ class ArcCommandBarView : public views::
+     destination_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+     destination_->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(5, 13)));
+     destination_->SetEnabledColor(ui::kColorSysOnSurfaceVariant);
++    AutocompleteControllerConfig config;
++    config.provider_types = helium::ArcLocalAutocompleteProviders();
++    config.disable_ml = true;
++    config.show_iph_matches = false;
++    autocomplete_ = std::make_unique<AutocompleteController>(
++        std::make_unique<ChromeAutocompleteProviderClient>(
++            browser_->GetProfile()),
++        config);
++    autocomplete_->AddObserver(this);
++    if (auto* view = BrowserView::GetBrowserViewForBrowser(browser_)) {
++      if (view->GetFocusManager()) {
++        previous_focus_.SetView(view->GetFocusManager()->GetFocusedView());
++      }
++    }
+     UpdateResults();
+     UpdateDestination();
+   }
+   ArcCommandBarView(const ArcCommandBarView&) = delete;
+   ArcCommandBarView& operator=(const ArcCommandBarView&) = delete;
+-  ~ArcCommandBarView() override = default;
++  ~ArcCommandBarView() override { autocomplete_->RemoveObserver(this); }
+ 
+   views::Textfield* textfield() { return textfield_; }
+ 
+   void ContentsChanged(views::Textfield* sender,
+                        const std::u16string& new_contents) override {
+-    UpdateResults();
++    selected_result_ = -1;
++    // Resolve the local destination before invoking the strictly local
++    // provider set. Neither search nor extension suggestion providers exist.
+     UpdateDestination();
++    AutocompleteInput input(
++        new_contents, metrics::OmniboxEventProto::INVALID_SPEC,
++        ChromeAutocompleteSchemeClassifier(browser_->GetProfile()));
++    input.set_prevent_inline_autocomplete(true);
++    autocomplete_->Start(input);
++    UpdateResults();
++  }
++
++  void OnResultChanged(AutocompleteController*, bool) override {
++    UpdateResults();
++  }
++
++  void OnWidgetDestroying(views::Widget* widget) override {
++    widget->RemoveObserver(this);
++    if (restore_focus_ && previous_focus_.view()) {
++      previous_focus_.view()->RequestFocus();
++    }
++  }
++
++  bool OnKeyPressed(const ui::KeyEvent& event) override {
++    if (event.key_code() == ui::VKEY_ESCAPE) {
++      GetWidget()->Close();
++      return true;
++    }
++    if (event.key_code() == ui::VKEY_F6) {
++      if (textfield_->HasFocus() && !results_.empty()) {
++        result_rows_.front()->RequestFocus();
++      } else {
++        textfield_->RequestFocus();
++      }
++      return true;
++    }
++    return views::View::OnKeyPressed(event);
+   }
+ 
+   bool HandleKeyEvent(views::Textfield* sender,
+@@ -191,6 +205,7 @@ class ArcCommandBarView : public views::
+       }
+       explicit_chatgpt_ = !ShouldAskChatGPT();
+       UpdateDestination();
++      UpdateResults();
+       return true;
+     }
+     if (key_event.key_code() == ui::VKEY_DOWN && !results_.empty()) {
+@@ -216,54 +231,105 @@ class ArcCommandBarView : public views::
+   }
+ 
+   void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
+-    if (!active) {
+-      widget->RemoveObserver(this);
++    if (!active && !widget->IsClosed()) {
+       widget->Close();
+     }
+   }
+ 
+  private:
+   struct Result {
+-    enum class Kind { kTab, kCommand } kind;
++    enum class Kind { kInput, kTab, kCommand, kNavigation } kind;
+     int value;
+     std::u16string label;
++    GURL url;
++    base::WeakPtr<content::WebContents> tab;
++    base::WeakPtr<BrowserWindowInterface> window;
+   };
+ 
+   void UpdateResults() {
++    const std::u16string previous =
++        selected_result_ >= 0 &&
++                static_cast<size_t>(selected_result_) < results_.size()
++            ? results_[selected_result_].label
++            : std::u16string();
+     results_.clear();
+     const std::u16string query = base::ToLowerASCII(std::u16string(
+         base::TrimWhitespace(textfield_->GetText(), base::TRIM_ALL)));
+-    TabStripModel* tabs = browser_->GetTabStripModel();
+-    if (tabs) {
+-      for (int i = 0; i < tabs->count() && results_.size() < kMaxResults; ++i) {
+-        content::WebContents* contents = tabs->GetWebContentsAt(i);
+-        const std::u16string title = contents->GetTitle();
+-        const std::u16string url =
+-            base::UTF8ToUTF16(contents->GetVisibleURL().spec());
+-        if (!query.empty() &&
+-            (base::ToLowerASCII(title).find(query) != std::u16string::npos ||
+-             base::ToLowerASCII(url).find(query) != std::u16string::npos)) {
+-          results_.push_back({Result::Kind::kTab, i, u"Tab  ·  " + title});
++    if (!query.empty()) {
++      results_.push_back(
++          {Result::Kind::kInput, 0,
++           LooksLikeURL(query)
++               ? u"Open URL  ·  " + std::u16string(textfield_->GetText())
++               : (ShouldAskChatGPT() ? u"Ask ChatGPT  ·  " : u"Search  ·  ") +
++                     std::u16string(textfield_->GetText())});
++    }
++    GlobalBrowserCollection::GetInstance()->ForEach(
++        [&](BrowserWindowInterface* window) {
++          if (window->GetProfile() != browser_->GetProfile() || query.empty()) {
++            return true;
++          }
++          auto* tabs = window->GetTabStripModel();
++          for (int i = 0; i < tabs->count() && results_.size() < 4; ++i) {
++            auto* contents = tabs->GetWebContentsAt(i);
++            const std::u16string title = contents->GetTitle();
++            const std::u16string url =
++                base::UTF8ToUTF16(contents->GetVisibleURL().spec());
++            if (base::ToLowerASCII(title).find(query) != std::u16string::npos ||
++                base::ToLowerASCII(url).find(query) != std::u16string::npos) {
++              results_.push_back(
++                  {Result::Kind::kTab, 0, u"Switch to tab  ·  " + title,
++                   contents->GetVisibleURL(), contents->GetWeakPtr(),
++                   window->GetWeakPtr()});
++            }
++          }
++          return true;
++        });
++    if (!query.empty()) {
++      for (const auto& match : autocomplete_->result()) {
++        if (results_.size() >= kMaxResults - 2) {
++          break;
+         }
++        if (!match.destination_url.is_valid() ||
++            AutocompleteMatch::IsSearchType(match.type)) {
++          continue;
++        }
++        results_.push_back({Result::Kind::kNavigation, 0,
++                            match.description.empty()
++                                ? match.contents
++                                : match.description + u"  ·  " + match.contents,
++                            match.destination_url});
+       }
+     }
+     constexpr struct {
+       std::u16string_view label;
+       int command;
+     } commands[] = {{u"New window", IDC_NEW_WINDOW},
++                    {u"New private window", IDC_NEW_INCOGNITO_WINDOW},
+                     {u"History", IDC_SHOW_HISTORY},
+-                    {u"Downloads", IDC_SHOW_DOWNLOADS}};
++                    {u"Downloads", IDC_SHOW_DOWNLOADS},
++                    {u"Settings", IDC_OPTIONS},
++                    {u"Bookmark this page", IDC_BOOKMARK_THIS_TAB},
++                    {u"Reopen closed tab", IDC_RESTORE_TAB},
++                    {u"Find in page", IDC_FIND},
++                    {u"Reload page", IDC_RELOAD},
++                    {u"Toggle fullscreen", IDC_FULLSCREEN}};
+     for (const auto& command : commands) {
+       if (results_.size() == kMaxResults) {
+         break;
+       }
+-      if (query.empty() || base::ToLowerASCII(command.label).find(query) !=
+-                               std::u16string::npos) {
++      if (chrome::IsCommandEnabled(browser_, command.command) &&
++          (query.empty() || base::ToLowerASCII(command.label).find(query) !=
++                                std::u16string::npos)) {
+         results_.push_back({Result::Kind::kCommand, command.command,
+                             u"Action  ·  " + std::u16string(command.label)});
+       }
+     }
+-    selected_result_ = results_.empty() ? -1 : 0;
++    selected_result_ = query.empty() ? -1 : 0;
++    for (size_t i = 0; i < results_.size(); ++i) {
++      if (!previous.empty() && results_[i].label == previous) {
++        selected_result_ = static_cast<int>(i);
++      }
++    }
+     for (size_t i = 0; i < result_rows_.size(); ++i) {
+       result_rows_[i]->SetVisible(i < results_.size());
+       if (i < results_.size()) {
+@@ -281,6 +347,9 @@ class ArcCommandBarView : public views::
+       const bool selected = static_cast<int>(i) == selected_result_;
+       result_rows_[i]->SetBackground(views::CreateRoundedRectBackground(
+           selected ? ui::kColorSysPrimaryContainer : ui::kColorSysSurface1, 8));
++      result_rows_[i]->GetViewAccessibility().SetDescription(
++          selected ? u"Selected result. Enter to open. F6 to move focus."
++                   : u"");
+       result_rows_[i]->SetEnabledTextColors(
+           selected ? ui::kColorSysOnPrimaryContainer : ui::kColorSysOnSurface);
+     }
+@@ -291,31 +360,62 @@ class ArcCommandBarView : public views::
+       return;
+     }
+     const Result result = results_[index];
+-    GetWidget()->Close();
++    if (result.kind == Result::Kind::kInput) {
++      Submit(textfield_->GetText());
++      return;
++    }
+     if (result.kind == Result::Kind::kTab) {
+-      browser_->GetTabStripModel()->ActivateTabAt(result.value);
+-    } else {
++      if (!result.window || !result.tab) {
++        UpdateResults();
++        return;
++      }
++      auto* tabs = result.window->GetTabStripModel();
++      const int tab_index = tabs->GetIndexOfWebContents(result.tab.get());
++      if (tab_index == TabStripModel::kNoTab) {
++        UpdateResults();
++        return;
++      }
++      restore_focus_ = false;
++      GetWidget()->Close();
++      tabs->ActivateTabAt(tab_index);
++      result.window->GetWindow()->Activate();
++      return;
++    }
++    restore_focus_ = false;
++    GetWidget()->Close();
++    if (result.kind == Result::Kind::kCommand) {
+       chrome::ExecuteCommand(browser_, result.value);
++    } else {
++      NavigateParams params(browser_, result.url, ui::PAGE_TRANSITION_TYPED);
++      params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++      Navigate(&params);
+     }
+   }
+ 
+   bool ShouldAskChatGPT() const {
+-    if (explicit_chatgpt_.has_value()) {
+-      return *explicit_chatgpt_;
+-    }
+-    return !browser_->GetProfile()->IsOffTheRecord() &&
+-           browser_->GetProfile()->GetPrefs()->GetBoolean(
+-               prefs::kHeliumArcQuestionRouting) &&
+-           LooksLikeQuestion(textfield_->GetText());
++    return helium::ResolveArcFreeText(
++               textfield_->GetText(), false, explicit_chatgpt_,
++               browser_->GetProfile()->GetPrefs()->GetBoolean(
++                   prefs::kHeliumArcQuestionRouting),
++               browser_->GetProfile()->IsOffTheRecord()) ==
++           helium::ArcDestination::kChatGPT;
++  }
++
++  std::u16string SearchDestinationLabel() const {
++    auto* service =
++        TemplateURLServiceFactory::GetForProfile(browser_->GetProfile());
++    const auto* engine =
++        service ? service->GetDefaultSearchProvider() : nullptr;
++    return u"Search " + (engine ? engine->short_name() : u"default engine") +
++           u" · Tab to ask ChatGPT · F6 for results";
+   }
+ 
+   void UpdateDestination() {
+     if (LooksLikeURL(textfield_->GetText())) {
+       destination_->SetText(u"Open URL");
+     } else {
+-      destination_->SetText(
+-          ShouldAskChatGPT() ? u"Ask ChatGPT · Tab to search"
+-                             : u"Search default engine · Tab to ask ChatGPT");
++      destination_->SetText(ShouldAskChatGPT() ? u"Ask ChatGPT · Tab to search"
++                                               : SearchDestinationLabel());
+     }
+   }
+ 
+@@ -333,15 +433,17 @@ class ArcCommandBarView : public views::
+       return;
+     }
+     const bool is_url = !AutocompleteMatch::IsSearchType(match.type);
+-    const GURL destination = !is_url && ShouldAskChatGPT()
+-                                 ? ChatGPTSearchURL(trimmed)
+-                                 : match.destination_url;
++    const GURL destination =
++        !is_url && ShouldAskChatGPT()
++            ? helium::ChatGPTWebsiteProvider::BuildSubmissionURL(trimmed)
++            : match.destination_url;
+     if (!destination.is_valid()) {
+       return;
+     }
+     NavigateParams params(browser_.get(), destination,
+                           ui::PAGE_TRANSITION_TYPED);
+     params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++    restore_focus_ = false;
+     GetWidget()->Close();
+     Navigate(&params);
+   }
+@@ -355,6 +457,9 @@ class ArcCommandBarView : public views::
+   std::vector<Result> results_;
+   int selected_result_ = -1;
+   std::optional<bool> explicit_chatgpt_;
++  std::unique_ptr<AutocompleteController> autocomplete_;
++  views::ViewTracker previous_focus_;
++  bool restore_focus_ = true;
+ };
+ 
+ BEGIN_METADATA(ArcCommandBarView)
+@@ -376,7 +481,7 @@ bool ShowArcCommandBar(BrowserWindowInte
+       browser, std::min(kBarWidth, std::max(260, page.width() - 32)));
+   ArcCommandBarView* bar = contents.get();
+   views::Widget::InitParams params(
+-      views::Widget::InitParams::CLIENT_OWNS_WIDGET,
++      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+       views::Widget::InitParams::TYPE_POPUP);
+   params.parent = parent->GetNativeView();
+   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
+@@ -389,7 +494,6 @@ bool ShowArcCommandBar(BrowserWindowInte
+       gfx::Rect(page.CenterPoint().x() - size.width() / 2,
+                 page.y() + page.height() / 4, size.width(), size.height());
+   auto* widget = new views::Widget();
+-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+   widget->Init(std::move(params));
+   widget->SetContentsView(std::move(contents));
+   widget->AddObserver(bar);
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_question_routing.cc
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/views/tabs/vertical/arc_question_routing.cc
+@@ -0,0 +1,78 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#include "chrome/browser/ui/helium/arc_question_routing.h"
++
++#include <array>
++
++#include "base/strings/escape.h"
++#include "base/strings/string_util.h"
++#include "base/strings/utf_string_conversions.h"
++#include "components/omnibox/browser/autocomplete_provider.h"
++#include "third_party/icu/source/common/unicode/uchar.h"
++#include "third_party/icu/source/common/unicode/utf16.h"
++
++namespace helium {
++
++bool IsArcQuestion(std::u16string_view text) {
++  constexpr std::array<std::u16string_view, 27> words = {
++      u"who",   u"what", u"when", u"where", u"why",   u"how",    u"which",
++      u"whose", u"whom", u"is",   u"are",   u"am",    u"was",    u"were",
++      u"do",    u"does", u"did",  u"can",   u"could", u"should", u"would",
++      u"will",  u"has",  u"have", u"had",   u"may",   u"might"};
++  text = base::TrimWhitespace(text, base::TRIM_ALL);
++  if (text.find(u'?') != std::u16string_view::npos) {
++    return true;
++  }
++  for (const auto word : words) {
++    if (!base::StartsWith(text, word, base::CompareCase::INSENSITIVE_ASCII)) {
++      continue;
++    }
++    if (text.size() == word.size()) {
++      return true;
++    }
++    // Unicode letters, numbers and combining marks continue the word. This
++    // prevents prefixes such as "island", "whoever" and "whaté" matching.
++    UChar32 next = text[word.size()];
++    if (U16_IS_LEAD(next) && text.size() > word.size() + 1 &&
++        U16_IS_TRAIL(text[word.size() + 1])) {
++      next = U16_GET_SUPPLEMENTARY(next, text[word.size() + 1]);
++    }
++    const int8_t category = u_charType(next);
++    if (!u_isalnum(next) && next != u'_' && category != U_NON_SPACING_MARK &&
++        category != U_COMBINING_SPACING_MARK && category != U_ENCLOSING_MARK) {
++      return true;
++    }
++  }
++  return false;
++}
++
++ArcDestination ResolveArcFreeText(std::u16string_view text,
++                                  bool is_valid_url,
++                                  std::optional<bool> explicit_chatgpt,
++                                  bool automatic_enabled,
++                                  bool is_private) {
++  if (is_valid_url) {
++    return ArcDestination::kNavigation;
++  }
++  const bool ask = explicit_chatgpt.value_or(automatic_enabled && !is_private &&
++                                             IsArcQuestion(text));
++  return ask ? ArcDestination::kChatGPT : ArcDestination::kSearch;
++}
++
++GURL ChatGPTWebsiteProvider::BuildSubmissionURL(std::u16string_view question) {
++  return GURL("https://chatgpt.com/?q=" +
++              base::EscapeQueryParamValue(base::UTF16ToUTF8(question),
++                                          /*use_plus=*/false) +
++              "&hints=search&ref=ext");
++}
++
++int ArcLocalAutocompleteProviders() {
++  using Type = AutocompleteProvider::Type;
++  return static_cast<int>(Type::kBookmark | Type::kBuiltin |
++                          Type::kHistoryQuick | Type::kHistoryUrl |
++                          Type::kShortcuts);
++}
++
++}  // namespace helium
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_question_routing_unittest.cc
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/views/tabs/vertical/arc_question_routing_unittest.cc
+@@ -0,0 +1,100 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#include "chrome/browser/ui/helium/arc_question_routing.h"
++
++#include <array>
++#include <string>
++
++#include "base/strings/string_util.h"
++#include "base/strings/utf_string_conversions.h"
++#include "components/omnibox/browser/autocomplete_provider.h"
++#include "net/base/url_util.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace helium {
++namespace {
++
++TEST(ArcQuestionRoutingTest, AllWordsCaseWhitespaceAndBoundaries) {
++  constexpr std::array<std::u16string_view, 27> words = {
++      u"who",   u"what", u"when", u"where", u"why",   u"how",    u"which",
++      u"whose", u"whom", u"is",   u"are",   u"am",    u"was",    u"were",
++      u"do",    u"does", u"did",  u"can",   u"could", u"should", u"would",
++      u"will",  u"has",  u"have", u"had",   u"may",   u"might"};
++  for (const auto word : words) {
++    SCOPED_TRACE(base::UTF16ToUTF8(word));
++    EXPECT_TRUE(IsArcQuestion(word));
++    EXPECT_TRUE(IsArcQuestion(base::ToUpperASCII(word) + u" something"));
++    EXPECT_TRUE(IsArcQuestion(u" \t" + std::u16string(word) + u"\n"));
++    EXPECT_TRUE(IsArcQuestion(std::u16string(word) + u": something"));
++    EXPECT_FALSE(IsArcQuestion(std::u16string(word) + u"thing"));
++    EXPECT_FALSE(IsArcQuestion(std::u16string(word) + u"_thing"));
++    EXPECT_FALSE(IsArcQuestion(std::u16string(word) + u"42"));
++  }
++}
++
++TEST(ArcQuestionRoutingTest, PunctuationUnicodeAndExpectedFalsePositives) {
++  EXPECT_TRUE(IsArcQuestion(u"please explain this?"));
++  EXPECT_TRUE(IsArcQuestion(u"?"));
++  EXPECT_TRUE(IsArcQuestion(u"is a plain prefix sufficient"));
++  EXPECT_TRUE(
++      IsArcQuestion(u"can opener"));  // Deliberately simple English rule.
++  for (const auto text :
++       {u"", u"  ", u"island", u"whoever", u"whaté", u"what\u0301",
++        u"what\U00010400", u"ordinary search"}) {
++    EXPECT_FALSE(IsArcQuestion(text));
++  }
++}
++
++TEST(ArcQuestionRoutingTest, NavigationOverridesAndPrivatePrecedence) {
++  for (const auto override : {std::optional<bool>(), std::optional<bool>(false),
++                              std::optional<bool>(true)}) {
++    EXPECT_EQ(ArcDestination::kNavigation,
++              ResolveArcFreeText(u"https://example.com/?who=what#how", true,
++                                 override, true, false));
++  }
++  EXPECT_EQ(ArcDestination::kSearch,
++            ResolveArcFreeText(u"Why?", false, false, true, false));
++  EXPECT_EQ(ArcDestination::kChatGPT,
++            ResolveArcFreeText(u"ordinary words", false, true, false, true));
++  EXPECT_EQ(ArcDestination::kSearch,
++            ResolveArcFreeText(u"WHY?", false, std::nullopt, true, true));
++  EXPECT_EQ(ArcDestination::kSearch,
++            ResolveArcFreeText(u"Why?", false, std::nullopt, false, false));
++  EXPECT_EQ(ArcDestination::kChatGPT,
++            ResolveArcFreeText(u"WhY?", false, std::nullopt, true, false));
++}
++
++TEST(ArcQuestionRoutingTest,
++     WebsiteEncodingRoundTripsWithoutParameterInjection) {
++  const std::u16string text =
++      u"Why café & tea?\nUnicode 世界 #fragment + = &q=other";
++  const GURL url = ChatGPTWebsiteProvider::BuildSubmissionURL(text);
++  ASSERT_TRUE(url.is_valid());
++  EXPECT_EQ("chatgpt.com", url.host());
++  EXPECT_FALSE(url.has_ref());
++  std::string question, hints, ref;
++  ASSERT_TRUE(net::GetValueForKeyInQuery(url, "q", &question));
++  ASSERT_TRUE(net::GetValueForKeyInQuery(url, "hints", &hints));
++  ASSERT_TRUE(net::GetValueForKeyInQuery(url, "ref", &ref));
++  EXPECT_EQ(base::UTF16ToUTF8(text), question);
++  EXPECT_EQ("search", hints);
++  EXPECT_EQ("ext", ref);
++}
++
++TEST(ArcQuestionRoutingTest, PaletteInstantiatesOnlyLocalProviders) {
++  using Type = AutocompleteProvider::Type;
++  const int allowed =
++      static_cast<int>(Type::kBookmark | Type::kBuiltin | Type::kHistoryQuick |
++                       Type::kHistoryUrl | Type::kShortcuts);
++  EXPECT_EQ(allowed, ArcLocalAutocompleteProviders());
++  const int remote = static_cast<int>(
++      Type::kSearch | Type::kZeroSuggest | Type::kDocument |
++      Type::kEnterpriseSearchAggregator | Type::kUnscopedExtension |
++      Type::kContextualSearch | Type::kHistoryEmbeddings);
++  EXPECT_EQ(0, ArcLocalAutocompleteProviders() & remote);
++}
++
++}  // namespace
++}  // namespace helium

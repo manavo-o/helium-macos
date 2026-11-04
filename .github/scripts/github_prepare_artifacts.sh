@@ -12,12 +12,12 @@ if [ -f "$_root_dir/build_finished_$_target_cpu.log" ]; then
   # For packaging
   _helium_version=$(python3 "$_main_repo/utils/helium_version.py" --tree "$_main_repo" --platform-tree "$_root_dir" --print)
 
-  _file_name="helium_${_helium_version}_${_target_cpu}-macos.dmg"
+  _file_name="helium-sidebar_${_helium_version}_${_target_cpu}-macos.dmg"
   _hash_name="${_file_name}.hashes.md"
 
   cd "$_src_dir"
 
-  xattr -cs out/Default/Helium.app
+  xattr -cs "out/Default/Helium Sidebar.app"
 
   # Personal builds use an ad-hoc signature when no release certificate is supplied.
   if [ -n "${MACOS_CERTIFICATE_NAME:-}" ]; then
@@ -57,21 +57,9 @@ if [ -f "$_root_dir/build_finished_$_target_cpu.log" ]; then
   mkdir -p release_asset
   mv "$_file_name" release_asset/
 
-  if [ "$_target_cpu" = "x86_64" ]; then
-    DELTA_ARG="--x86"
-  else
-    DELTA_ARG="--arm"
-  fi
-
-  PATH="$_src_dir/out/Default:$PATH" python3 "$_root_dir/devutils/generate_sparkle_deltas.py" \
-    "$DELTA_ARG" "./release_asset/$_file_name" \
-    --out ./release_asset
-
-  {
-    echo 'deltas<<EOF'
-    find ./release_asset/ -name '*.delta'
-    echo EOF
-  } >> "$GITHUB_OUTPUT"
+  # Delta updates must be generated only against this app's own signed
+  # release channel. Never diff or update against standard Helium releases.
+  echo 'deltas=' >> "$GITHUB_OUTPUT"
 
   ls -kahl release_asset/
   du -hs release_asset/

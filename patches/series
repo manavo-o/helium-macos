@@ -25,3 +25,13 @@ helium/macos/disable-chromium-immersive-fullscreen.patch
 helium/macos/helium-immersive-fullscreen.patch
 helium/macos/fix-history-swiper-lifetime.patch
 helium/macos/arc-command-palette.patch
+helium/macos/arc-native-sidebar.patch
+helium/macos/arc-chat-button.patch
+helium/macos/arc-default-chat-extension.patch
+helium/macos/arc-app-identity.patch
+helium/macos/arc-local-omnibox.patch
+helium/macos/arc-visual-theme.patch
+helium/macos/arc-split-drop.patch
+helium/macos/arc-drag-pinning.patch
+helium/macos/arc-release-identity.patch
+helium/macos/arc-sidebar-menu.patch

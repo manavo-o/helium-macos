@@ -23,3 +23,28 @@ The shared build action now saves checkpoints after compiler failures as well
 as successful phases, so future compiler errors need not discard a whole
 phase's progress. Cancelled jobs are excluded because runner shutdown may
 leave insufficient time to archive the build.
+
+
+## Native UI checkpoint delta
+
+The next native UI build can reuse successful run `41840388482`, at commit
+`73343879470b7a090b5fce8d803809fa781120f9`. The committed manifest
+`.github/arc-checkpoint-delta.json` records the exact current build-input
+fingerprint, ordered patch hashes, and complete before/after source hashes.
+The selector falls back to a fresh build if any build input differs.
+
+Restoration verifies every affected source preimage, applies all ten patches
+in a temporary mirror, and checks the complete output hashes before modifying
+the checkpoint. It then patches the restored source, rechecks hashes, and
+regenerates GN with the current configuration. Existing compiled outputs remain
+available for Ninja/Siso dependency analysis. Changed files, generated resources
+and affected dependents are rebuilt; relinking the renamed app is still required.
+This is bounded reuse for this recorded patch set, not arbitrary cross-version
+cache compatibility. A three-case test exercises the real patch chain,
+idempotence/output retention, and rejection of changed sources or patches.
+
+To record a future append-only delta from a prepared local quilt tree, stage all
+build inputs first, then run `github_create_arc_delta_manifest.py` with the
+successful baseline commit and run ID. Run `test_arc_checkpoint.py` before
+committing. Do not reuse a checkpoint with a different Chromium/Helium revision,
+architecture or toolchain without a new compatibility audit.

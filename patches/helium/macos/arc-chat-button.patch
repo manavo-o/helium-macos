@@ -1,0 +1,345 @@
+Index: src/chrome/browser/extensions/api/settings_private/prefs_util.cc
+===================================================================
+--- src.orig/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ src/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -235,6 +235,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumArcQuestionRouting] =
+       settings_api::PrefType::kBoolean;
++  (*s_allowlist)[::prefs::kHeliumArcChatButton] =
++      settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumArcPinnedTileSize] =
+       settings_api::PrefType::kNumber;
+   (*s_allowlist)[::prefs::kHeliumArcInterfaceDensity] =
+Index: src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+===================================================================
+--- src.orig/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ src/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -46,6 +46,11 @@ export function getHtml(this: SettingsAp
+       sub-label="Private windows always use the default search engine unless you select ChatGPT">
+   </settings-toggle-button>
+   <settings-toggle-button class="hr"
++      pref-key="helium.browser.arc_chat_button"
++      label="Show Chat button in the toolbar"
++      sub-label="Opens the official ChatGPT extension side panel">
++  </settings-toggle-button>
++  <settings-toggle-button class="hr"
+       pref-key="helium.browser.zen_mode"
+       label="$i18n{browserZenMode}"
+       sub-label="$i18n{browserZenModeDescription}">
+Index: src/chrome/browser/ui/tabs/tab_strip_prefs.cc
+===================================================================
+--- src.orig/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ src/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -39,6 +39,7 @@ void RegisterProfilePrefs(user_prefs::Pr
+   registry->RegisterBooleanPref(prefs::kHeliumZenModeSidebarPinned, false);
+   registry->RegisterBooleanPref(prefs::kHeliumZenModeTopChromePinned, false);
+   registry->RegisterBooleanPref(prefs::kHeliumArcQuestionRouting, true);
++  registry->RegisterBooleanPref(prefs::kHeliumArcChatButton, true);
+ }
+ 
+ void MigrateHoverCardMemoryPref(PrefService* local_prefs) {
+Index: src/chrome/browser/ui/views/toolbar/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/toolbar/BUILD.gn
++++ src/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -11,6 +11,7 @@ source_set("toolbar") {
+   public = [
+     "ai_overlay_toolbar_button.h",
+     "app_menu.h",
++    "arc_chat_button.h",
+     "avatar_toolbar_button_interface.h",
+     "back_forward_button.h",
+     "browser_app_menu_button.h",
+@@ -168,6 +169,7 @@ source_set("impl") {
+   sources = [
+     "ai_overlay_toolbar_button.cc",
+     "app_menu.cc",
++    "arc_chat_button.cc",
+     "avatar_toolbar_button_interface.cc",
+     "back_forward_button.cc",
+     "browser_app_menu_button.cc",
+Index: src/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+@@ -0,0 +1,217 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#include "chrome/browser/ui/views/toolbar/arc_chat_button.h"
++
++#include "base/functional/bind.h"
++#include "base/scoped_observation.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
++#include "chrome/browser/ui/navigator/browser_navigator.h"
++#include "chrome/browser/ui/navigator/browser_navigator_params.h"
++#include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
++#include "chrome/browser/ui/side_panel/side_panel_ui.h"
++#include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
++#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/side_panel/side_panel.h"
++#include "chrome/common/pref_names.h"
++#include "components/prefs/pref_member.h"
++#include "components/vector_icons/vector_icons.h"
++#include "extensions/browser/extension_registry.h"
++#include "extensions/browser/extension_registry_observer.h"
++#include "extensions/browser/extension_util.h"
++#include "extensions/common/extension.h"
++#include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/base/models/image_model.h"
++#include "ui/base/window_open_disposition.h"
++#include "ui/color/color_id.h"
++#include "ui/views/accessibility/view_accessibility.h"
++#include "ui/views/bubble/bubble_dialog_delegate_view.h"
++#include "ui/views/controls/button/md_text_button.h"
++#include "ui/views/controls/label.h"
++#include "ui/views/layout/box_layout.h"
++#include "ui/views/view_observer.h"
++#include "ui/views/widget/widget.h"
++
++namespace {
++
++// Verified from the installed official extension and its marketplace listing.
++constexpr char kChatExtensionId[] = "hehggadaopoacecdllhhajmbjkdcmajg";
++
++class ArcChatStatusBubble : public views::BubbleDialogDelegateView {
++  METADATA_HEADER(ArcChatStatusBubble, views::BubbleDialogDelegateView)
++
++ public:
++  ArcChatStatusBubble(views::View* anchor,
++                      BrowserWindowInterface* browser,
++                      std::u16string status)
++      : BubbleDialogDelegateView(anchor, views::BubbleBorder::TOP_RIGHT),
++        browser_(browser) {
++    SetTitle(u"Set up Chat");
++    SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
++    SetLayoutManager(std::make_unique<views::BoxLayout>(
++        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 12));
++    auto* label = AddChildView(std::make_unique<views::Label>(status));
++    label->SetMultiLine(true);
++    label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    label->SetPreferredSize(gfx::Size(320, 0));
++    label->SizeToFit(320);
++    AddChildView(std::make_unique<views::MdTextButton>(
++        base::BindRepeating(
++            &ArcChatStatusBubble::Open, base::Unretained(this),
++            GURL("chrome://extensions/?id=" + std::string(kChatExtensionId))),
++        u"Manage ChatGPT extension"));
++    AddChildView(std::make_unique<views::MdTextButton>(
++        base::BindRepeating(&ArcChatStatusBubble::Open, base::Unretained(this),
++                            GURL("https://chatgpt.com/")),
++        u"Open ChatGPT website"));
++  }
++
++ private:
++  void Open(const GURL& url) {
++    NavigateParams params(browser_, url, ui::PAGE_TRANSITION_LINK);
++    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++    GetWidget()->Close();
++    Navigate(&params);
++  }
++  raw_ptr<BrowserWindowInterface> browser_;
++};
++
++BEGIN_METADATA(ArcChatStatusBubble)
++END_METADATA
++
++class ArcChatButton : public views::MdTextButton,
++                      public extensions::ExtensionRegistryObserver,
++                      public views::ViewObserver {
++  METADATA_HEADER(ArcChatButton, views::MdTextButton)
++
++ public:
++  ArcChatButton(BrowserWindowInterface* browser,
++                ExtensionsToolbarDesktop* extensions)
++      : MdTextButton(base::BindRepeating(&ArcChatButton::Activate,
++                                         base::Unretained(this)),
++                     u"Chat"),
++        browser_(browser),
++        extensions_(extensions) {
++    SetCornerRadius(10);
++    SetCustomPadding(gfx::Insets::VH(6, 12));
++    SetImageModel(views::Button::STATE_NORMAL,
++                  ui::ImageModel::FromVectorIcon(vector_icons::kChatIcon,
++                                                 ui::kColorSysPrimary, 18));
++    SetFocusBehavior(FocusBehavior::ALWAYS);
++    GetViewAccessibility().SetName(u"Open ChatGPT extension side panel");
++    show_button_.Init(
++        prefs::kHeliumArcChatButton, browser_->GetProfile()->GetPrefs(),
++        base::BindRepeating(&ArcChatButton::Update, base::Unretained(this)));
++    registry_observation_.Observe(
++        extensions::ExtensionRegistry::Get(browser_->GetProfile()));
++    auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
++    if (view && view->side_panel()) {
++      panel_observation_.Observe(view->side_panel());
++    }
++    if (auto* panel = SidePanelUI::From(browser_)) {
++      shown_subscription_ = panel->RegisterSidePanelShown(
++          base::BindRepeating(&ArcChatButton::Update, base::Unretained(this)));
++    }
++    Update();
++  }
++
++  void OnExtensionLoaded(content::BrowserContext*,
++                         const extensions::Extension*) override {
++    Update();
++  }
++  void OnExtensionReady(content::BrowserContext*,
++                        const extensions::Extension*) override {
++    Update();
++  }
++  void OnExtensionUnloaded(content::BrowserContext*,
++                           const extensions::Extension*,
++                           extensions::UnloadedExtensionReason) override {
++    Update();
++  }
++  void OnViewVisibilityChanged(views::View*,
++                               views::View*,
++                               bool visible) override {
++    Update();
++    if (!visible && restore_focus_ && GetVisible()) {
++      restore_focus_ = false;
++      RequestFocus();
++    }
++  }
++  void OnViewIsDeleting(views::View*) override { panel_observation_.Reset(); }
++
++ private:
++  bool IsAllowed() const {
++    return !browser_->GetProfile()->IsOffTheRecord() ||
++           extensions::util::IsIncognitoEnabled(kChatExtensionId,
++                                                browser_->GetProfile());
++  }
++  bool IsOpen() const {
++    auto* panel = SidePanelUI::From(browser_);
++    return panel && panel->IsSidePanelEntryShowing(SidePanelEntryKey(
++                        SidePanelEntryId::kExtension, kChatExtensionId));
++  }
++  void Update() {
++    SetVisible(show_button_.GetValue());
++    SetStyle(IsOpen() ? ui::ButtonStyle::kTonal : ui::ButtonStyle::kDefault);
++    auto* registry = extensions::ExtensionRegistry::Get(browser_->GetProfile());
++    const bool available =
++        IsAllowed() &&
++        registry->enabled_extensions().Contains(kChatExtensionId);
++    SetTooltipText(available ? u"Open ChatGPT extension side panel"
++                             : u"Set up the ChatGPT extension in this profile");
++  }
++  void Activate() {
++    if (IsAllowed() && IsOpen()) {
++      restore_focus_ = true;
++      auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
++      view->side_panel()->SetPaneFocusAndFocusDefault();
++      return;
++    }
++    auto* model = extensions_ ? extensions_->GetToolbarViewModel() : nullptr;
++    if (IsAllowed() && model && model->GetActionModelForId(kChatExtensionId)) {
++      restore_focus_ = true;
++      // Same user-action dispatch as the extension's toolbar icon. Chromium
++      // selects the active (focused split-pane) tab and checks permissions.
++      model->ExecuteUserAction(
++          kChatExtensionId,
++          ToolbarActionViewModel::InvocationSource::kToolbarButton);
++      return;
++    }
++    const std::u16string message =
++        IsAllowed()
++            ? u"Install or enable the official ChatGPT extension in this "
++              u"browser "
++              u"profile, then sign in through the extension."
++            : u"ChatGPT is not allowed in private windows. You can change its "
++              u"private-window permission in extension settings.";
++    views::BubbleDialogDelegateView::CreateBubble(
++        std::make_unique<ArcChatStatusBubble>(this, browser_, message))
++        ->Show();
++  }
++
++  raw_ptr<BrowserWindowInterface> browser_;
++  raw_ptr<ExtensionsToolbarDesktop> extensions_;
++  BooleanPrefMember show_button_;
++  bool restore_focus_ = false;
++  base::CallbackListSubscription shown_subscription_;
++  base::ScopedObservation<extensions::ExtensionRegistry,
++                          extensions::ExtensionRegistryObserver>
++      registry_observation_{this};
++  base::ScopedObservation<views::View, views::ViewObserver> panel_observation_{
++      this};
++};
++
++BEGIN_METADATA(ArcChatButton)
++END_METADATA
++
++}  // namespace
++
++std::unique_ptr<views::View> CreateArcChatButton(
++    BrowserWindowInterface* browser,
++    ExtensionsToolbarDesktop* extensions) {
++  return std::make_unique<ArcChatButton>(browser, extensions);
++}
+Index: src/chrome/browser/ui/views/toolbar/arc_chat_button.h
+===================================================================
+--- /dev/null
++++ src/chrome/browser/ui/views/toolbar/arc_chat_button.h
+@@ -0,0 +1,20 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_TOOLBAR_ARC_CHAT_BUTTON_H_
++#define CHROME_BROWSER_UI_VIEWS_TOOLBAR_ARC_CHAT_BUTTON_H_
++
++#include <memory>
++
++class BrowserWindowInterface;
++class ExtensionsToolbarDesktop;
++namespace views {
++class View;
++}
++
++std::unique_ptr<views::View> CreateArcChatButton(
++    BrowserWindowInterface* browser,
++    ExtensionsToolbarDesktop* extensions);
++
++#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_ARC_CHAT_BUTTON_H_
+Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ src/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -105,6 +105,7 @@
+ #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
+ #include "chrome/browser/ui/views/toolbar/app_menu.h"
+ #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
++#include "chrome/browser/ui/views/toolbar/arc_chat_button.h"
+ #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
+ #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
+ #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
+@@ -939,6 +940,11 @@ void ToolbarView::Init() {
+     glic_split_button_controller_->SetVerticalTabsDelegate(this);
+   }
+ 
++  if (display_mode_ == DisplayMode::kNormal) {
++    auto* chat =
++        AddChildView(CreateArcChatButton(browser_, extensions_container_));
++    chat->SetProperty(views::kFlexBehaviorKey, flex_preferred);
++  }
+   initialized_ = true;
+ }
+ 
+Index: src/chrome/common/pref_names.h
+===================================================================
+--- src.orig/chrome/common/pref_names.h
++++ src/chrome/common/pref_names.h
+@@ -649,6 +649,8 @@ inline constexpr char kHeliumZenModeTopC
+ // always bypass automatic routing, regardless of this profile preference.
+ inline constexpr char kHeliumArcQuestionRouting[] =
+     "helium.browser.arc_question_routing";
++inline constexpr char kHeliumArcChatButton[] =
++    "helium.browser.arc_chat_button";
+ inline constexpr char kHeliumArcPinnedTileSize[] =
+     "helium.browser.arc_pinned_tile_size";
+ inline constexpr char kHeliumArcInterfaceDensity[] =

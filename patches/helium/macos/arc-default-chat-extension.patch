@@ -1,0 +1,209 @@
+Index: src/chrome/browser/extensions/initial_external_extension_loader_unittest.cc
+===================================================================
+--- src.orig/chrome/browser/extensions/initial_external_extension_loader_unittest.cc
++++ src/chrome/browser/extensions/initial_external_extension_loader_unittest.cc
+@@ -14,7 +14,9 @@
+ #include "chrome/browser/extensions/external_provider_impl.h"
+ #include "components/prefs/pref_registry_simple.h"
+ #include "components/prefs/testing_pref_service.h"
++#include "components/sync_preferences/testing_pref_service_syncable.h"
+ #include "content/public/test/browser_task_environment.h"
++#include "extensions/browser/extension_prefs.h"
+ #include "extensions/browser/pref_names.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "extensions/common/extension_urls.h"
+@@ -99,6 +101,25 @@ class InitialExternalExtensionLoaderTest
+       content::BrowserTaskEnvironment::TimeSource::MOCK_TIME};
+ };
+ 
++TEST(ArcDefaultChatExtensionTest, UsesOfficialStoreAndAllowsOptOut) {
++  content::BrowserTaskEnvironment task_environment;
++  sync_preferences::TestingPrefServiceSyncable prefs;
++  ExtensionPrefs::RegisterProfilePrefs(prefs.registry());
++  scoped_refptr<TestInitialExternalExtensionLoader> loader =
++      base::MakeRefCounted<TestInitialExternalExtensionLoader>(prefs);
++  loader->StartLoading();
++  base::DictValue installed = loader->WaitForLoadFinished();
++  const std::string key =
++      MakePrefName("hehggadaopoacecdllhhajmbjkdcmajg",
++                   ExternalProviderImpl::kExternalUpdateUrl);
++  ASSERT_TRUE(installed.FindStringByDottedPath(key));
++  EXPECT_EQ(*installed.FindStringByDottedPath(key),
++            extension_urls::GetWebstoreUpdateUrl().spec());
++  prefs.SetList(pref_names::kInitialInstallList, base::ListValue());
++  loader->StartLoading();
++  EXPECT_TRUE(loader->WaitForLoadFinished().empty());
++}
++
+ TEST_F(InitialExternalExtensionLoaderTest, StartLoadingProducesPrefs) {
+   SetInitialIds({kValidIdA, kValidIdB});
+ 
+Index: src/extensions/browser/extension_prefs.cc
+===================================================================
+--- src.orig/extensions/browser/extension_prefs.cc
++++ src/extensions/browser/extension_prefs.cc
+@@ -420,8 +420,9 @@ std::unique_ptr<ExtensionPrefs> Extensio
+ }
+ 
+ ExtensionPrefs::~ExtensionPrefs() {
+-  for (auto& observer : observer_list_)
++  for (auto& observer : observer_list_) {
+     observer.OnExtensionPrefsWillBeDestroyed(this);
++  }
+   DCHECK(observer_list_.begin() == observer_list_.end());
+ }
+ 
+@@ -601,8 +602,9 @@ void ExtensionPrefs::UpdateExtensionPref
+ 
+ void ExtensionPrefs::DeleteExtensionPrefs(const ExtensionId& extension_id) {
+   extension_pref_value_map_->UnregisterExtension(extension_id);
+-  for (auto& observer : observer_list_)
++  for (auto& observer : observer_list_) {
+     observer.OnExtensionPrefsDeleted(extension_id);
++  }
+   prefs::ScopedDictionaryPrefUpdate update(prefs_, pref_names::kExtensions);
+   update->Remove(extension_id);
+ }
+@@ -715,9 +717,8 @@ bool ExtensionPrefs::ReadPrefAsBoolean(c
+     value = ext->FindBoolByDottedPath(pref_key);
+   }
+ 
+-  if (!value.has_value()
+-      && extension_id == helium::kUBlockOriginComponentId
+-      && pref_key == kPrefIncognitoEnabled) {
++  if (!value.has_value() && extension_id == helium::kUBlockOriginComponentId &&
++      pref_key == kPrefIncognitoEnabled) {
+     value = true;
+   }
+ 
+@@ -1166,8 +1167,8 @@ void ExtensionPrefs::ClearInapplicableDi
+       disable_reason::DISABLE_RELOAD,
+       disable_reason::DISABLE_UNSUPPORTED_REQUIREMENT,
+       Manifest::IsUBlockComponent(component_extension_id)
+-        ? disable_reason::DISABLE_USER_ACTION
+-        : disable_reason::DISABLE_RELOAD,
++          ? disable_reason::DISABLE_USER_ACTION
++          : disable_reason::DISABLE_RELOAD,
+       disable_reason::DISABLE_CORRUPTED, disable_reason::DISABLE_REINSTALL};
+ 
+   const base::flat_set<int> current_disable_reasons =
+@@ -1204,8 +1205,9 @@ void ExtensionPrefs::ModifyBitMapPrefBit
+       break;
+   }
+ 
+-  if (old_value == new_value)  // no change, return.
++  if (old_value == new_value) {  // no change, return.
+     return;
++  }
+ 
+   if (new_value == default_bit) {
+     UpdateExtensionPref(extension_id, pref_key, std::nullopt);
+@@ -1347,8 +1349,9 @@ void ExtensionPrefs::AddRuntimeGrantedPe
+     const PermissionSet& permissions) {
+   AddToPrefPermissionSet(extension_id, permissions,
+                          kPrefRuntimeGrantedPermissions);
+-  for (auto& observer : observer_list_)
++  for (auto& observer : observer_list_) {
+     observer.OnExtensionRuntimePermissionsChanged(extension_id);
++  }
+ }
+ 
+ void ExtensionPrefs::RemoveRuntimeGrantedPermissions(
+@@ -1356,8 +1359,9 @@ void ExtensionPrefs::RemoveRuntimeGrante
+     const PermissionSet& permissions) {
+   RemoveFromPrefPermissionSet(extension_id, permissions,
+                               kPrefRuntimeGrantedPermissions);
+-  for (auto& observer : observer_list_)
++  for (auto& observer : observer_list_) {
+     observer.OnExtensionRuntimePermissionsChanged(extension_id);
++  }
+ }
+ 
+ void ExtensionPrefs::SetExtensionRunning(const ExtensionId& extension_id,
+@@ -1874,8 +1878,9 @@ void ExtensionPrefs::SetLastLaunchTime(c
+     ScopedExtensionPrefUpdate update(prefs_, extension_id);
+     SaveTime(update.Get().get(), kPrefLastLaunchTime, time);
+   }
+-  for (auto& observer : observer_list_)
++  for (auto& observer : observer_list_) {
+     observer.OnExtensionLastLaunchTimeChanged(extension_id, time);
++  }
+ }
+ 
+ void ExtensionPrefs::ClearLastLaunchTimes() {
+@@ -2214,8 +2219,9 @@ ExtensionPrefs::ExtensionPrefs(
+   MakePathsRelative();
+ 
+   // Ensure that any early observers are watching before prefs are initialized.
+-  for (auto* observer : early_observers)
++  for (auto* observer : early_observers) {
+     observer->OnExtensionPrefsAvailable(this);
++  }
+ 
+   InitPrefStore();
+ 
+@@ -2246,9 +2252,10 @@ void ExtensionPrefs::RegisterLocalStateP
+ void ExtensionPrefs::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterDictionaryPref(pref_names::kExtensions);
+-  registry->RegisterListPref(pref_names::kPinnedExtensions,
+-                             base::ListValue().Append(helium::kUBlockOriginComponentId),
+-                             user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
++  registry->RegisterListPref(
++      pref_names::kPinnedExtensions,
++      base::ListValue().Append(helium::kUBlockOriginComponentId),
++      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterListPref(pref_names::kDeletedComponentExtensions);
+   registry->RegisterDictionaryPref(kExtensionsBlocklistUpdate);
+   registry->RegisterListPref(pref_names::kInstallAllowList);
+@@ -2304,9 +2311,15 @@ void ExtensionPrefs::RegisterProfilePref
+                              base::Time());
+   registry->RegisterBooleanPref(pref_names::kHasDismissedEnterprisePromotion,
+                                 false);
+-  registry->RegisterListPref(pref_names::kInitialInstallList);
++  // Fetch the official, signed Web Store package through Chromium's normal
++  // first-run installation provider. User removal and private access remain
++  // governed by the existing extension preferences and permission UI.
++  base::ListValue initial_extensions;
++  initial_extensions.Append("hehggadaopoacecdllhhajmbjkdcmajg");
++  registry->RegisterListPref(pref_names::kInitialInstallList,
++                             std::move(initial_extensions));
+   registry->RegisterStringPref(pref_names::kInitialInstallProviderName,
+-                               /*default_value=*/std::string());
++                               /*default_value=*/"Helium Sidebar");
+ }
+ 
+ template <class ExtensionIdContainer>
+@@ -2441,8 +2454,9 @@ void ExtensionPrefs::InitExtensionContro
+     extension_pref_value_map_->RegisterExtension(
+         extension_id, install_time, is_enabled, is_incognito_enabled);
+ 
+-    for (auto& observer : observer_list_)
++    for (auto& observer : observer_list_) {
+       observer.OnExtensionRegistered(extension_id, install_time, is_enabled);
++    }
+ 
+     // Set regular extension controlled prefs.
+     LoadExtensionControlledPrefs(extension_id, ChromeSettingScope::kRegular);
+@@ -2453,8 +2467,9 @@ void ExtensionPrefs::InitExtensionContro
+     LoadExtensionControlledPrefs(extension_id,
+                                  ChromeSettingScope::kRegularOnly);
+ 
+-    for (auto& observer : observer_list_)
++    for (auto& observer : observer_list_) {
+       observer.OnExtensionPrefsLoaded(extension_id, this);
++    }
+   }
+ }
+ 
+@@ -2732,8 +2747,9 @@ void ExtensionPrefs::MigrateObsoleteExte
+     ScopedExtensionPrefUpdate update(prefs_, key_value.first);
+     std::unique_ptr<prefs::DictionaryValueUpdate> inner_update = update.Get();
+ 
+-    for (const char* key : kObsoleteKeys)
++    for (const char* key : kObsoleteKeys) {
+       inner_update->Remove(key);
++    }
+   }
+ }
+ 

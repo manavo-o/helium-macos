@@ -1,0 +1,189 @@
+Index: src/chrome/browser/ui/views/frame/base_tab_strip_region_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/base_tab_strip_region_view.cc
++++ src/chrome/browser/ui/views/frame/base_tab_strip_region_view.cc
+@@ -408,6 +408,15 @@ TabDragTarget* BaseTabStripRegionView::G
+     return nullptr;
+   }
+   gfx::Rect tab_strip_draggable_bounds = GetTabStripDraggableBounds();
++  if (orientation() == TabStripOrientation::kVertical) {
++    // Keep a drag over the sidebar header attached, including an empty pin
++    // area.
++    const auto region = GetBoundsInScreen();
++    tab_strip_draggable_bounds.SetByBounds(tab_strip_draggable_bounds.x(),
++                                           region.y(),
++                                           tab_strip_draggable_bounds.right(),
++                                           tab_strip_draggable_bounds.bottom());
++  }
+   if (!tab_strip_draggable_bounds.Contains(point_in_screen)) {
+     return nullptr;
+   }
+Index: src/chrome/browser/ui/views/tabs/common/tab_drag_interactive_uitest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/common/tab_drag_interactive_uitest.cc
++++ src/chrome/browser/ui/views/tabs/common/tab_drag_interactive_uitest.cc
+@@ -836,8 +836,7 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTe
+       ReleaseMouse());
+ }
+ 
+-IN_PROC_BROWSER_TEST_F(VerticalTabDragTest,
+-                       DragFromPinnedToUnpinnedContainerNotAllowed) {
++IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DragFromPinnedToUnpinnedContainer) {
+   TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+   ASSERT_NE(nullptr, tab_strip_model);
+   RunTestSequence(
+@@ -845,8 +844,7 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTe
+       AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
+       PinTabAt(0),
+ 
+-      // Drag the detached pinned tab over the first unpinned tab - nothing
+-      // should happen.
++      // Pin state changes only after a completed drop.
+       StartDragBetweenTabs(0, 1), PollState(kDragStatePoller, GetDragActive()),
+       WaitForState(kDragStatePoller, true),
+       PollState(kPinnedTabOrderPoller, GetPinnedTabOrder(tab_strip_model)),
+@@ -859,7 +857,7 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTe
+                                     })),
+       ReleaseMouse(),
+ 
+-      WaitForState(kPinnedTabOrderPoller, PinnedURLs({url::kAboutBlankURL})),
++      WaitForState(kPinnedTabOrderPoller, PinnedURLs({})),
+       WaitForState(kTabOrderPoller, URLs({
+                                         url::kAboutBlankURL,
+                                         chrome::kChromeUIBookmarksURL,
+@@ -867,6 +865,37 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTe
+                                     })));
+ }
+ 
++IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DropTabOverTilePinsAfterRelease) {
++  auto* model = browser()->GetTabStripModel();
++  RunTestSequence(
++      AddInstrumentedTab(kSecondTab, GURL(chrome::kChromeUIBookmarksURL), 1),
++      AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
++      PinTabAt(0), StartDragBetweenTabs(2, 0),
++      PollState(kDragStatePoller, GetDragActive()),
++      WaitForState(kDragStatePoller, true),
++      PollState(kPinnedTabOrderPoller, GetPinnedTabOrder(model)),
++      WaitForState(kPinnedTabOrderPoller, PinnedURLs({url::kAboutBlankURL})),
++      ReleaseMouse(), WaitForState(kDragStatePoller, false),
++      WaitForState(
++          kPinnedTabOrderPoller,
++          PinnedURLs({url::kAboutBlankURL, chrome::kChromeUISettingsURL})),
++      Do([&]() { EXPECT_EQ(3, model->count()); }));
++}
++
++IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, CancelDropOverTileKeepsPinning) {
++  auto* model = browser()->GetTabStripModel();
++  RunTestSequence(
++      AddInstrumentedTab(kSecondTab, GURL(chrome::kChromeUIBookmarksURL), 1),
++      AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
++      PinTabAt(0), StartDragBetweenTabs(2, 0),
++      PollState(kDragStatePoller, GetDragActive()),
++      WaitForState(kDragStatePoller, true), PressEscAsync(),
++      WaitForState(kDragStatePoller, false),
++      PollState(kPinnedTabOrderPoller, GetPinnedTabOrder(model)),
++      WaitForState(kPinnedTabOrderPoller, PinnedURLs({url::kAboutBlankURL})),
++      Do([&]() { EXPECT_EQ(3, model->count()); }));
++}
++
+ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DragGroupHeader) {
+   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kFourthTab);
+   TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+Index: src/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
++++ src/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
+@@ -24,6 +24,7 @@
+ #include "base/pickle.h"
+ #include "base/run_loop.h"
+ #include "base/scoped_observation.h"
++#include "base/task/sequenced_task_runner.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+@@ -33,6 +34,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
++#include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+ #include "chrome/browser/ui/sad_tab_helper.h"
+ #include "chrome/browser/ui/tabs/split_tab_util.h"
+@@ -43,7 +45,9 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h"
++#include "chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h"
+ #include "chrome/browser/ui/views/tabs/dragging/drag_session_data.h"
+ #include "chrome/browser/ui/views/tabs/dragging/tab_drag_context.h"
+ #include "chrome/browser/ui/views/tabs/dragging/tab_drag_target.h"
+@@ -2069,6 +2073,55 @@ void TabDragController::EndDragImpl(EndD
+ 
+   base::WeakPtr<TabDragController> ref(weak_factory_.GetWeakPtr());
+   DragState previous_state = current_state_;
++  // Change pinning after native drag teardown, so cancellation retains the
++  // original model and the drag controller never holds reparented tab views.
++  if (type == EndDragType::kNormal &&
++      previous_state == DragState::kDraggingTabs && attached_context_ &&
++      drag_data_.dragging_groups.empty()) {
++    auto* browser_view = BrowserView::GetBrowserViewForNativeWindow(
++        attached_context_->GetWidget()->GetNativeWindow());
++    if (browser_view && browser_view->ShouldDrawVerticalTabStrip()) {
++      auto* region = browser_view->vertical_tab_strip_region_view_for_testing();
++      auto* unpinned = region ? region->GetUnpinnedTabsContainer() : nullptr;
++      if (unpinned &&
++          region->GetBoundsInScreen().Contains(last_point_in_screen_)) {
++        const int boundary =
++            unpinned->GetBoundsInScreen().y() +
++            GetLayoutConstant(LayoutConstant::kVerticalTabHeight) / 2;
++        const bool pin = last_point_in_screen_.y() < boundary;
++        std::vector<base::WeakPtr<content::WebContents>> tabs;
++        for (const auto& data : drag_data_.tab_drag_data_) {
++          if (data.contents && data.pinned != pin) {
++            tabs.push_back(data.contents->GetWeakPtr());
++          }
++        }
++        if (!tabs.empty()) {
++          base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++              FROM_HERE,
++              base::BindOnce(
++                  [](base::WeakPtr<BrowserWindowInterface> browser,
++                     std::vector<base::WeakPtr<content::WebContents>> tabs,
++                     bool pin) {
++                    if (!browser) {
++                      return;
++                    }
++                    auto* model = browser->GetTabStripModel();
++                    for (const auto& contents : tabs) {
++                      const int index =
++                          contents
++                              ? model->GetIndexOfWebContents(contents.get())
++                              : TabStripModel::kNoTab;
++                      if (index != TabStripModel::kNoTab &&
++                          model->IsTabPinned(index) != pin) {
++                        model->SetTabPinned(index, pin);
++                      }
++                    }
++                  },
++                  browser_view->browser()->GetWeakPtr(), std::move(tabs), pin));
++        }
++      }
++    }
++  }
+   current_state_ = DragState::kStopped;
+   attached_context_tabs_closed_tracker_.reset();
+ 
+Index: src/chrome/browser/ui/views/tabs/dragging/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/dragging/BUILD.gn
++++ src/chrome/browser/ui/views/tabs/dragging/BUILD.gn
+@@ -79,6 +79,7 @@ source_set("impl") {
+     "//chrome/browser/ui/views/omnibox",
+     "//chrome/browser/ui/views/tabs:tab",
+     "//chrome/browser/ui/views/tabs:tab_strip",
++    "//chrome/browser/ui/views/tabs/common",
+     "//chrome/browser/ui/waap:window_metrics_manager",
+     "//chrome/browser/ui/web_applications",
+     "//chrome/browser/ui/web_applications:launch_utils",

@@ -14,3 +14,6 @@ proprietary_codecs=true
 symbol_level=1
 use_sysroot=false
 use_siso=true
+
+# Helium Sidebar is distributed only for Apple Silicon on macOS 27+.
+mac_min_system_version="27.0"

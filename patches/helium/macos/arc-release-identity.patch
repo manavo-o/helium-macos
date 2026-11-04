@@ -1,0 +1,10 @@
+Index: src/chrome/app/theme/chromium/BRANDING
+===================================================================
+--- src.orig/chrome/app/theme/chromium/BRANDING
++++ src/chrome/app/theme/chromium/BRANDING
+@@ -7,4 +7,4 @@ PRODUCT_INSTALLER_SHORTNAME=Helium Sideb
+ COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Helium Authors. All rights reserved.
+ MAC_BUNDLE_ID=io.github.manavo.helium-sidebar
+ MAC_CREATOR_CODE=Cr24
+-MAC_TEAM_ID=S4Q33XPHB4
++MAC_TEAM_ID=

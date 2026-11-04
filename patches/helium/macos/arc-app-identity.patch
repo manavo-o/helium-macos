@@ -1,0 +1,76 @@
+Index: src/chrome/app/theme/chromium/BRANDING
+===================================================================
+--- src.orig/chrome/app/theme/chromium/BRANDING
++++ src/chrome/app/theme/chromium/BRANDING
+@@ -1,10 +1,10 @@
+ COMPANY_FULLNAME=The Helium Authors
+ COMPANY_SHORTNAME=The Helium Authors
+-PRODUCT_FULLNAME=Helium
+-PRODUCT_SHORTNAME=Helium
+-PRODUCT_INSTALLER_FULLNAME=Helium Installer
+-PRODUCT_INSTALLER_SHORTNAME=Helium Installer
++PRODUCT_FULLNAME=Helium Sidebar
++PRODUCT_SHORTNAME=Helium Sidebar
++PRODUCT_INSTALLER_FULLNAME=Helium Sidebar Installer
++PRODUCT_INSTALLER_SHORTNAME=Helium Sidebar Installer
+ COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Helium Authors. All rights reserved.
+-MAC_BUNDLE_ID=net.imput.helium
++MAC_BUNDLE_ID=io.github.manavo.helium-sidebar
+ MAC_CREATOR_CODE=Cr24
+ MAC_TEAM_ID=S4Q33XPHB4
+Index: src/chrome/common/chrome_paths_mac.mm
+===================================================================
+--- src.orig/chrome/common/chrome_paths_mac.mm
++++ src/chrome/common/chrome_paths_mac.mm
+@@ -32,7 +32,7 @@ char* ProductDirNameForBundle(NSBundle*
+     product_dir_name = [product_dir_name_ns fileSystemRepresentation];
+ 
+     if (!product_dir_name) {
+-      product_dir_name = "net.imput.helium";
++      product_dir_name = "io.github.manavo.helium-sidebar";
+     }
+ 
+     // Leaked, but the only caller initializes a static with this result, so it
+Index: src/chrome/installer/mac/signing/chromium_config.py
+===================================================================
+--- src.orig/chrome/installer/mac/signing/chromium_config.py
++++ src/chrome/installer/mac/signing/chromium_config.py
+@@ -17,5 +17,5 @@ class ChromiumCodeSignConfig(BuildPropsC
+     @property
+     def provisioning_profile_basename(self):
+         if os.environ.get('PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_PATH'):
+-            return 'Helium'
++            return 'Helium Sidebar'
+         return None
+Index: src/components/helium_services/helium_services_helpers.cc
+===================================================================
+--- src.orig/components/helium_services/helium_services_helpers.cc
++++ src/components/helium_services/helium_services_helpers.cc
+@@ -28,10 +28,10 @@ namespace helium {
+ #endif
+ 
+ #if defined(UPDATES_SUPPORTED)
+-constexpr std::string_view kUpdateBaseUrl = "https://updates.helium.computer/";
++constexpr std::string_view kUpdateBaseUrl = "https://raw.githubusercontent.com/manavo-o/helium-macos/arc-updates/";
+ constexpr const char kUpdatePath[] =
+ #if BUILDFLAG(IS_MAC)
+-    "mac/appcast-" CPU_ARCH_STR ".xml";
++    "appcast-" CPU_ARCH_STR ".xml";
+ #elif BUILDFLAG(IS_WIN)
+     "win/appcast.xml";
+ #endif
+Index: src/components/os_crypt/common/keychain_password_mac.mm
+===================================================================
+--- src.orig/components/os_crypt/common/keychain_password_mac.mm
++++ src/components/os_crypt/common/keychain_password_mac.mm
+@@ -31,8 +31,8 @@ namespace {
+ // These two strings ARE indeed user facing.  But they are used to access
+ // the encryption keyword.  So as to not lose encrypted data when system
+ // locale changes we DO NOT LOCALIZE.
+-const char kDefaultServiceName[] = "Helium Storage Key";
+-const char kDefaultAccountName[] = "Helium";
++const char kDefaultServiceName[] = "Helium Sidebar Storage Key";
++const char kDefaultAccountName[] = "Helium Sidebar";
+ 
+ // These values are persisted to logs. Entries should not be renumbered and
+ // numeric values should never be reused.

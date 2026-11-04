@@ -77,9 +77,9 @@ write_gn_args() {
     if [ -n "${PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64:-}" ]; then
       echo 'include_branded_entitlements=true' >> "$args"
     fi
-    if [ -n "${PROD_MACOS_SPARKLE_ED_PUB_KEY:-}" ]; then
+    if [ -n "${ARC_MACOS_SPARKLE_ED_PUB_KEY:-}" ]; then
       echo 'enable_sparkle=true' >> "$args"
-      printf 'sparkle_ed_key="%s"\n' "$PROD_MACOS_SPARKLE_ED_PUB_KEY" >> "$args"
+      printf 'sparkle_ed_key="%s"\n' "$ARC_MACOS_SPARKLE_ED_PUB_KEY" >> "$args"
     fi
     echo 'symbol_level=1' >> "$args"
   else
@@ -127,6 +127,22 @@ gn_gen() {
 }
 
 configure_build() {
+  # A personal fork must never inherit upstream's Apple Developer team.
+  # The public team identifier is configured independently of signing secrets.
+  local arc_team_id="${ARC_MACOS_TEAM_ID:-${PROD_MACOS_NOTARIZATION_TEAM_ID:-}}"
+  if [ -n "$arc_team_id" ] && ! [[ "$arc_team_id" =~ ^[A-Z0-9]{10}$ ]]; then
+    echo 'Invalid ARC_MACOS_TEAM_ID (expected ten uppercase letters/digits)' >&2
+    return 1
+  fi
+  python3 - "$_src_dir/chrome/app/theme/chromium/BRANDING" "$arc_team_id" <<'PYTEAM'
+import pathlib
+import re
+import sys
+branding = pathlib.Path(sys.argv[1])
+text = branding.read_text()
+branding.write_text(re.sub(r'^MAC_TEAM_ID=.*$', 'MAC_TEAM_ID=' + sys.argv[2],
+                           text, flags=re.MULTILINE))
+PYTEAM
   write_gn_args "$1" "$2"
   gn_gen
 }
