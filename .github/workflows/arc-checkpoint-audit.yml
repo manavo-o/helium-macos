@@ -1,0 +1,61 @@
+name: Audit Arc checkpoint source (Linux only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Read expected source manifest
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/contents/.github/arc-checkpoint-delta.json?ref=$GITHUB_SHA" --jq .content | base64 --decode > manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('manifest.json').read_text())
+          Path('paths.txt').write_text(''.join('src/' + path + '\n' for path in data['sources']))
+          PY
+      - name: Download and verify successful checkpoint
+        run: |
+          gh api --allow-escape-sequences "repos/$GITHUB_REPOSITORY/actions/artifacts/13347726608/zip" > checkpoint.zip
+          echo 'f8d20e3d0586a9ffdaa0dcec4885cad9e6e2875cfe97f6a816c29438fc72bd15  checkpoint.zip' | sha256sum -c -
+      - name: Extract source files without restoring build outputs
+        run: |
+          mkdir -p checkpoint-sources
+          set +e
+          unzip -p checkpoint.zip build_src.tar.zst | tar --zstd -xf - -C checkpoint-sources -T paths.txt 2> extraction.log
+          set -e
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('manifest.json').read_text())
+          report = {}
+          for path, values in manifest['sources'].items():
+              file = Path('checkpoint-sources/src') / path
+              actual = hashlib.sha256(file.read_bytes()).hexdigest() if file.is_file() else None
+              report[path] = dict(expected=values['before'], actual=actual,
+                                  matches=actual == values['before'])
+              if actual != values['before']:
+                  print('MISMATCH', path, 'expected=' + str(values['before']), 'actual=' + str(actual))
+              if values['before'] is not None and actual is None:
+                  raise SystemExit('Expected source file was not extracted: ' + path)
+          Path('audit.json').write_text(json.dumps(report, indent=2) + '\n')
+          print('Compared', len(report), 'source paths;', sum(not r['matches'] for r in report.values()), 'mismatches')
+          PY
+          rm checkpoint.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, verified 2026-11-04
+        if: always()
+        with:
+          name: arc-checkpoint-source-audit
+          retention-days: 7
+          path: |
+            checkpoint-sources/
+            audit.json
+            manifest.json
+            extraction.log

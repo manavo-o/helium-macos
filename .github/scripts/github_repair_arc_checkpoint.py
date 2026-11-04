@@ -73,6 +73,10 @@ def apply_delta(root, data):
         print('Checkpoint already contains the verified native UI delta.')
         return
     if not check_sources(source, records, 'before'):
+        for path, record in records.items():
+            actual = file_hash(source / path)
+            if actual != record['before']:
+                print(f"Source mismatch: {path} expected={record['before']} actual={actual}", flush=True)
         raise SystemExit('Checkpoint source hashes differ; refusing reuse.')
     # Validate the full ordered patch chain without modifying the checkpoint.
     # This handles overlapping changes and newly added files.
@@ -124,7 +128,7 @@ def main():
         with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
             output.write(f'source_run={selected_run if compatible else ""}\n')
             output.write(f'repair_arc_checkpoint={str(compatible).lower()}\n')
-        print('Using pinned Arc checkpoint.' if compatible else
+        print(f'Using pinned Arc checkpoint {selected_run}.' if compatible else
               'Source inputs differ; using a fresh build.')
     elif delta:
         apply_delta(root, delta)
