@@ -19,6 +19,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base-commit', required=True)
     parser.add_argument('--source-run', required=True)
+    parser.add_argument('--baseline-source', required=True, type=Path,
+                        help='Source files extracted from the verified successful checkpoint')
     args = parser.parse_args()
     root = Path(subprocess.check_output(
         ['git', 'rev-parse', '--show-toplevel'], text=True).strip())
@@ -31,8 +33,11 @@ def main():
                  if x.strip() and not x.startswith('#')]
     if not additions:
         raise SystemExit('No appended patches to record.')
+    substitution = checkpoint.DomainSubstitution(root)
     data = dict(base_commit=args.base_commit, source_run=args.source_run,
-                input_sha256=checkpoint.source_fingerprint(root), patches=[], sources={})
+                input_sha256=checkpoint.source_fingerprint(root), patches=[], sources={},
+                domain_inputs={path: checkpoint.file_hash(root / path) for path in
+                               ['helium-chromium/domain_regex.list', 'helium-chromium/domain_substitution.list']})
     for name in additions:
         patch = root / 'patches' / name
         data['patches'].append(dict(path='patches/' + name,
@@ -47,9 +52,13 @@ def main():
             else:
                 if not old.is_file():
                     raise SystemExit('Missing quilt preimage: ' + str(old))
-                before = checkpoint.file_hash(old)
-            data['sources'][path] = dict(
-                before=before, after=checkpoint.file_hash(root / 'build/src' / path))
+                before = hashlib.sha256(substitution.source(path, old.read_bytes())).hexdigest()
+            actual = checkpoint.file_hash(args.baseline_source / path)
+            if actual != before:
+                raise SystemExit('Verified checkpoint differs from normalized quilt preimage: ' + path)
+            current = root / 'build/src' / path
+            after = hashlib.sha256(substitution.source(path, current.read_bytes())).hexdigest() if current.is_file() else None
+            data['sources'][path] = dict(before=before, after=after)
     destination = root / '.github/arc-checkpoint-delta.json'
     destination.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
     print(f'Recorded {len(additions)} patches and {len(data["sources"])} source preimages.')

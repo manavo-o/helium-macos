@@ -1,0 +1,137 @@
+Index: src/chrome/browser/ui/views/frame/browser_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/browser_view.cc
++++ src/chrome/browser/ui/views/frame/browser_view.cc
+@@ -437,6 +437,9 @@ using web_modal::WebContentsModalDialogH
+ 
+ namespace {
+ 
++bool IsOpenBubbleAnchoredInViewSubtree(views::Widget* widget,
++                                       const views::View* anchor_root);
++
+ // The visible height of the shadow above the tabs. Clicks in this area are
+ // treated as clicks to the frame, rather than clicks to the tab.
+ const int kTabShadowSize = 2;
+@@ -2075,6 +2078,23 @@ void BrowserView::UpdateZenModeReveal(bo
+                                toolbar_->location_bar_view()->HasFocus();
+   if (omnibox_focused) {
+     reveal_top = true;
++    reveal_side = ShouldDrawVerticalTabStrip();
++  }
++  const auto* focused =
++      GetFocusManager() ? GetFocusManager()->GetFocusedView() : nullptr;
++  if (vertical_tab_strip_region_view_ && focused &&
++      vertical_tab_strip_region_view_->Contains(focused)) {
++    reveal_side = true;
++  }
++  if (!reveal_side && vertical_tab_strip_region_view_ && GetWidget()) {
++    for (views::Widget* widget :
++         views::Widget::GetAllOwnedWidgets(GetWidget()->GetNativeView())) {
++      if (IsOpenBubbleAnchoredInViewSubtree(widget,
++                                            vertical_tab_strip_region_view_)) {
++        reveal_side = true;
++        break;
++      }
++    }
+   }
+ 
+   // Keep the top chrome visible while a bubble/popup anchored inside the top
+@@ -3055,6 +3075,11 @@ void BrowserView::SetFocusToLocationBar(
+   // and can receive focus.  A synchronous layout is required so the toolbar
+   // has non-zero height before FocusLocation runs.
+   if (zen_mode_enabled_) {
++    // The actual omnibox is in the sidebar. Reveal it synchronously before
++    // focusing, including when the sidebar is temporarily hidden.
++    if (ShouldDrawVerticalTabStrip()) {
++      zen_side_chrome_animation_.Reset(1);
++    }
+     RevealZenModeTopChromeImmediately();
+   }
+ 
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/helium/arc_command_bar.h"
+ 
++#include <atomic>
++
+ #include "base/run_loop.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/test/bind.h"
+@@ -16,10 +18,10 @@
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/interactive_test_utils.h"
++#include "chrome/test/base/search_test_utils.h"
+ #include "components/search_engines/template_url.h"
+ #include "components/search_engines/template_url_data.h"
+ #include "components/search_engines/template_url_service.h"
+-#include "components/search_engines/template_url_service_test_util.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/test/browser_test.h"
+ #include "content/public/test/url_loader_interceptor.h"
+@@ -34,7 +36,7 @@ views::Textfield* FindInput(views::View*
+   if (auto* input = views::AsViewClass<views::Textfield>(view)) {
+     return input;
+   }
+-  for (auto* child : view->children()) {
++  for (views::View* child : view->children()) {
+     if (auto* input = FindInput(child)) {
+       return input;
+     }
+@@ -51,7 +53,7 @@ class ArcCommandBarBrowserTest : public
+     EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_NEW_TAB));
+     auto* parent =
+         BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+-    for (auto* widget :
++    for (views::Widget* widget :
+          views::Widget::GetAllOwnedWidgets(parent->GetNativeView())) {
+       if (widget->GetName() == "ArcCommandBar") {
+         return widget;
+@@ -79,6 +81,16 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrow
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       FocusLocationRevealsHiddenSidebar) {
++  auto* view = BrowserView::GetBrowserViewForBrowser(browser());
++  view->ToggleZenModeSideChrome();
++  ASSERT_FALSE(view->IsZenModeSideChromePinned());
++  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_FOCUS_LOCATION));
++  EXPECT_FLOAT_EQ(1.0f, view->GetSideChromeRevealRatio());
++  EXPECT_FALSE(view->IsZenModeSideChromePinned());
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
+                        EmptyEnterAndCancellationCreateNoTab) {
+   const int count = browser()->tab_strip_model()->count();
+   auto* palette = OpenPalette();
+@@ -111,7 +123,7 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrow
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
+                        TypingNeverRequestsSearchSuggestions) {
+   auto* service =
+-      TemplateURLServiceFactory::GetForProfile(browser()->profile());
++      TemplateURLServiceFactory::GetForProfile(browser()->GetProfile());
+   search_test_utils::WaitForTemplateURLServiceToLoad(service);
+   TemplateURLData data;
+   data.SetShortName(u"Test search");
+@@ -120,7 +132,7 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrow
+   data.suggestions_url = "https://arc-suggestions.invalid/?q={searchTerms}";
+   auto* engine = service->Add(std::make_unique<TemplateURL>(data));
+   service->SetUserSelectedDefaultSearchProvider(engine);
+-  int suggestion_requests = 0;
++  std::atomic<int> suggestion_requests{0};
+   content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
+       [&](content::URLLoaderInterceptor::RequestParams* params) {
+         if (params->url_request.url.host() == "arc-suggestions.invalid") {
+@@ -140,7 +152,7 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrow
+   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+       FROM_HERE, settle.QuitClosure(), base::Seconds(1));
+   settle.Run();
+-  EXPECT_EQ(0, suggestion_requests);
++  EXPECT_EQ(0, suggestion_requests.load());
+   Key(palette, ui::VKEY_ESCAPE);
+ }
+ 

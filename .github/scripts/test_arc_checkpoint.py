@@ -2,6 +2,7 @@
 """Exercise the actual UI patch chain, idempotence and fail-closed checks."""
 import contextlib
 import importlib.util
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -34,16 +35,21 @@ class CheckpointDeltaTest(unittest.TestCase):
             destination = self.root / patch['path']
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / patch['path'], destination)
+        (self.root / 'helium-chromium').mkdir()
+        for name in ['domain_regex.list', 'domain_substitution.list']:
+            shutil.copyfile(ROOT / 'helium-chromium' / name, self.root / 'helium-chromium' / name)
+        substitution = checkpoint.DomainSubstitution(self.root)
         for path, record in DATA['sources'].items():
             if record['before'] is None:
                 continue
             candidates = [ROOT / 'build/src/.pc' / patch['path'].removeprefix('patches/') / path
                           for patch in DATA['patches']]
             original = next(p for p in candidates if p.is_file())
-            self.assertEqual(record['before'], checkpoint.file_hash(original))
+            content = substitution.source(path, original.read_bytes())
+            self.assertEqual(record['before'], hashlib.sha256(content).hexdigest())
             destination = self.root / 'build/src' / path
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(original, destination)
+            destination.write_bytes(content)
 
     def test_full_patch_chain_and_idempotence_preserve_existing_outputs(self):
         output = self.root / 'build/src/out/Default/retained-object.o'
@@ -69,6 +75,13 @@ class CheckpointDeltaTest(unittest.TestCase):
             self.assertIsNotNone(checkpoint.compatible_delta(self.root))
             patch = self.root / DATA['patches'][0]['path']
             patch.write_text(patch.read_text() + '\n')
+            self.assertIsNone(checkpoint.compatible_delta(self.root))
+
+    def test_selector_rejects_changed_substitution_rules(self):
+        with mock.patch.object(checkpoint, 'source_fingerprint', return_value=DATA['input_sha256']):
+            self.assertIsNotNone(checkpoint.compatible_delta(self.root))
+            rules = self.root / 'helium-chromium/domain_regex.list'
+            rules.write_text(rules.read_text() + '\nexample#changed\n')
             self.assertIsNone(checkpoint.compatible_delta(self.root))
 
 

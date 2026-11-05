@@ -33,18 +33,30 @@ The next native UI build can reuse successful run `41840388482`, at commit
 fingerprint, ordered patch hashes, and complete before/after source hashes.
 The selector falls back to a fresh build if any build input differs.
 
-Restoration verifies every affected source preimage, applies all ten patches
+Restoration verifies every affected source preimage, applies all twelve patches
 in a temporary mirror, and checks the complete output hashes before modifying
 the checkpoint. It then patches the restored source, rechecks hashes, and
 regenerates GN with the current configuration. Existing compiled outputs remain
 available for Ninja/Siso dependency analysis. Changed files, generated resources
 and affected dependents are rebuilt; relinking the renamed app is still required.
 This is bounded reuse for this recorded patch set, not arbitrary cross-version
-cache compatibility. A three-case test exercises the real patch chain,
+cache compatibility. A four-case test exercises the real patch chain,
 idempotence/output retention, and rejection of changed sources or patches.
 
 To record a future append-only delta from a prepared local quilt tree, stage all
 build inputs first, then run `github_create_arc_delta_manifest.py` with the
-successful baseline commit and run ID. Run `test_arc_checkpoint.py` before
+successful baseline commit and run ID, plus `--baseline-source` pointing to source files extracted from that exact verified artifact. Run `test_arc_checkpoint.py` before
 committing. Do not reuse a checkpoint with a different Chromium/Helium revision,
 architecture or toolchain without a new compatibility audit.
+
+
+The first native-UI replay stopped because the checkpoint had already passed
+Helium's domain-substitution step. Four preimages differed from the local raw
+quilt copies: three split-view test files and one example in a preference
+comment. Linux audit run `41922858223` verified the original archive digest and
+captured all 51 affected source paths. The manifest generator now requires that
+verified snapshot and compares it with quilt preimages after applying the
+pinned Helium rules. Cached patch hunks are normalized only for files in the
+pinned substitution list; raw patches remain unchanged for fresh builds.
+Rule/list hashes are checked before cache selection. Full source hashes and
+zero-fuzz patch verification remain mandatory. There is no relaxed hash check.

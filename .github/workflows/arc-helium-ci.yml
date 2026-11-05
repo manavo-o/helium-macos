@@ -24,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          submodules: true
           persist-credentials: false
       - id: checkpoint
         run: python3 .github/scripts/github_repair_arc_checkpoint.py --select

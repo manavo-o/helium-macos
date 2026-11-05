@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import shutil
@@ -39,6 +40,47 @@ def file_hash(path):
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
+
+class DomainSubstitution:
+    """Use the pinned Helium rules, scoped to its existing source-file list."""
+    def __init__(self, root):
+        tree = root / 'helium-chromium'
+        self.paths = set((tree / 'domain_substitution.list').read_text().splitlines())
+        self.rules = [tuple(line.split('#')) for line in
+                      (tree / 'domain_regex.list').read_text().splitlines() if line]
+        self.rules = [(re.compile(pattern), replacement) for pattern, replacement in self.rules]
+
+    def source(self, path, content):
+        if content is None or path not in self.paths:
+            return content
+        try:
+            text = content.decode('utf-8')
+            encoding = 'utf-8'
+        except UnicodeDecodeError:
+            text = content.decode('iso-8859-1')
+            encoding = 'iso-8859-1'
+        for pattern, replacement in self.rules:
+            text = pattern.sub(replacement, text)
+        return text.encode(encoding)
+
+    def patch(self, content):
+        # Normalize only hunk payloads for listed files; keep the raw patch on
+        # disk unchanged so fresh builds still patch before substitution.
+        output = []
+        path = None
+        in_hunk = False
+        for line in content.splitlines(keepends=True):
+            if line.startswith('Index: src/'):
+                path = line.removeprefix('Index: src/').rstrip('\r\n')
+                in_hunk = False
+            elif line.startswith('@@ '):
+                in_hunk = True
+            if in_hunk and line[:1] in (' ', '+', '-'):
+                line = line[0] + self.source(path, line[1:].encode()).decode()
+            output.append(line)
+        return ''.join(output)
+
+
 def compatible_delta(root):
     manifest = root / '.github/arc-checkpoint-delta.json'
     if not manifest.is_file():
@@ -48,6 +90,9 @@ def compatible_delta(root):
         return None
     for patch in data['patches']:
         if file_hash(root / patch['path']) != patch['sha256']:
+            return None
+    for path, expected in data.get('domain_inputs', {}).items():
+        if file_hash(root / path) != expected:
             return None
     return data
 
@@ -61,9 +106,11 @@ def patch_tree(root, source, data):
     executable = shutil.which('gpatch') or shutil.which('patch')
     if not executable:
         raise SystemExit('A patch executable is required for checkpoint reuse.')
+    substitution = DomainSubstitution(root)
     for patch in data['patches']:
-        subprocess.run([executable, '--batch', '--forward', '-p1', '-F0',
-                        '-i', str(root / patch['path'])], cwd=source, check=True)
+        content = substitution.patch((root / patch['path']).read_text())
+        subprocess.run([executable, '--batch', '--forward', '-p1', '-F0'],
+                       input=content, text=True, cwd=source, check=True)
 
 
 def apply_delta(root, data):

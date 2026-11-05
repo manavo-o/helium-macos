@@ -35,3 +35,5 @@ helium/macos/arc-split-drop.patch
 helium/macos/arc-drag-pinning.patch
 helium/macos/arc-release-identity.patch
 helium/macos/arc-sidebar-menu.patch
+helium/macos/arc-sidebar-focus.patch
+helium/macos/arc-native-url-classification.patch

@@ -8,7 +8,7 @@ arm64 workflow run 41498043072). Its Helium submodule is pinned to
 | Source | Revision | License and intended use |
 | --- | --- | --- |
 | Helium | `2f81b9cafa38a95071e20de3f9cd6b0aca6d3c65` | GPL-3.0; vertical tabs and split-view patch foundations. Chromium and imported ungoogled Chromium portions retain their own licenses as described by Helium. |
-| Biba | `4cad41cd388945fa532838d3daf543bb4fb2bb40` | GPL-3.0; reference for pinned tiles, sidebar presentation, drag-to-pin, and command-bar UI. No Spaces, Biba branding, assets, updater, or product identity are to be imported. |
+| [Biba](https://github.com/weristvlad/biba-browser) | `4cad41cd388945fa532838d3daf543bb4fb2bb40` | GPL-3.0; reference for pinned tiles, sidebar presentation, drag-to-pin, and command-bar UI. No Spaces, Biba branding, assets, updater, or product identity are to be imported. |
 | Helium PR #2367 | `ffb1e05af047f48c385cbcbf0fe7521d02158e2b` | Helium contributor patch under the repository's GPL-3.0 terms; reference for relocating the actual toolbar views into the sidebar. Closed, unmerged, and tested by its author on Linux only, so macOS adaptation and testing are required. |
 | Helium PR #2747 | `c0ba3d247c01e5f77ccd726247275153d2f1be32` | Helium contributor patch under the repository's GPL-3.0 terms; reference for interface size constants. Open and unmerged at the time of pinning. |
 
@@ -68,3 +68,10 @@ rather than class-name strings, handling unpinning and cancellation, and
 excluding all Spaces dependencies. `arc-release-identity.patch` removes the
 inherited upstream Apple team; signed builds must set their own public
 `ARC_MACOS_TEAM_ID` and signing/notarization secrets.
+
+
+`arc-sidebar-focus.patch` reveals the real omnibox before Cmd+L focus and holds
+the sidebar open for keyboard focus and anchored permission/security bubbles.
+`arc-native-url-classification.patch` uses native, local omnibox parsing to
+recognize explicit URLs before question routing, including URL query spaces.
+No suggestion provider is started by that parsing step.

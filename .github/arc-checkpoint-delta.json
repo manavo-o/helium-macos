@@ -1,6 +1,10 @@
 {
   "base_commit": "73343879470b7a090b5fce8d803809fa781120f9",
-  "input_sha256": "9ed732f0bce4b580724abdb0b78c60023a0a4eb4e8b213b48e73d241fc715ec4",
+  "domain_inputs": {
+    "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
+    "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
+  },
+  "input_sha256": "8c1601ca75124477aa47c109bb4494b53f00f11fca9336ec2087d8f75a6022f6",
   "patches": [
     {
       "path": "patches/helium/macos/arc-native-sidebar.patch",
@@ -41,6 +45,14 @@
     {
       "path": "patches/helium/macos/arc-sidebar-menu.patch",
       "sha256": "b54ade25b2b6b9ad69dbdb677773e8f28840ee96b579efa19153e5418e4ba918"
+    },
+    {
+      "path": "patches/helium/macos/arc-sidebar-focus.patch",
+      "sha256": "d7d65e86ee6a40df478a4875a7ab38eabba203740d134a948ebfb0bb0d131006"
+    },
+    {
+      "path": "patches/helium/macos/arc-native-url-classification.patch",
+      "sha256": "231d9782a03e2563e5ce354e11fde5734483eda3d2934f0805a7182a804dc2e3"
     }
   ],
   "source_run": "41840388482",
@@ -110,7 +122,7 @@
       "before": "bccb1a2de5355591c6563fe4824e580d5de730d982f8aa0c7159877c4cb8e551"
     },
     "chrome/browser/ui/views/frame/browser_view.cc": {
-      "after": "7ef010be66a7ed39709ccd78f14102aa4870ba4a904f7e90948c00f8b5fe5bbb",
+      "after": "4742eeaba1c3ac607fceabd3e4959b23b94500d5a778d3a4e5628bea12ae124e",
       "before": "86238868b17e8dbc3cd699ab3e6eb86d2a54d456bf23b4e81e0f223f997b2cc4"
     },
     "chrome/browser/ui/views/frame/multi_contents_drop_target_view.cc": {
@@ -122,12 +134,12 @@
       "before": "6d2e6d5f9c66aab3e2e0c6fd71810ddb41509085566d9fdd18be99183db5d071"
     },
     "chrome/browser/ui/views/frame/multi_contents_drop_target_view_unittest.cc": {
-      "after": "554c4207457c06533a7d41fc8294c5ba0328eef714824fe3148c9b4418bf4c37",
-      "before": "61cc993896bd14cae082fd2db4c9a0790e1a2e739382e659100f98fe11210a4c"
+      "after": "d146391808f64c6cbe245093ccf9317e1b5fb7fe8a1ee178ef1037e893fbb82f",
+      "before": "1e3c6b66b7701c8422cea31fa22636915b5f9c2531093c61a0514a6804205e96"
     },
     "chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc": {
-      "after": "eb5daf917e233ea3a188aa0efeb3290662a98b33f742d5fff113992b0be94c7e",
-      "before": "861680350ecd7c6c08d22d94abb2d3c7beb6b618786151d0187697eb5801368e"
+      "after": "20cb05fe30b2e6a764d196b8cbd4060857e3020c11f769d7864b9de73cf755fe",
+      "before": "3bb4dc0513c9bb4c4dc82c1139688a584e2ffe0c1921e4c5d15a12db449ce6bc"
     },
     "chrome/browser/ui/views/frame/multi_contents_view_delegate.cc": {
       "after": "a1c8ce853eb231a4198cd324bea873668c409bd3110e8afbad23c7d115b0ed70",
@@ -138,8 +150,8 @@
       "before": "652a31045b866914cff6f2f1b63e5cfa65003f54544d59567260e201f004fecd"
     },
     "chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller_unittest.cc": {
-      "after": "2ff90965b22daf830ba531e4c0d40ad19cc2212a8eb2ec6aa94c22c3a961b4fb",
-      "before": "70a14f1b11666fc1834b142259527dcf6029a95d803ba4f362e6c05a7678f507"
+      "after": "88668feaaa87b73e77e49642f5d8a1d388576287538653d516a5a728babf0927",
+      "before": "c2959776a6b2966513f6710c7ff3f9cf1cdcb7452b8410c16ecf7931f791c86c"
     },
     "chrome/browser/ui/views/frame/system_menu_model_builder.cc": {
       "after": "167297d87b87158c8f62b8c94155b0514e6ee19b87f77f5238d1fdd3e82b2bfb",
@@ -182,11 +194,11 @@
       "before": "67cdb57ece166137f665d0827a7761168f73a7cc1b63b923393fda1493b421b7"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc": {
-      "after": "405075afa1dbfec20daa202fed32cbb8bf5244913e74ff72b95136a0d61bb44f",
+      "after": "45b3ae78b1d31ad1a4b39f41307454799edc62c1c32b3d0d7aac03f01b25f985",
       "before": null
     },
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc": {
-      "after": "80e9b6a9d85da5d9d86caed0451fd5cd4a78d8902ef743cffd6914289f389047",
+      "after": "e5f4ffad8a33e9cc4c4f1e32a4521d33556b0169da0692290a99539a07fc6e29",
       "before": "d5eb98d075cc705d09b4c7754d5845e193ce57c8241bda2cdbf8a50dc2a0209c"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_question_routing.cc": {
@@ -230,8 +242,8 @@
       "before": "2498bb7a44e10820f86a2699031874d9b979d5de0816e16db2eb6a446138a906"
     },
     "chrome/common/pref_names.h": {
-      "after": "93603e6db7768687abfa9bcce8f304ede4eb1e65cd5c8330f63241915ff202e4",
-      "before": "976260249775af9a9880bfe53c28a32a37672e389986974dcdce5d5311bafe16"
+      "after": "e65a4ebaa341da00debe43804778f8853b49350f1ea2bea02f1c37dabfc5b3f3",
+      "before": "cda4fbc0dcab2287535a8ed7636c70ffa7b2cf16d42e9fc6fb9d86f7d5a76e8c"
     },
     "chrome/installer/mac/signing/chromium_config.py": {
       "after": "6d82f25f3757de590f3d1301194cfbd9f8a2638a860300cbd6a7fd4c5886ad67",

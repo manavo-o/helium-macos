@@ -1,0 +1,75 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -121,6 +121,20 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrow
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       ExplicitUrlQueryWinsOverQuestionRouting) {
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  auto* input = FindInput(palette->GetContentsView());
++  ASSERT_TRUE(input);
++  input->SetText(u"about:blank?why=how are you");
++  Key(palette, ui::VKEY_RETURN);
++  base::RunLoop().RunUntilIdle();
++  EXPECT_EQ(
++      GURL("about:blank?why=how%20are%20you"),
++      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
+                        TypingNeverRequestsSearchSuggestions) {
+   auto* service =
+       TemplateURLServiceFactory::GetForProfile(browser()->GetProfile());
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -73,20 +73,13 @@ constexpr int kBarWidth = 820;
+ constexpr int kRowHeight = 48;
+ constexpr int kCornerRadius = 16;
+ constexpr int kMaxResults = 8;
+-bool LooksLikeURL(std::u16string_view input) {
+-  const std::u16string_view trimmed =
+-      base::TrimWhitespace(input, base::TRIM_ALL);
+-  if (trimmed.empty() ||
+-      trimmed.find_first_of(u" \t\r\n") != std::u16string_view::npos) {
+-    return false;
+-  }
+-  const std::string candidate = base::UTF16ToUTF8(trimmed);
+-  if (candidate.find("://") != std::string::npos ||
+-      candidate.starts_with("about:")) {
+-    return GURL(candidate).is_valid();
+-  }
+-  const GURL inferred("https://" + candidate);
+-  return inferred.is_valid() && inferred.host().find('.') != std::string::npos;
++bool LooksLikeURL(std::u16string_view text, Profile* profile) {
++  // Native parsing is local and understands ports, IPv6, browser schemes and
++  // spaces inside an explicit URL's query without starting any provider.
++  const AutocompleteInput input(std::u16string(text),
++                                metrics::OmniboxEventProto::INVALID_SPEC,
++                                ChromeAutocompleteSchemeClassifier(profile));
++  return input.type() == metrics::OmniboxInputType::URL;
+ }
+ 
+ class ArcCommandBarView : public views::View,
+@@ -277,7 +270,7 @@ class ArcCommandBarView : public views::
+     if (!query.empty()) {
+       results_.push_back(
+           {Result::Kind::kInput, 0,
+-           LooksLikeURL(query)
++           LooksLikeURL(query, browser_->GetProfile())
+                ? u"Open URL  ·  " + std::u16string(textfield_->GetText())
+                : (ShouldAskChatGPT() ? u"Ask ChatGPT  ·  " : u"Search  ·  ") +
+                      std::u16string(textfield_->GetText())});
+@@ -462,7 +455,7 @@ class ArcCommandBarView : public views::
+   }
+ 
+   void UpdateDestination() {
+-    if (LooksLikeURL(textfield_->GetText())) {
++    if (LooksLikeURL(textfield_->GetText(), browser_->GetProfile())) {
+       destination_->SetText(u"Open URL");
+     } else {
+       destination_->SetText(ShouldAskChatGPT() ? u"Ask ChatGPT · Tab to search"
