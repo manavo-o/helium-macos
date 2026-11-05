@@ -1,0 +1,41 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift	2026-11-05 07:57:34.911593986 -0600
++++ src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift	2026-11-05 08:08:30.802499456 -0600
+@@ -4,6 +4,17 @@
+ import AppKit
+ import SwiftUI
+ 
++// Preserve explicit schemes while allowing the usual host-only prefix editing.
++func arcCompletionText(_ completion: String, query: String) -> String {
++    let folded = query.lowercased()
++    if completion.lowercased().hasPrefix(folded) { return completion }
++    for scheme in ["https://", "http://"] where completion.lowercased().hasPrefix(scheme) {
++        let hostText = String(completion.dropFirst(scheme.count))
++        if hostText.lowercased().hasPrefix(folded) { return hostText }
++    }
++    return completion
++}
++
+ private final class CommandState: ObservableObject {
+     @Published var rows: [[String: Any]] = []
+     @Published var selected = 0
+@@ -22,7 +33,7 @@
+         guard !rows.isEmpty else { return }
+         selected = (selected + direction + rows.count) % rows.count
+         movedSelection = true
+-        let text = rows[selected]["input"] as? String ?? rawQuery
++        let text = arcCompletionText(rows[selected]["input"] as? String ?? rawQuery, query: rawQuery)
+         field?.stringValue = text
+         if let editor = field?.currentEditor() {
+             editor.string = text
+@@ -217,7 +228,8 @@
+             var presentation = state.rawQuery
+             var selection = NSRange(location: state.rawQuery.utf16.count, length: 0)
+             if !state.rawQuery.isEmpty, let first = rows.first,
+-               let completion = first["input"] as? String,
++               let input = first["input"] as? String,
++               case let completion = arcCompletionText(input, query: state.rawQuery),
+                (first["action"] as? String == "Switch to Tab" || first["action"] as? String == "Open"),
+                completion.lowercased().hasPrefix(state.rawQuery.lowercased()),
+                completion.utf16.count > state.rawQuery.utf16.count {

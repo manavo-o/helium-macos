@@ -40,3 +40,4 @@ helium/macos/arc-native-url-classification.patch
 helium/macos/arc-routing-query-test.patch
 helium/macos/arc-navigation-polish.patch
 helium/macos/arc-native-state-polish.patch
+helium/macos/arc-host-prefix-completion.patch

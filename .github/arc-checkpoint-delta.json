@@ -4,7 +4,7 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "bcf23fa658ec86dcd670399a873f3022222c688c8e989ed1861765a51ac80622",
+  "input_sha256": "446977dd7ef28886e1d003ea200ec315e17de3af583f5ffcd8a31b0f6af37079",
   "patches": [
     {
       "path": "patches/helium/macos/arc-navigation-polish.patch",
@@ -13,6 +13,10 @@
     {
       "path": "patches/helium/macos/arc-native-state-polish.patch",
       "sha256": "4e67825c594718d8a4c01543fd6728a5a2a1de802f08166776c261b18163d3d4"
+    },
+    {
+      "path": "patches/helium/macos/arc-host-prefix-completion.patch",
+      "sha256": "c48fc0bfa9d1d9f4799490aa67f041dd985a83f1878fc65383a177620542515a"
     }
   ],
   "source_run": "41956948198",
@@ -98,7 +102,7 @@
       "before": null
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift": {
-      "after": "33bfcad6b21c2b347f6cad3ee4cb4162cdf7561ee7eca1f32d6cc271c3268359",
+      "after": "096c8e973a81457dc0f947ac71660157f5abaafd53454c8fbd0c91d3cd5fefd3",
       "before": null
     },
     "chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py": {
