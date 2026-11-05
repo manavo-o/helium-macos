@@ -4,11 +4,15 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "06a4f09478682d9f913ee09784bf17f2323ca6c1a51ab7ddcf79944b074ef05e",
+  "input_sha256": "bcf23fa658ec86dcd670399a873f3022222c688c8e989ed1861765a51ac80622",
   "patches": [
     {
       "path": "patches/helium/macos/arc-navigation-polish.patch",
       "sha256": "081df9c540807fe950b4dd168162bc35d6ca27c0592234e295a83e9882a581d7"
+    },
+    {
+      "path": "patches/helium/macos/arc-native-state-polish.patch",
+      "sha256": "4e67825c594718d8a4c01543fd6728a5a2a1de802f08166776c261b18163d3d4"
     }
   ],
   "source_run": "41956948198",
@@ -66,7 +70,7 @@
       "before": "3d0bd4b43311f8eff6a9f45a47a9916e6a4b51cda8afc0c04284aa806bf9bdb1"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": {
-      "after": "f482695f3a68dd370bd4586ffc8c6640e0bcad14924f1d4bd402a0c7a1f188b3",
+      "after": "4071f2dd89451a28b2761545296538ff0cc586f37ca6faacba479ad640e5427c",
       "before": "5e3e951fc88a86ce9243fc43b96eebf6f0d92cf6d1b625cfbb2a9b73e81794b7"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h": {
@@ -78,7 +82,7 @@
       "before": "1d07a53d7e2b166961cf0d29fef6d8982ea65f46d49240302b7204295937dc33"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc": {
-      "after": "c9882a13f8c3986f12364c12e41de497963d13b5435dad0b2b872c480e3c7d07",
+      "after": "02fe93999e248fcaf49a8de514130d196ec171003fac625ce71d4d00555a4a04",
       "before": "45b3ae78b1d31ad1a4b39f41307454799edc62c1c32b3d0d7aac03f01b25f985"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc": {
@@ -90,11 +94,11 @@
       "before": null
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": {
-      "after": "d9cf3451d1c9977f042c3dbede00df05d60e98f44566d11939be263ddb4eebb5",
+      "after": "d70614cce282ea2d4b4f2a06feb0dcfaac231334b52f00c2e5fdc2c04f78803f",
       "before": null
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift": {
-      "after": "fb9953bc7ac2d5ba86967a7d35b4da767a885aef7c4c3467a3c84a87329029bf",
+      "after": "33bfcad6b21c2b347f6cad3ee4cb4162cdf7561ee7eca1f32d6cc271c3268359",
       "before": null
     },
     "chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py": {
