@@ -13,7 +13,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: github_build_artifact_arm64
-          run-id: 41956948198
+          run-id: 42042324498
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify and extract sources and crash symbols
         run: |
@@ -23,7 +23,7 @@ jobs:
           python3 - <<'PY'
           import json, tarfile, subprocess, shutil
           from pathlib import Path
-          wanted = set(['ui/views/BUILD.gn', 'ui/views/bubble/arc_bubble_lifecycle_unittest.cc', 'ui/views/bubble/bubble_dialog_delegate_view.cc', 'chrome/browser/ui/BUILD.gn', 'chrome/browser/ui/browser_actions.cc', 'chrome/browser/ui/browser_command_controller.cc', 'chrome/browser/ui/layout_constants.cc', 'chrome/browser/ui/browser_ui_prefs.cc', 'chrome/browser/ui/tabs/BUILD.gn', 'chrome/browser/ui/tabs/tab_strip_prefs.cc', 'chrome/browser/ui/helium/arc_appearance_prefs.h', 'chrome/browser/ui/helium/arc_command_bar.h', 'chrome/browser/ui/views/tabs/shared/new_tab_button.cc', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift', 'chrome/browser/ui/views/tabs/vertical/BUILD.gn', 'chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm', 'chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py', 'chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.h', 'chrome/browser/ui/views/toolbar/toolbar_view.h', 'chrome/browser/ui/views/toolbar/BUILD.gn', 'chrome/browser/ui/views/toolbar/arc_chat_button.cc', 'chrome/browser/ui/views/toolbar/toolbar_view.cc', 'chrome/browser/ui/views/frame/browser_view.cc', 'chrome/browser/ui/views/frame/BUILD.gn', 'chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h', 'chrome/browser/ui/views/frame/browser_view.h', 'chrome/browser/ui/views/frame/themed_background.h', 'chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc', 'chrome/browser/ui/views/frame/themed_background.cc', 'chrome/browser/ui/views/frame/system_menu_model_builder.cc', 'chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts', 'chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts', 'chrome/browser/resources/settings/appearance_page/appearance_layout_page.css', 'chrome/browser/extensions/api/settings_private/prefs_util.cc', 'chrome/common/pref_names.h'])
+          wanted = set(['chrome/browser/ui/BUILD.gn', 'chrome/browser/ui/browser_actions.cc', 'chrome/browser/ui/browser_command_controller.cc', 'chrome/browser/ui/browser_ui_prefs.cc', 'chrome/browser/ui/helium/arc_appearance_prefs.h', 'chrome/browser/ui/helium/arc_command_bar.h', 'chrome/browser/ui/layout_constants.cc', 'chrome/browser/ui/tabs/BUILD.gn', 'chrome/browser/ui/tabs/tab_strip_prefs.cc', 'chrome/browser/ui/views/frame/BUILD.gn', 'chrome/browser/ui/views/frame/browser_view.cc', 'chrome/browser/ui/views/frame/system_menu_model_builder.cc', 'chrome/browser/ui/views/frame/themed_background.cc', 'chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc', 'chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h', 'chrome/browser/ui/views/tabs/vertical/BUILD.gn', 'chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc', 'chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.h', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift', 'chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py', 'chrome/browser/ui/views/toolbar/arc_chat_button.cc', 'chrome/browser/ui/views/toolbar/toolbar_view.cc', 'chrome/browser/ui/views/toolbar/toolbar_view.h', 'ui/views/BUILD.gn', 'ui/views/bubble/arc_bubble_lifecycle_unittest.cc', 'ui/views/bubble/bubble_dialog_delegate_view.cc'])
           result = Path('checkpoint-audit')
           result.mkdir()
           process = subprocess.Popen(['zstd', '-dc', 'build_src.tar.zst'], stdout=subprocess.PIPE)
@@ -52,5 +52,5 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: arc-native-source-audit
+          name: arc-swift-link-source-audit
           path: checkpoint-audit/
