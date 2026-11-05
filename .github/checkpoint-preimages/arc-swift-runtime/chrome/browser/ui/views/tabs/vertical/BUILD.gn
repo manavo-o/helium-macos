@@ -1,0 +1,278 @@
+# Copyright 2025 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/mac/mac_sdk.gni")
+import("//build/config/ui.gni")
+import("//chrome/common/features.gni")
+import("//testing/test.gni")
+
+source_set("vertical") {
+  sources = [
+    "top_container_button.h",
+    "vertical_new_tab_button.h",
+    "vertical_tab_strip_bottom_container.h",
+    "vertical_tab_strip_expand_on_hover_lock.h",
+    "vertical_tab_strip_focus_swipe_controller.h",
+    "vertical_tab_strip_scroll_bar.h",
+    "vertical_tab_strip_top_container.h",
+  ]
+
+  public_deps = [ "//chrome/browser/ui/views/tabs/common" ]
+
+  deps = [
+    "//base",
+    "//chrome/browser/ui:layout_constants",
+    "//chrome/browser/ui/tabs",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/browser/ui/views",
+    "//chrome/browser/ui/views/frame",
+    "//chrome/browser/ui/views/tabs/common",
+    "//chrome/browser/ui/views/tabs/dragging:tab_drag_target",
+    "//chrome/browser/ui/views/tabs/shared",
+    "//components/tabs:impl",
+    "//ui/base/metadata",
+    "//ui/gfx/geometry",
+    "//ui/views",
+  ]
+}
+
+source_set("impl") {
+  frameworks = [
+    "AppKit.framework",
+    "SwiftUI.framework",
+    "Combine.framework",
+  ]
+  libs = [ "$target_gen_dir/arc_native_swift.o" ]
+  ldflags = [
+    "-L" + rebase_path("$mac_sdk_path/usr/lib/swift", root_build_dir),
+    "-Wl,-rpath,/usr/lib/swift",
+  ]
+  sources = [
+    "arc_command_bar_view.cc",
+    "arc_native_ui.h",
+    "arc_native_ui.mm",
+    "arc_question_routing.cc",
+    "top_container_button.cc",
+    "vertical_new_tab_button.cc",
+    "vertical_tab_strip_bottom_container.cc",
+    "vertical_tab_strip_expand_on_hover_lock.cc",
+    "vertical_tab_strip_focus_swipe_controller.cc",
+    "vertical_tab_strip_scroll_bar.cc",
+    "vertical_tab_strip_top_container.cc",
+  ]
+
+  deps = [
+    ":arc_native_swift",
+    "//chrome/browser:primitives",
+    "//chrome/browser/autocomplete",
+    "//chrome/browser/glic",
+    "//chrome/browser/glic/browser_ui:glow",
+    "//chrome/browser/glic/browser_ui:glow_controller",
+    "//chrome/browser/search_engines",
+    "//chrome/browser/themes",
+    "//chrome/browser/ui:arc_routing_headers",
+    "//chrome/browser/ui:browser_commands",
+    "//chrome/browser/ui:browser_element_identifiers",
+    "//chrome/browser/ui:layout_constants",
+    "//chrome/browser/ui:ui_features",
+    "//chrome/browser/ui/actions:actions_headers",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/color:color_headers",
+    "//chrome/browser/ui/tab_contents",
+    "//chrome/browser/ui/tabs",
+    "//chrome/browser/ui/tabs:tab_group",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/browser/ui/tabs:utils",
+    "//chrome/browser/ui/tabs/organizer:impl",
+    "//chrome/browser/ui/tabs/saved_tab_groups",
+    "//chrome/browser/ui/user_education",
+    "//chrome/browser/ui/views:layout_provider",
+    "//chrome/browser/ui/views/frame",
+    "//chrome/browser/ui/views/frame:browser_view_header",
+    "//chrome/browser/ui/views/frame:multi_contents_view",
+    "//chrome/browser/ui/views/frame:themed_background",
+    "//chrome/browser/ui/views/tabs/common",
+    "//chrome/browser/ui/views/tabs/common:impl",
+    "//chrome/browser/ui/views/tabs/dragging:tab_drag_target",
+    "//chrome/browser/ui/views/tabs/shared",
+    "//chrome/browser/ui/views/toolbar",
+    "//chrome/browser/ui/window_metadata",
+    "//components/contextual_tasks/public:feature_list",
+    "//components/favicon/content",
+    "//components/omnibox/browser",
+    "//components/performance_manager",
+    "//components/search_engines",
+    "//components/tab_groups",
+    "//components/tabs:impl",
+    "//components/vector_icons",
+    "//content/public/browser",
+    "//skia",
+    "//third_party/abseil-cpp:absl",
+    "//third_party/icu",
+    "//third_party/metrics_proto",
+    "//ui/accessibility:ax_base",
+    "//ui/actions",
+    "//ui/base",
+    "//ui/base:features",
+    "//ui/base/clipboard",
+    "//ui/base/dragdrop:types",
+    "//ui/base/metadata",
+    "//ui/color",
+    "//ui/compositor",
+    "//ui/display",
+    "//ui/events",
+    "//ui/gfx",
+    "//ui/gfx/geometry",
+    "//ui/views",
+  ]
+
+  public_deps = [
+    ":vertical",
+    "//chrome/browser:browser_public_dependencies",
+    "//chrome/browser/ui/tabs/alert:tab_alert",
+    "//chrome/browser/ui/views/tabs/common:impl",
+  ]
+}
+
+source_set("browser_tests") {
+  testonly = true
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "arc_command_bar_browsertest.cc" ]
+  deps = [
+    ":impl",
+    "//base",
+    "//chrome/browser",
+    "//chrome/browser/performance_manager/public/user_tuning",
+    "//chrome/browser/tab_group_sync:factories",
+    "//chrome/browser/ui",
+    "//chrome/browser/ui:browser_element_identifiers",
+    "//chrome/browser/ui:recently_audible_helper",
+    "//chrome/browser/ui:ui_features",
+    "//chrome/browser/ui/animation",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs/tab_strip_api",
+    "//chrome/browser/ui/views/animations",
+    "//chrome/browser/ui/views/frame:browser_view_header",
+    "//chrome/browser/ui/views/tabs/common",
+    "//chrome/browser/ui/views/tabs/common:browser_tests",
+    "//chrome/browser/ui/views/tabs/shared",
+    "//chrome/browser/ui/views/tabs/vertical",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//content/test:test_support",
+    "//testing/gmock",
+    "//ui/events:test_support",
+  ]
+
+  if (use_ozone) {
+    deps += [ "//ui/ozone" ]
+  }
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "arc_question_routing_unittest.cc",
+    "vertical_tab_strip_expand_on_hover_lock_unittest.cc",
+    "vertical_tab_strip_top_container_unittest.cc",
+  ]
+  deps = [
+    ":arc_native_swift",
+    ":impl",
+    "//base/test:test_support",
+    "//chrome/browser/ui:arc_routing_headers",
+    "//chrome/browser/ui:ui_features",
+    "//chrome/browser/ui/views/tabs/common",
+    "//chrome/browser/ui/views/tabs/common:unit_tests",
+    "//chrome/browser/ui/views/tabs/shared",
+    "//chrome/browser/ui/views/tabs/vertical",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/favicon/content",
+    "//components/omnibox/browser",
+    "//components/tabs:test_support",
+    "//net",
+    "//testing/gtest",
+    "//ui/events:test_support",
+    "//ui/views",
+  ]
+}
+
+source_set("interactive_ui_tests") {
+  testonly = true
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [
+    "vertical_tab_strip_bottom_container_interactive_uitest.cc",
+    "vertical_tab_strip_top_container_interactive_uitest.cc",
+  ]
+  deps = [
+    ":impl",
+    "//base",
+    "//chrome/browser",
+    "//chrome/browser/ui",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/fullscreen",
+    "//chrome/browser/ui/tabs:tab_menu",
+    "//chrome/browser/ui/views/bookmarks",
+    "//chrome/browser/ui/views/bookmarks/saved_tab_groups",
+    "//chrome/browser/ui/views/frame:browser_view_header",
+    "//chrome/browser/ui/views/frame:system_menu_model_builder",
+    "//chrome/browser/ui/views/tabs:new_tab_button",
+    "//chrome/browser/ui/views/tabs/common",
+    "//chrome/browser/ui/views/tabs/common:interactive_ui_tests",
+    "//chrome/browser/ui/views/tabs/organizer",
+    "//chrome/browser/ui/views/tabs/shared",
+    "//chrome/browser/ui/views/tabs/vertical",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//content/test:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//ui/base",
+    "//ui/base:ozone_buildflags",
+    "//ui/views",
+  ]
+}
+
+# Small focused binary; does not link the browser UI implementation.
+test("arc_routing_tests") {
+  sources = [
+    "arc_question_routing.cc",
+    "arc_question_routing_unittest.cc",
+  ]
+  deps = [
+    ":arc_native_swift",
+    "//base",
+    "//base/test:run_all_unittests",
+    "//chrome/browser/ui:arc_routing_headers",
+    "//components/favicon/content",
+    "//components/omnibox/browser",
+    "//net",
+    "//testing/gtest",
+    "//third_party/icu",
+    "//url",
+  ]
+}
+
+# Swift support is confined to these UI files; C++ toolchain inputs stay intact.
+action("arc_native_swift") {
+  script = "compile_arc_swift.py"
+  sources = [ "arc_native_ui.swift" ]
+  outputs = [
+    "$target_gen_dir/arc_native_swift.o",
+    "$target_gen_dir/arc_native_swift.h",
+  ]
+  args = [
+    "--source",
+    rebase_path(sources[0], root_build_dir),
+    "--output",
+    rebase_path(outputs[0], root_build_dir),
+    "--header",
+    rebase_path(outputs[1], root_build_dir),
+    "--sdk",
+    rebase_path(mac_sdk_path, root_build_dir),
+    "--arch",
+    current_cpu,
+  ]
+}

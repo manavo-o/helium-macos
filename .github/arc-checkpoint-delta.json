@@ -1,137 +1,27 @@
 {
-  "base_commit": "8689a4d336a5bde7b1fb2caad64d207504b56765",
+  "base_commit": "f4b4ec5940d1cc95e729465922a3def410b105cb",
   "domain_inputs": {
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "f5551ef12f214796f6cf5a873111071d11b8dfa65e190bb32782b3da5e886695",
+  "input_sha256": "a62b56be4656fb5dfb1953fd8a7d5e84220c28d990899ed290fcdef93ed27422",
   "patches": [
     {
-      "path": "patches/helium/macos/arc-navigation-polish.patch",
-      "sha256": "ce5438fbf4ffc48735065642a6c472bf520b32a04475cdacb578da22f76a46ec"
-    },
-    {
-      "path": "patches/helium/macos/arc-native-state-polish.patch",
-      "sha256": "4e67825c594718d8a4c01543fd6728a5a2a1de802f08166776c261b18163d3d4"
-    },
-    {
-      "path": "patches/helium/macos/arc-host-prefix-completion.patch",
-      "sha256": "c48fc0bfa9d1d9f4799490aa67f041dd985a83f1878fc65383a177620542515a"
+      "path": ".github/checkpoint-deltas/arc-swift-runtime.patch",
+      "sha256": "10bd42c0810d6da9230cec808c3ff73bdb043c8eb8231a67c46be2b0d1cb9f97"
     }
   ],
-  "source_run": "41956948198",
+  "source_run": "42042324498",
   "sources": {
-    "chrome/browser/ui/BUILD.gn": {
-      "after": "ed27ee6dac05a1367280dcf8cbd8b276e3936715fd058d42cb8da72c9c754861",
-      "before": "3701f6c9980199e4a30307156f786bf7aafb0128af5ed9c03bc722338986b52c"
-    },
-    "chrome/browser/ui/browser_actions.cc": {
-      "after": "0e1fb10cc57ed1d63493fea19db3e06b54dd7d20c341d044fed250e51a908727",
-      "before": "5c922676dfd523d7d5c4b5a9e597020f933ba872002cfe8854373dae77d79850"
-    },
-    "chrome/browser/ui/browser_command_controller.cc": {
-      "after": "8c79dc7cc58a0e25ba079d45ce2cfa8bb58019ad6d3ecc5ce1c67ccf268ab206",
-      "before": "25d2bb0988ff8e9ff826669149d51e1b88e588cc15ba2f613fbdd724c2f28779"
-    },
-    "chrome/browser/ui/browser_ui_prefs.cc": {
-      "after": "f7f47e170c44fbb44f011f7e8df64ab8aabb8e6d7c67c6d63cd1c62cc403db46",
-      "before": "efb7532402d1c42b550bb495faaedb48ff5ab6933abf2be874c0e82e458a5513"
-    },
-    "chrome/browser/ui/helium/arc_appearance_prefs.h": {
-      "after": "c5753c9173802332a6e2f42cd369b7cd4e3af4ef38ec087638dbf252a94a0deb",
-      "before": null
-    },
-    "chrome/browser/ui/helium/arc_command_bar.h": {
-      "after": "7fed8b6be41567b82ea67a8bba236d542c11a0144745c78daab7830c29ff1344",
-      "before": "ae9b2b76fcfde8f9f9a63db81d4d78b4b68b8811e2bc9f8f20222bce73645078"
-    },
-    "chrome/browser/ui/layout_constants.cc": {
-      "after": "0e93593bf12943f7ea69f0d294107ea9e379d9997b9daff8302ce8da6135ad1a",
-      "before": "abef0fe06176c037b0af291d85dcba03aa695f4cf19ce4aed1c7054fca80c41f"
-    },
-    "chrome/browser/ui/tabs/BUILD.gn": {
-      "after": "425bd5e222b9456c0a8db5ec05214afd0036cb09db566b333349e981e4ed6ded",
-      "before": "93db07f1eafcbb7b3421f4c2cb797658b20c827f8a46e6694b28c71297d599d9"
-    },
-    "chrome/browser/ui/tabs/tab_strip_prefs.cc": {
-      "after": "5fed0ddf5af2a577c88448a2c024c70e8be0cd7cc55ad803bdbed96ca039e5bc",
-      "before": "2c1fe94bbf302304142601c19a0212563bfb0c45a3db8eb2624423b87b3adf80"
-    },
-    "chrome/browser/ui/views/frame/BUILD.gn": {
-      "after": "dd7d2d53574b9006d45d850b196e33ca17e3c63cdb7dc8018e81d2c25b9b2250",
-      "before": "6b83d705190dc7830cf53a0b265bee6e8ba72932cec1b391eee6dd0b3a5b0c40"
-    },
-    "chrome/browser/ui/views/frame/browser_view.cc": {
-      "after": "51f1dc54ad9edc687fcee51bad53053c2755f63f3ae29e90f64f2f57ce82f70e",
-      "before": "4742eeaba1c3ac607fceabd3e4959b23b94500d5a778d3a4e5628bea12ae124e"
-    },
-    "chrome/browser/ui/views/frame/system_menu_model_builder.cc": {
-      "after": "0f53a6dd7c9c65776cde39f5d0d2fcdd39449aac55eb9fccb99361bea4a5e407",
-      "before": "167297d87b87158c8f62b8c94155b0514e6ee19b87f77f5238d1fdd3e82b2bfb"
-    },
-    "chrome/browser/ui/views/frame/themed_background.cc": {
-      "after": "d3604c0190a39a55fc73487fc6822b810c28bf7f7b39cb644f79bd8467724f6e",
-      "before": "3d0bd4b43311f8eff6a9f45a47a9916e6a4b51cda8afc0c04284aa806bf9bdb1"
-    },
-    "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": {
-      "after": "4071f2dd89451a28b2761545296538ff0cc586f37ca6faacba479ad640e5427c",
-      "before": "5e3e951fc88a86ce9243fc43b96eebf6f0d92cf6d1b625cfbb2a9b73e81794b7"
-    },
-    "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h": {
-      "after": "cd119b41ae4a50eb67dd4a6885552f2588bfce39e31109ea20492ec70980141a",
-      "before": "cbef2145f7ee2ea9bd099a79876a7a391eb7f6f0eaced578b9894f40c1434dcf"
-    },
     "chrome/browser/ui/views/tabs/vertical/BUILD.gn": {
-      "after": "00472d78a2d1c9e54a0ba1362eb43a4a1220f0400f98eb454ccbe1f426ab6621",
-      "before": "1d07a53d7e2b166961cf0d29fef6d8982ea65f46d49240302b7204295937dc33"
-    },
-    "chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc": {
-      "after": "02fe93999e248fcaf49a8de514130d196ec171003fac625ce71d4d00555a4a04",
-      "before": "45b3ae78b1d31ad1a4b39f41307454799edc62c1c32b3d0d7aac03f01b25f985"
-    },
-    "chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc": {
-      "after": "ab2d8f5c47f2d251a951f155fd455f342f58438cfca30fd69a7c2758b97619e9",
-      "before": "e5f4ffad8a33e9cc4c4f1e32a4521d33556b0169da0692290a99539a07fc6e29"
-    },
-    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": {
-      "after": "0c99f0130848bccee383fe6fef38d6ddd87afe00905b3a9eace1989f7effa852",
-      "before": null
-    },
-    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": {
-      "after": "d70614cce282ea2d4b4f2a06feb0dcfaac231334b52f00c2e5fdc2c04f78803f",
-      "before": null
-    },
-    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift": {
-      "after": "096c8e973a81457dc0f947ac71660157f5abaafd53454c8fbd0c91d3cd5fefd3",
-      "before": null
+      "after": "d9522ba7392ed8c16277107db80766dea81f433ee946d8509c0126315e78aeef",
+      "before": "00472d78a2d1c9e54a0ba1362eb43a4a1220f0400f98eb454ccbe1f426ab6621",
+      "preimage": ".github/checkpoint-preimages/arc-swift-runtime/chrome/browser/ui/views/tabs/vertical/BUILD.gn"
     },
     "chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py": {
       "after": "6607a43abe8552c19788d281dc19d80dc94dd2bc9a0d624858af6de5b120a9fd",
-      "before": null
-    },
-    "chrome/browser/ui/views/toolbar/arc_chat_button.cc": {
-      "after": "886ff97b6d6e3104d49cb3138089b95ff030c396f79d4113f11f618c5dcb18a0",
-      "before": "01e294bf99db867ff509bc75f399c2fd93d2782948991b9dc0a48e921c038574"
-    },
-    "chrome/browser/ui/views/toolbar/toolbar_view.cc": {
-      "after": "c3ccb50c695e1c73f295d9bbad470df807cd73b78f5d79fb60acdb651a5034a4",
-      "before": "06289411559fb3ed6c0475f7cdebcbfbb58ec41ed63b87cb109e98a47f5bacaa"
-    },
-    "chrome/browser/ui/views/toolbar/toolbar_view.h": {
-      "after": "4306977840aa654912eae1e33394a9fb8931963b4b51bb6bc5cb24386159c895",
-      "before": "b12c716993edf62cbdc70bf5e170734744fe512086d106b403a4963ccf2888cf"
-    },
-    "ui/views/BUILD.gn": {
-      "after": "5f6da415dc728ea272dc744b7d0fc6a04d13d0981330e34543c56d6257b18afc",
-      "before": "6317069a76c12553b9697a85767ca6df823919671de19b4ecdc30fc2f515ab4d"
-    },
-    "ui/views/bubble/arc_bubble_lifecycle_unittest.cc": {
-      "after": "78fb7b98538949d45b45c781f3855fc5889aaa2f08ea1ad52024a51c439065bf",
-      "before": null
-    },
-    "ui/views/bubble/bubble_dialog_delegate_view.cc": {
-      "after": "3fd050e3feb17e3b2cb166e7e3e6b7bbd2bc9b92f8dd0c072773c61cc0e47954",
-      "before": "0389c6c7189a3656e00ec77ef486a495e850d65c915309a8ab1f06a5ea479c22"
+      "before": "5f402b71d392b08c17f9090aee72109e8243b923c4fe9f86e75a7a4820b83cd3",
+      "preimage": ".github/checkpoint-preimages/arc-swift-runtime/chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py"
     }
   }
 }

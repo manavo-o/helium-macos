@@ -6,16 +6,20 @@ it does not silently fall back to a full Chromium build.
 
 ## Current baseline
 
-The native UI patch set reuses successful run `41956948198`, commit
-`8689a4d336a5bde7b1fb2caad64d207504b56765`. Audit run `42035346056`
-extracted affected source files from that exact build archive. The manifest in
-`.github/arc-checkpoint-delta.json` records three appended patches and all 28
-source preimages and outputs.
+The Swift runtime link recovery reuses failed run `42042324498`, commit
+`f4b4ec5940d1cc95e729465922a3def410b105cb`. Audit run `42056862800`
+verified that archive's digest and extracted all 28 affected native UI sources.
+Their hashes match the source manifest verified by the failed build.
 
-The patches add the SwiftUI/AppKit command bar and appearance editor, restore
-top navigation, toggle the Chat side panel, guard the anchored-bubble theme
-notification crash, refresh native presentation and spacing, and complete
-addresses from host-only prefixes.
+The active checkpoint delta changes two files: native link configuration and a
+build-helper license comment added after the failed run. The exact preimages
+are retained under `.github/checkpoint-preimages/arc-swift-runtime/`; replay
+checks verify their hashes. Fresh builds receive the link fix through the
+appended `arc-swift-runtime-link.patch` in the normal outer patch series.
+
+The original native UI patches were checked against successful run
+`41956948198`; this recovery retains the newer failed run's compiled objects
+and ThinLTO cache rather than repeating that earlier source compilation.
 
 ## What restoration does
 
@@ -67,3 +71,23 @@ of checkpoint compatibility. Source hash checks must not be relaxed.
 This is bounded reuse across a recorded patch set. Changing the Chromium/Helium
 revision, architecture, SDK, or toolchain requires a separate compatibility
 audit. Rebuilding affected dependents and relinking remain necessary.
+
+
+## Swift runtime link recovery
+
+Run `42042324498` compiled the native surface and passed all seven focused
+routing/bubble tests, then failed at the final framework link. GN does not
+propagate `ldflags` from source sets; the Swift library search path never reached
+the linker. The repair uses inherited `lib_dirs`, explicitly links `swiftCore`,
+and propagates the runtime rpath through an `all_dependent_configs` entry.
+
+Recovery reuses that failed run's compiled output. Its checkpoint-specific delta
+also includes the build helper license comment added after the failed run's
+commit. Exact preimages accompany the delta for reproducible replay tests; the
+runtime repair still checks the restored source hashes before making changes.
+
+The new preflight checks the real framework Ninja flags and links only the
+native Swift object with Chromium's bundled clang/lld. This catches runtime link
+configuration errors before the expensive full framework ThinLTO link. The
+previous local link check used Apple's linker and did not cover this path.
+All compilation and linking for this recovery runs on GitHub.

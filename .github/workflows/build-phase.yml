@@ -110,6 +110,7 @@ jobs:
         run: |
           export SISO_PATH="$PWD/third_party/siso/cipd/siso"
           python3 third_party/depot_tools/autoninja.py -C out/Default obj/chrome/browser/ui/views/tabs/vertical/impl/arc_command_bar_view.o obj/chrome/browser/ui/views/tabs/vertical/impl/arc_native_ui.o
+          python3 ../../.github/scripts/github_check_arc_swift_link.py
       - name: Build and run focused routing tests
         id: arc-tests
         continue-on-error: true

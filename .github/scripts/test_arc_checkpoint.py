@@ -44,6 +44,8 @@ class CheckpointDeltaTest(unittest.TestCase):
                 continue
             candidates = [ROOT / 'build/src/.pc' / patch['path'].removeprefix('patches/') / path
                           for patch in DATA['patches']]
+            if record.get('preimage'):
+                candidates.insert(0, ROOT / record['preimage'])
             original = next(p for p in candidates if p.is_file())
             content = substitution.source(path, original.read_bytes())
             self.assertEqual(record['before'], hashlib.sha256(content).hexdigest())
@@ -67,8 +69,12 @@ class CheckpointDeltaTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             checkpoint.apply_delta(self.root, DATA)
         self.assertEqual(source.read_bytes(), b'unexpected source')
-        new_path = next(p for p, value in DATA['sources'].items() if value['before'] is None)
-        self.assertFalse((self.root / 'build/src' / new_path).exists())
+        for new_path, value in DATA['sources'].items():
+            if value['before'] is None:
+                self.assertFalse((self.root / 'build/src' / new_path).exists())
+            elif new_path != path:
+                self.assertEqual(value['before'], checkpoint.file_hash(
+                    self.root / 'build/src' / new_path))
 
     def test_selector_rejects_changed_patch_even_when_other_inputs_match(self):
         with mock.patch.object(checkpoint, 'source_fingerprint', return_value=DATA['input_sha256']):

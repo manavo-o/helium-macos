@@ -1,0 +1,43 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -37,16 +37,22 @@
+   ]
+ }
+ 
++# Linker flags on a source_set do not reach the final browser framework.
++config("arc_swift_runtime") {
++  ldflags = [ "-Wl,-rpath,/usr/lib/swift" ]
++}
++
+ source_set("impl") {
++  all_dependent_configs = [ ":arc_swift_runtime" ]
++  lib_dirs = [ "$mac_sdk_path/usr/lib/swift" ]
+   frameworks = [
+     "AppKit.framework",
+     "SwiftUI.framework",
+     "Combine.framework",
+   ]
+-  libs = [ "$target_gen_dir/arc_native_swift.o" ]
+-  ldflags = [
+-    "-L" + rebase_path("$mac_sdk_path/usr/lib/swift", root_build_dir),
+-    "-Wl,-rpath,/usr/lib/swift",
++  libs = [
++    "$target_gen_dir/arc_native_swift.o",
++    "swiftCore",
+   ]
+   sources = [
+     "arc_command_bar_view.cc",
+Index: src/chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py
++++ src/chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py
+@@ -1,4 +1,7 @@
+ #!/usr/bin/env python3
++# Copyright 2026 The Helium Authors
++# You can use, redistribute, and/or modify this source code under
++# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ """Compile the isolated macOS SwiftUI surface without changing the C++ toolchain."""
+ import argparse
+ from pathlib import Path

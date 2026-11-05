@@ -1,0 +1,31 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/BUILD.gn	2026-11-05 07:34:10.440960115 -0600
++++ src/chrome/browser/ui/views/tabs/vertical/BUILD.gn	2026-11-05 09:37:46.604584248 -0600
+@@ -37,16 +37,22 @@
+   ]
+ }
+ 
++# Linker flags on a source_set do not reach the final browser framework.
++config("arc_swift_runtime") {
++  ldflags = [ "-Wl,-rpath,/usr/lib/swift" ]
++}
++
+ source_set("impl") {
++  all_dependent_configs = [ ":arc_swift_runtime" ]
++  lib_dirs = [ "$mac_sdk_path/usr/lib/swift" ]
+   frameworks = [
+     "AppKit.framework",
+     "SwiftUI.framework",
+     "Combine.framework",
+   ]
+-  libs = [ "$target_gen_dir/arc_native_swift.o" ]
+-  ldflags = [
+-    "-L" + rebase_path("$mac_sdk_path/usr/lib/swift", root_build_dir),
+-    "-Wl,-rpath,/usr/lib/swift",
++  libs = [
++    "$target_gen_dir/arc_native_swift.o",
++    "swiftCore",
+   ]
+   sources = [
+     "arc_command_bar_view.cc",
