@@ -37,6 +37,7 @@ jobs:
   build_job:
     name: Build Helium for macOS
     runs-on: ${{ inputs.os }}
+    timeout-minutes: 360
     outputs:
       status: ${{ steps.build.outputs.status }}
     steps:
@@ -102,26 +103,30 @@ jobs:
           ARC_MACOS_TEAM_ID: ${{ vars.ARC_MACOS_TEAM_ID }}
           PROD_MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
           PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64: ${{ secrets.PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64 }}
-      - name: Compile palette before continuing browser build
+      - name: Configure compiler cache before compilation
+        uses: actions/github-script@v7
+        env:
+          HELIUM_TARGET_ARCH: ${{ inputs.arch }}
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('SCCACHE_GHA_ENABLED', 'on');
+            core.exportVariable('SCCACHE_GHA_VERSION', process.env.HELIUM_TARGET_ARCH);
+            core.exportVariable('SCCACHE_WEBDAV_KEY_PREFIX', process.env.HELIUM_TARGET_ARCH);
+      - name: Check native Swift link configuration
         id: arc-palette
         continue-on-error: true
+        timeout-minutes: 5
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
         working-directory: build/src
-        run: |
-          export SISO_PATH="$PWD/third_party/siso/cipd/siso"
-          python3 third_party/depot_tools/autoninja.py -C out/Default obj/chrome/browser/ui/views/tabs/vertical/impl/arc_command_bar_view.o obj/chrome/browser/ui/views/tabs/vertical/impl/arc_native_ui.o
-          python3 ../../.github/scripts/github_check_arc_swift_link.py
-      - name: Build and run focused routing tests
+        run: timeout -k 15s 180s python3 ../../.github/scripts/github_check_arc_swift_link.py
+      - name: Run retained regression tests for the audited link-only repair
         id: arc-tests
         continue-on-error: true
-        if: ${{ (!inputs.resume || inputs.repair_arc_checkpoint) && steps.arc-palette.outcome != 'failure' }}
-        working-directory: build/src
-        run: |
-          set -o pipefail
-          export SISO_PATH="$PWD/third_party/siso/cipd/siso"
-          python3 third_party/depot_tools/autoninja.py -C out/Default arc_routing_tests arc_bubble_lifecycle_tests
-          ./out/Default/arc_routing_tests --gtest_filter='ArcQuestionRoutingTest.*' | tee ../../github_actions_arc_routing_tests_${{ inputs.arch }}.log
-          ./out/Default/arc_bubble_lifecycle_tests --gtest_filter='ArcBubbleLifecycleTest.*' | tee ../../github_actions_arc_bubble_tests_${{ inputs.arch }}.log
+        timeout-minutes: 5
+        if: ${{ inputs.resume && inputs.repair_arc_checkpoint && steps.arc-palette.outcome != 'failure' }}
+        run: timeout -k 15s 240s python3 .github/scripts/github_run_arc_cached_tests.py --arch '${{ inputs.arch }}'
       - uses: ./.github/actions/do-build
         id: build
         with:

@@ -67,8 +67,8 @@ fi
 
 gsync --file-system "$_src_dir"
 
-# Needs to be compressed to stay below GitHub's upload limit 2 GB (?!) 2020-11-24; used to be  5-8GB (?)
-gtar --format=pax -C build -c -f - src | zstd -vv -11 -T0 -o build_src.tar.zst
+# Level 6 reduces checkpoint compression work while retaining all build outputs.
+gtar --format=pax -C build -c -f - src | zstd -vv -6 -T0 -o build_src.tar.zst
 
 sha256sum ./build_src.tar.zst | tee ./sums.txt
 

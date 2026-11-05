@@ -91,3 +91,40 @@ native Swift object with Chromium's bundled clang/lld. This catches runtime link
 configuration errors before the expensive full framework ThinLTO link. The
 previous local link check used Apple's linker and did not cover this path.
 All compilation and linking for this recovery runs on GitHub.
+
+## Preventing the six-hour preflight timeout
+
+Run `42059648704` was cancelled at roughly six hours while building the regression
+executables. Its test dependency graph scheduled about 31,000 steps, including
+content/Blink objects. That compilation was outside the normal phase deadline,
+so the job never reached its checkpoint-saving action. It uploaded no new build
+checkpoint; recovery must still use retained run `42042324498`.
+
+For this exact link-only recovery, production CI now runs the retained test
+executables directly. The reuse policy requires that baseline run and the exact
+audited after-hashes for the two changed files. Application/test source changes
+or a different GN delta fail this policy check. This is reuse of the seven
+previously passing tests, not a fresh test compilation. Future functional changes
+need fresh regression validation; do not reintroduce an unbounded test build in
+the production job.
+
+The native preflight links the retained Swift object with Chromium clang/lld;
+it no longer invokes Ninja. The production build compiles any affected objects
+inside the normal phase budget. Compiler-cache credentials and architecture
+settings are configured before any compilation rather than only afterward.
+
+Compilation stops at 4h30 elapsed job time, including setup/preflight, leaving
+90 minutes for packing and uploads. Exhausted budgets save a resumable phase
+without starting a compiler; forced termination at the deadline also resumes.
+Early compiler failures remain failures. The existing next-phase workflow restores
+saved outputs and continues. Checkpoint compression uses level 6 instead of 11
+to reduce save-time CPU work; archives may be somewhat larger.
+
+Eight cached-test policy/result tests, seven mocked build-budget tests, and five checkpoint
+replay tests run before macOS resources are allocated. The budget tests invoke
+no compiler. Workflow/action metadata is also checked with actionlint before
+pushing changes. Diagnostics upload independently when checkpoint packaging fails.
+
+The CI compile command now requests only `chrome` and `chrome/installer/mac`.
+ChromeDriver is not part of this browser disk image and is no longer built as
+an additional target. Existing driver outputs in checkpoints are preserved.

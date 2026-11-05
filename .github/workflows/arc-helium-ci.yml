@@ -26,6 +26,12 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+      - name: Check cache reuse and phase-budget safeguards
+        run: |
+          python3 .github/scripts/test_arc_cached_tests.py
+          python3 .github/scripts/test_arc_build_budget.py
+          python3 .github/scripts/test_arc_checkpoint.py
+          bash -n .github/scripts/github_build.sh .github/scripts/github_prepare_artifacts.sh
       - id: checkpoint
         run: python3 .github/scripts/github_repair_arc_checkpoint.py --select --require-checkpoint
   build:

@@ -1,4 +1,5 @@
 name: Prepare build environment
+description: Prepare macOS build tools and copy the current CI scripts.
 runs:
   using: composite
   steps:

@@ -1,33 +1,35 @@
 name: Build Helium
+description: Compile, checkpoint, and package Helium within the phase deadline.
 inputs:
   preflight_failed:
     description: Save the checkpoint without compiling when preflight checks fail
     required: false
     default: 'false'
   arch:
+    description: Target CPU architecture.
     required: true
-    type: string
   GITHUB_TOKEN:
+    description: Token used by artifact preparation.
     required: true
-    type: string
   MACOS_CERTIFICATE:
-    type: string
+    description: Encoded macOS signing certificate.
   MACOS_CERTIFICATE_PWD:
-    type: string
+    description: Password for the signing certificate.
   MACOS_CERTIFICATE_NAME:
-    type: string
+    description: Name of the signing identity.
   MACOS_CI_KEYCHAIN_PWD:
-    type: string
+    description: Password for the temporary CI keychain.
   PROD_MACOS_NOTARIZATION_APPLE_ID:
-    type: string
+    description: Apple ID used for notarization.
   PROD_MACOS_NOTARIZATION_TEAM_ID:
-    type: string
+    description: Team identifier used for notarization.
   PROD_MACOS_NOTARIZATION_PWD:
-    type: string
+    description: Credential used for notarization.
   PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64:
-    type: string
+    description: Encoded provisioning profile for required entitlements.
 outputs:
   status:
+    description: Whether the phase is running, finished, or failed preflight.
     value: ${{ steps.build.outputs.status }}
 runs:
   using: composite
@@ -39,7 +41,7 @@ runs:
           core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
           core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Show sccache stats before build
-      run: sccache --show-stats
+      run: timeout -k 5s 30s sccache --show-stats || echo 'Compiler-cache statistics unavailable; continuing.'
       shell: bash
 
     - name: Build
@@ -58,7 +60,7 @@ runs:
 
     - name: Show sccache stats after build
       if: ${{ !cancelled() }}
-      run: sccache --show-stats
+      run: timeout -k 5s 30s sccache --show-stats || echo 'Compiler-cache statistics unavailable; continuing.'
       shell: bash
 
     - name: Prepare archive of build as artifact
@@ -101,3 +103,14 @@ runs:
           ${{ steps.bake.outputs.deltas }}
           ./release_asset/${{ steps.bake.outputs.file_name }}
           ./${{ steps.bake.outputs.file_name }}.hashes.md
+
+    - name: Upload diagnostics even if checkpoint packaging fails
+      if: ${{ !cancelled() && failure() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: github_failure_diagnostics_${{ inputs.arch }}_${{ github.job }}
+        path: |
+          github_actions_*.log
+          build/src/out/Default/siso_output
+          build/src/out/Default/siso_failed_commands.sh
+        if-no-files-found: warn
