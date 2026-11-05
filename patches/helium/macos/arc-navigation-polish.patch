@@ -689,7 +689,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
 Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 ===================================================================
 --- src.orig/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc	2026-11-04 16:19:59.427475286 -0600
-+++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc	2026-11-05 07:32:26.614511482 -0600
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc	2026-11-05 07:36:06.440918041 -0600
 @@ -11,6 +11,12 @@
  #include <vector>
  
@@ -711,7 +711,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
  #include "chrome/browser/ui/views/frame/multi_contents_view.h"
  #include "chrome/common/pref_names.h"
  #include "components/omnibox/browser/autocomplete_classifier.h"
-@@ -57,498 +64,534 @@
+@@ -57,498 +64,536 @@
  #include "ui/views/background.h"
  #include "ui/views/border.h"
  #include "ui/views/controls/button/label_button.h"
@@ -900,7 +900,6 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +        &ArcCommandBarView::NativeEvent, base::Unretained(this)));
 +    native_host_ = AddChildView(std::make_unique<views::NativeViewHost>());
 +    native_host_->SetFocusBehavior(FocusBehavior::ALWAYS);
-+    native_host_->Attach(native_->view());
 +    UpdateResults();
 +  }
 +  ~ArcCommandBarView() override {
@@ -911,6 +910,8 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
 +    autocomplete_->Stop(AutocompleteStopReason::kClobbered);
 +  }
 +  views::Textfield* textfield() { return textfield_; }
++  // NativeViewHost creates its macOS wrapper when inserted into a Widget.
++  void AttachNativeView() { native_host_->Attach(native_->view()); }
 +  void FocusInput() { native_->Focus(); }
 +  void SetInputForTesting(const std::u16string& text) { native_->SetText(text); }
 +  gfx::Size CalculatePreferredSize(const views::SizeBounds&) const override {
@@ -1611,6 +1612,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
    auto* widget = new views::Widget();
    widget->Init(std::move(params));
    widget->SetContentsView(std::move(contents));
++  bar->AttachNativeView();
    widget->AddObserver(bar);
    widget->Show();
    widget->Activate();
