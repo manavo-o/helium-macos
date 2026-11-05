@@ -85,6 +85,9 @@ jobs:
       - name: Unpack archive of build
         if: ${{ inputs.resume }}
         run: ./github_unpack_archive.sh
+      - name: Clear previous completion marker
+        if: ${{ inputs.resume }}
+        run: rm -f 'build_finished_${{ inputs.arch }}.log'
       - name: Apply verified Arc source delta
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
         run: python3 .github/scripts/github_repair_arc_checkpoint.py
@@ -100,13 +103,17 @@ jobs:
           PROD_MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
           PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64: ${{ secrets.PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64 }}
       - name: Compile palette before continuing browser build
+        id: arc-palette
+        continue-on-error: true
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
         working-directory: build/src
         run: |
           export SISO_PATH="$PWD/third_party/siso/cipd/siso"
           python3 third_party/depot_tools/autoninja.py -C out/Default obj/chrome/browser/ui/views/tabs/vertical/impl/arc_command_bar_view.o
       - name: Build and run focused routing tests
-        if: ${{ !inputs.resume || inputs.repair_arc_checkpoint }}
+        id: arc-tests
+        continue-on-error: true
+        if: ${{ (!inputs.resume || inputs.repair_arc_checkpoint) && steps.arc-palette.outcome != 'failure' }}
         working-directory: build/src
         run: |
           set -o pipefail
@@ -116,6 +123,7 @@ jobs:
       - uses: ./.github/actions/do-build
         id: build
         with:
+          preflight_failed: ${{ steps.arc-palette.outcome == 'failure' || steps.arc-tests.outcome == 'failure' }}
           arch: ${{ inputs.arch }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MACOS_CERTIFICATE: ${{ secrets.PROD_MACOS_CERTIFICATE }}

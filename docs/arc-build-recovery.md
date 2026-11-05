@@ -60,3 +60,15 @@ pinned Helium rules. Cached patch hunks are normalized only for files in the
 pinned substitution list; raw patches remain unchanged for fresh builds.
 Rule/list hashes are checked before cache selection. Full source hashes and
 zero-fuzz patch verification remain mandatory. There is no relaxed hash check.
+
+
+The first routing-test run compiled the test binary and passed four tests. Its
+encoding assertion incorrectly used Chromium's display-safe query decoder,
+which intentionally preserves `%0A`. The corrected test decodes the raw query
+value once with the binary/form decoder and covers LF, CRLF and literal percent
+sequences. Production URL encoding is unchanged.
+
+Palette/test preflight failures now enter the existing failed-build archive
+path without starting browser compilation. CI remains failed, but compiled
+objects are uploaded as a checkpoint. The previous successful build marker is
+removed after restoration so a failed new build cannot package an old app.

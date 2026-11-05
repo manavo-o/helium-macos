@@ -1,0 +1,64 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_question_routing_unittest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_question_routing_unittest.cc
++++ src/chrome/browser/ui/views/tabs/vertical/arc_question_routing_unittest.cc
+@@ -7,6 +7,7 @@
+ #include <array>
+ #include <string>
+ 
++#include "base/strings/escape.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "components/omnibox/browser/autocomplete_provider.h"
+@@ -68,19 +69,38 @@ TEST(ArcQuestionRoutingTest, NavigationO
+ 
+ TEST(ArcQuestionRoutingTest,
+      WebsiteEncodingRoundTripsWithoutParameterInjection) {
+-  const std::u16string text =
+-      u"Why café & tea?\nUnicode 世界 #fragment + = &q=other";
+-  const GURL url = ChatGPTWebsiteProvider::BuildSubmissionURL(text);
+-  ASSERT_TRUE(url.is_valid());
+-  EXPECT_EQ("chatgpt.com", url.host());
+-  EXPECT_FALSE(url.has_ref());
+-  std::string question, hints, ref;
+-  ASSERT_TRUE(net::GetValueForKeyInQuery(url, "q", &question));
+-  ASSERT_TRUE(net::GetValueForKeyInQuery(url, "hints", &hints));
+-  ASSERT_TRUE(net::GetValueForKeyInQuery(url, "ref", &ref));
+-  EXPECT_EQ(base::UTF16ToUTF8(text), question);
+-  EXPECT_EQ("search", hints);
+-  EXPECT_EQ("ext", ref);
++  constexpr std::u16string_view inputs[] = {
++      u"Why café & tea?\nUnicode 世界 #fragment + = &q=other",
++      u"Why literal %0A %26 %2526 +?\r\nKeep these percent sequences literal"};
++  for (const auto text : inputs) {
++    SCOPED_TRACE(base::UTF16ToUTF8(text));
++    const GURL url = ChatGPTWebsiteProvider::BuildSubmissionURL(text);
++    ASSERT_TRUE(url.is_valid());
++    EXPECT_EQ("chatgpt.com", url.host());
++    EXPECT_FALSE(url.has_ref());
++    EXPECT_EQ(std::string::npos, url.spec().find('\n'));
++    EXPECT_NE(std::string::npos, url.query().find("%0A"));
++    std::string question, hints, ref;
++    int parameter_count = 0;
++    int question_count = 0;
++    for (net::QueryIterator it(url); !it.IsAtEnd(); it.Advance()) {
++      ++parameter_count;
++      if (it.GetKey() == "q") {
++        ++question_count;
++        // The display-safe decoder intentionally preserves escaped control
++        // characters. Decode the raw query value exactly once, as form data.
++        question = base::UnescapeBinaryURLComponent(
++            it.GetValue(), base::UnescapeRule::REPLACE_PLUS_WITH_SPACE);
++      }
++    }
++    ASSERT_TRUE(net::GetValueForKeyInQuery(url, "hints", &hints));
++    ASSERT_TRUE(net::GetValueForKeyInQuery(url, "ref", &ref));
++    EXPECT_EQ(3, parameter_count);
++    EXPECT_EQ(1, question_count);
++    EXPECT_EQ(base::UTF16ToUTF8(text), question);
++    EXPECT_EQ("search", hints);
++    EXPECT_EQ("ext", ref);
++  }
+ }
+ 
+ TEST(ArcQuestionRoutingTest, PaletteInstantiatesOnlyLocalProviders) {

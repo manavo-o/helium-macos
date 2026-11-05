@@ -1,5 +1,9 @@
 name: Build Helium
 inputs:
+  preflight_failed:
+    description: Save the checkpoint without compiling when preflight checks fail
+    required: false
+    default: 'false'
   arch:
     required: true
     type: string
@@ -42,8 +46,15 @@ runs:
       id: build
       run: |
         set -o pipefail
+        if [ "$ARC_PREFLIGHT_FAILED" = true ]; then
+          echo 'Preflight checks failed; saving compiled outputs for diagnosis.'
+          echo 'status=tests-failed' >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
         ./github_build.sh '${{ inputs.arch }}' 2>&1 | tee -a github_actions_build_${{ inputs.arch }}.log
       shell: bash
+      env:
+        ARC_PREFLIGHT_FAILED: ${{ inputs.preflight_failed }}
 
     - name: Show sccache stats after build
       if: ${{ !cancelled() }}
