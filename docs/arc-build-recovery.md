@@ -1,96 +1,69 @@
-# Arc palette compiler repair
+# Incremental Arc-style Helium builds
 
-Run `41707908336` reached the Arc palette source and failed because
-`Textfield::GetText()` returns `std::u16string_view`, while `Submit` accepted
-`const std::u16string&`. The repair makes `Submit` accept a string view.
+The Arc workflow requires a verified compatible checkpoint. It stops if source
+fingerprints, patch hashes, substitution rules, or source preimages differ;
+it does not silently fall back to a full Chromium build.
 
-The run has a 5.29 GB `github_build_artifact_arm64` checkpoint from the last
-completed build phase. The failed phase did not upload a newer checkpoint, so
-its additional compiled objects cannot be restored from that run.
+## Current baseline
 
-The Arc workflow selects that checkpoint only when all tracked build inputs
-match this specific repaired version. CI scripts and documentation do not
-affect that comparison. A source or configuration change makes the workflow
-fall back to a fresh build. This is a bounded recovery for this failure, not
-general incremental reuse across arbitrary source changes.
+The native UI patch set reuses successful run `41956948198`, commit
+`8689a4d336a5bde7b1fb2caad64d207504b56765`. Audit run `42035346056`
+extracted affected source files from that exact build archive. The manifest in
+`.github/arc-checkpoint-delta.json` records three appended patches and all 28
+source preimages and outputs.
 
-After restoring the checkpoint, the repair script verifies the palette's
-original source hash, changes its parameter type, and checks the resulting
-hash against the committed fixed source. It leaves compiled outputs intact.
-It compiles the palette object before continuing the remaining browser work.
+The patches add the SwiftUI/AppKit command bar and appearance editor, restore
+top navigation, toggle the Chat side panel, guard the anchored-bubble theme
+notification crash, refresh native presentation and spacing, and complete
+addresses from host-only prefixes.
 
-The shared build action now saves checkpoints after compiler failures as well
-as successful phases, so future compiler errors need not discard a whole
-phase's progress. Cancelled jobs are excluded because runner shutdown may
-leave insufficient time to archive the build.
+## What restoration does
 
+1. Match tracked build inputs and domain-substitution rules against the manifest.
+2. Restore the pinned build archive, including compiled objects and build metadata.
+3. Verify every affected source preimage.
+4. Replay the entire ordered patch chain with zero fuzz in a temporary mirror.
+5. Verify all output hashes before patching the real restored source.
+6. Regenerate GN while retaining existing output files.
+7. Let Ninja/Siso rebuild changed sources and affected dependents, then relink.
 
-## Native UI checkpoint delta
+The Swift surface has an isolated compile action. It does not change the global
+C++ toolchain. Preferences use a small dedicated header rather than adding new
+constants to the broadly included common preference header.
 
-The next native UI build can reuse successful run `41840388482`, at commit
-`73343879470b7a090b5fce8d803809fa781120f9`. The committed manifest
-`.github/arc-checkpoint-delta.json` records the exact current build-input
-fingerprint, ordered patch hashes, and complete before/after source hashes.
-The selector falls back to a fresh build if any build input differs.
+## Checks and failed-build recovery
 
-Restoration verifies every affected source preimage, applies all twelve patches
-in a temporary mirror, and checks the complete output hashes before modifying
-the checkpoint. It then patches the restored source, rechecks hashes, and
-regenerates GN with the current configuration. Existing compiled outputs remain
-available for Ninja/Siso dependency analysis. Changed files, generated resources
-and affected dependents are rebuilt; relinking the renamed app is still required.
-This is bounded reuse for this recorded patch set, not arbitrary cross-version
-cache compatibility. A four-case test exercises the real patch chain,
-idempotence/output retention, and rejection of changed sources or patches.
+`test_arc_checkpoint.py` exercises actual patch replay, idempotence, preservation
+of an existing object file, rejection of unexpected source/patch/domain inputs,
+and refusal of a full-build fallback. Run it after updating the manifest.
 
-To record a future append-only delta from a prepared local quilt tree, stage all
-build inputs first, then run `github_create_arc_delta_manifest.py` with the
-successful baseline commit and run ID, plus `--baseline-source` pointing to source files extracted from that exact verified artifact. Run `test_arc_checkpoint.py` before
-committing. Do not reuse a checkpoint with a different Chromium/Helium revision,
-architecture or toolchain without a new compatibility audit.
+CI compiles both the palette controller and native bridge before the main
+browser build. It then runs focused routing and anchored-bubble lifecycle test
+binaries. A failed preflight enters the failed-build archive path without
+starting the main browser compilation. Existing compiled outputs are uploaded
+for recovery. Cancelled jobs do not archive, because runner shutdown may not
+leave time to save the large checkpoint.
 
+The prior completion marker is removed after restoration. A failed new build
+cannot package a previous binary as its result.
 
-The first native-UI replay stopped because the checkpoint had already passed
-Helium's domain-substitution step. Four preimages differed from the local raw
-quilt copies: three split-view test files and one example in a preference
-comment. Linux audit run `41922858223` verified the original archive digest and
-captured all 51 affected source paths. The manifest generator now requires that
-verified snapshot and compares it with quilt preimages after applying the
-pinned Helium rules. Cached patch hunks are normalized only for files in the
-pinned substitution list; raw patches remain unchanged for fresh builds.
-Rule/list hashes are checked before cache selection. Full source hashes and
-zero-fuzz patch verification remain mandatory. There is no relaxed hash check.
+## Recording another delta
 
+Use an append-only outer patch; leave earlier patches intact. Stage the patch
+and `patches/series` before generating the manifest, because the fingerprint
+covers tracked build inputs. Obtain affected source files from the exact
+successful or recoverable checkpoint and verify the archive digest.
 
-The first routing-test run compiled the test binary and passed four tests. Its
-encoding assertion incorrectly used Chromium's display-safe query decoder,
-which intentionally preserves `%0A`. The corrected test decodes the raw query
-value once with the binary/form decoder and covers LF, CRLF and literal percent
-sequences. Production URL encoding is unchanged.
+Run `github_create_arc_delta_manifest.py` with the baseline commit, run ID, and
+`--baseline-source` directory. The generator verifies normalized quilt preimages
+against that snapshot. Then run `test_arc_checkpoint.py` and select with
+`--select --require-checkpoint` before committing.
 
-Palette/test preflight failures now enter the existing failed-build archive
-path without starting browser compilation. CI remains failed, but compiled
-objects are uploaded as a checkpoint. The previous successful build marker is
-removed after restoration so a failed new build cannot package an old app.
+Checkpoint sources have already passed Helium domain substitution. The repair
+normalizes only hunk payloads for paths in the pinned substitution list; raw
+outer patches remain unchanged for fresh builds. Rule and list hashes are part
+of checkpoint compatibility. Source hash checks must not be relaxed.
 
-
-## November 5 native command bar update
-
-The current manifest uses successful run `41956948198` at commit
-`8689a4d336a5bde7b1fb2caad64d207504b56765`. The append-only
-`arc-navigation-polish.patch` was checked against source files extracted from
-that exact archive by audit run `42035346056`. It covers the SwiftUI/AppKit
-command bar, top navigation, appearance editor, and the anchored-bubble theme
-notification crash fix.
-
-The Arc workflow now requires a matching checkpoint. If source fingerprints,
-patches, domain substitution rules, or source preimages differ, it stops;
-it does not silently start a full browser rebuild. GN regeneration retains the
-existing objects, and Ninja/Siso rebuilds affected dependencies and relinks.
-The Swift surface has its own compile action without changing the C++ toolchain.
-
-Five checkpoint tests cover replay, output retention, idempotence, source and
-patch rejection, domain rules, and refusing a full-build fallback. CI compiles
-both native bridge objects and runs focused routing and bubble lifecycle tests
-before continuing browser compilation. Browser interaction tests additionally
-cover default-engine online suggestions and the local-only preference.
+This is bounded reuse across a recorded patch set. Changing the Chromium/Helium
+revision, architecture, SDK, or toolchain requires a separate compatibility
+audit. Rebuilding affected dependents and relinking remain necessary.

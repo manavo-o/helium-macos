@@ -1,6 +1,9 @@
 name: Sanity check
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -8,7 +11,7 @@ permissions:
 jobs:
   check:
     name: ${{ matrix.check }}
-    runs-on: macos-latest
+    runs-on: ${{ matrix.check == 'sanity' && 'xcode-27' || 'macos-latest' }}
     strategy:
       fail-fast: false
       matrix:
