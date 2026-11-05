@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -47,7 +48,7 @@ def main():
             if path in data['sources']:
                 continue
             old = root / 'build/src/.pc' / name / path
-            if '--- /dev/null\n' in section:
+            if re.search(r'^--- /dev/null(?:\s|$)', section, re.MULTILINE):
                 before = None
             else:
                 if not old.is_file():

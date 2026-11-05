@@ -109,7 +109,7 @@ jobs:
         working-directory: build/src
         run: |
           export SISO_PATH="$PWD/third_party/siso/cipd/siso"
-          python3 third_party/depot_tools/autoninja.py -C out/Default obj/chrome/browser/ui/views/tabs/vertical/impl/arc_command_bar_view.o
+          python3 third_party/depot_tools/autoninja.py -C out/Default obj/chrome/browser/ui/views/tabs/vertical/impl/arc_command_bar_view.o obj/chrome/browser/ui/views/tabs/vertical/impl/arc_native_ui.o
       - name: Build and run focused routing tests
         id: arc-tests
         continue-on-error: true
@@ -118,8 +118,9 @@ jobs:
         run: |
           set -o pipefail
           export SISO_PATH="$PWD/third_party/siso/cipd/siso"
-          python3 third_party/depot_tools/autoninja.py -C out/Default arc_routing_tests
+          python3 third_party/depot_tools/autoninja.py -C out/Default arc_routing_tests arc_bubble_lifecycle_tests
           ./out/Default/arc_routing_tests --gtest_filter='ArcQuestionRoutingTest.*' | tee ../../github_actions_arc_routing_tests_${{ inputs.arch }}.log
+          ./out/Default/arc_bubble_lifecycle_tests --gtest_filter='ArcBubbleLifecycleTest.*' | tee ../../github_actions_arc_bubble_tests_${{ inputs.arch }}.log
       - uses: ./.github/actions/do-build
         id: build
         with:

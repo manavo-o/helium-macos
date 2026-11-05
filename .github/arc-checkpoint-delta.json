@@ -1,269 +1,129 @@
 {
-  "base_commit": "73343879470b7a090b5fce8d803809fa781120f9",
+  "base_commit": "8689a4d336a5bde7b1fb2caad64d207504b56765",
   "domain_inputs": {
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "0881b41bb112a878efa48055a0761a41efe9c36f8a7dd74a2faf6075edc898c7",
+  "input_sha256": "22c9990b8c6fc3e236cafcb9c4f079219970fa9e0db04a3fddf9f2ef1e47d306",
   "patches": [
     {
-      "path": "patches/helium/macos/arc-native-sidebar.patch",
-      "sha256": "9393167ee5bdea59ed709fd8c9ee8141960dbcac040056b72a02cf342884e4be"
-    },
-    {
-      "path": "patches/helium/macos/arc-chat-button.patch",
-      "sha256": "6f08e18aaa2cc6c80bae6be60e2cf2d794397d59ee3cfa6c3f6fa7a567730d17"
-    },
-    {
-      "path": "patches/helium/macos/arc-default-chat-extension.patch",
-      "sha256": "cb6b96d3a5b220907179e9248beae2c241a62cd17600182c25816ba508394297"
-    },
-    {
-      "path": "patches/helium/macos/arc-app-identity.patch",
-      "sha256": "881c6a0a06e58d4a53807f17c7620dd34e8765a23f0d670d926c5cf917c5f734"
-    },
-    {
-      "path": "patches/helium/macos/arc-local-omnibox.patch",
-      "sha256": "c51f10226b43b065c69f67ef519e3d3d4356310e824ca00171c61ecdf88698aa"
-    },
-    {
-      "path": "patches/helium/macos/arc-visual-theme.patch",
-      "sha256": "f4793ade2e7cb0f7a6ad03ceab0f5e2c08bba8a3277e4429745dbcbbae0b2626"
-    },
-    {
-      "path": "patches/helium/macos/arc-split-drop.patch",
-      "sha256": "d22877d522657afd2506844fce9b83461612adbc1c94154882747ef50c8125ad"
-    },
-    {
-      "path": "patches/helium/macos/arc-drag-pinning.patch",
-      "sha256": "a1b325acd14d99b6900f330101b8e308f8c2a2c0ce16df95588413b836a5e4de"
-    },
-    {
-      "path": "patches/helium/macos/arc-release-identity.patch",
-      "sha256": "2d041e6d714979d7333e3e32adcc6233c29a1d86101b3a8e8c8614bb6e855250"
-    },
-    {
-      "path": "patches/helium/macos/arc-sidebar-menu.patch",
-      "sha256": "b54ade25b2b6b9ad69dbdb677773e8f28840ee96b579efa19153e5418e4ba918"
-    },
-    {
-      "path": "patches/helium/macos/arc-sidebar-focus.patch",
-      "sha256": "d7d65e86ee6a40df478a4875a7ab38eabba203740d134a948ebfb0bb0d131006"
-    },
-    {
-      "path": "patches/helium/macos/arc-native-url-classification.patch",
-      "sha256": "231d9782a03e2563e5ce354e11fde5734483eda3d2934f0805a7182a804dc2e3"
-    },
-    {
-      "path": "patches/helium/macos/arc-routing-query-test.patch",
-      "sha256": "3a9f5df1d0324a9b15116f81de6f02654d6154cb04a34eafb5616c0f1948a763"
+      "path": "patches/helium/macos/arc-navigation-polish.patch",
+      "sha256": "9614ef78ed54b4690b67fe362bc60178803180094a4267fc38dfc6d2758d6b5c"
     }
   ],
-  "source_run": "41840388482",
+  "source_run": "41956948198",
   "sources": {
-    "chrome/app/theme/chromium/BRANDING": {
-      "after": "0a297b28de0b285db34751a12a407736ece278960f65f90abc29ad0614e5d4d1",
-      "before": "d6d15e4d89789121446212243f99b1ad6c9f72a77b15610fdc7a1cc4b58e841e"
-    },
-    "chrome/browser/extensions/api/settings_private/prefs_util.cc": {
-      "after": "17d8f6a641779d218b093be9499b14d2c770af376219b4c1b70499ba6b223e5e",
-      "before": "5bb7b350bfadc2e372e0ae5861101fff8d13538d31a9629849bd2b5ccec692d2"
-    },
-    "chrome/browser/extensions/initial_external_extension_loader_unittest.cc": {
-      "after": "7b608491d4255c592b210e3dc37fd919339f3d79856a53d3a52272caea440bf9",
-      "before": "74b74542ca66fca0e02e8df51897beb20a893722a94c9fc3318c3b32bb0cb6bd"
-    },
-    "chrome/browser/resources/new_tab_page_third_party/new_tab_page_third_party.html": {
-      "after": "55ceac8448fd9972825683910a74b76e318095503252f87a9dcffdf35ab969e1",
-      "before": "59980ef69921327d6e95f87c6d854a18f0fa775d17bf24670034b0955f88b594"
-    },
-    "chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts": {
-      "after": "6f7c5319a75aa5945cae8a67dccf8cae751a29952d5923265441f01aa0e49b3b",
-      "before": "591e8556b3db05b7db866ddea1e32013213b5fcf03ba98c4b6c8b7812ba790ed"
-    },
-    "chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts": {
-      "after": "1ec627cd7f7afcc019850eca5c496e2dacc8e74f8cccc99fddccacdf41f5379b",
-      "before": "92ea24e7aa686fad473a67af58a2d0a4075c12bfffb702ece30ed5c8901f8e2e"
-    },
     "chrome/browser/ui/BUILD.gn": {
-      "after": "3701f6c9980199e4a30307156f786bf7aafb0128af5ed9c03bc722338986b52c",
-      "before": "240ed09289e6ee9ca754a61d1b9d5781bf8b8ac1e49c034347950fd79fb35fef"
+      "after": "ed27ee6dac05a1367280dcf8cbd8b276e3936715fd058d42cb8da72c9c754861",
+      "before": "3701f6c9980199e4a30307156f786bf7aafb0128af5ed9c03bc722338986b52c"
+    },
+    "chrome/browser/ui/browser_actions.cc": {
+      "after": "0e1fb10cc57ed1d63493fea19db3e06b54dd7d20c341d044fed250e51a908727",
+      "before": "5c922676dfd523d7d5c4b5a9e597020f933ba872002cfe8854373dae77d79850"
+    },
+    "chrome/browser/ui/browser_command_controller.cc": {
+      "after": "8c79dc7cc58a0e25ba079d45ce2cfa8bb58019ad6d3ecc5ce1c67ccf268ab206",
+      "before": "25d2bb0988ff8e9ff826669149d51e1b88e588cc15ba2f613fbdd724c2f28779"
     },
     "chrome/browser/ui/browser_ui_prefs.cc": {
-      "after": "efb7532402d1c42b550bb495faaedb48ff5ab6933abf2be874c0e82e458a5513",
-      "before": "3519668d8ed52405efff4a8ed6c697a50913b5fd589a927f250467882d6244db"
+      "after": "f7f47e170c44fbb44f011f7e8df64ab8aabb8e6d7c67c6d63cd1c62cc403db46",
+      "before": "efb7532402d1c42b550bb495faaedb48ff5ab6933abf2be874c0e82e458a5513"
     },
-    "chrome/browser/ui/helium/arc_question_routing.h": {
-      "after": "0fdd39bf56224f6a740441ec54c982b7fccd4cf9b7171ff7a4ffac3944b8073e",
+    "chrome/browser/ui/helium/arc_appearance_prefs.h": {
+      "after": "c5753c9173802332a6e2f42cd369b7cd4e3af4ef38ec087638dbf252a94a0deb",
       "before": null
     },
-    "chrome/browser/ui/helium/helium_layout_state_controller.cc": {
-      "after": "411a229c67b5611633011f1228d1cb964a8bc6d1ab46565cb156f688dbda0e98",
-      "before": "3aa088d9ff69434cce4bcbcd5c2bd67ee82afcca8e239e3149822e5145248aad"
+    "chrome/browser/ui/helium/arc_command_bar.h": {
+      "after": "7fed8b6be41567b82ea67a8bba236d542c11a0144745c78daab7830c29ff1344",
+      "before": "ae9b2b76fcfde8f9f9a63db81d4d78b4b68b8811e2bc9f8f20222bce73645078"
     },
     "chrome/browser/ui/layout_constants.cc": {
-      "after": "abef0fe06176c037b0af291d85dcba03aa695f4cf19ce4aed1c7054fca80c41f",
-      "before": "0b3f5b484a1fa606a3bb796c6fc5eff109add76780a6d4c2862dcdcb89c0f793"
+      "after": "0e93593bf12943f7ea69f0d294107ea9e379d9997b9daff8302ce8da6135ad1a",
+      "before": "abef0fe06176c037b0af291d85dcba03aa695f4cf19ce4aed1c7054fca80c41f"
     },
-    "chrome/browser/ui/layout_constants.h": {
-      "after": "b299f5ac9d6b006d6b0f6b57d943fa38210c8db3535bfaead62117c992528180",
-      "before": "b3ebaf821df3a794b02805fc8a3adb1df6355dd0d5255b1ac42a8b97aa7a8927"
+    "chrome/browser/ui/tabs/BUILD.gn": {
+      "after": "425bd5e222b9456c0a8db5ec05214afd0036cb09db566b333349e981e4ed6ded",
+      "before": "93db07f1eafcbb7b3421f4c2cb797658b20c827f8a46e6694b28c71297d599d9"
     },
     "chrome/browser/ui/tabs/tab_strip_prefs.cc": {
-      "after": "2c1fe94bbf302304142601c19a0212563bfb0c45a3db8eb2624423b87b3adf80",
-      "before": "7d0d36fc06d066496f9940953a2bbe2e4e55939875baf1cecef6a1734bc72ec2"
+      "after": "5fed0ddf5af2a577c88448a2c024c70e8be0cd7cc55ad803bdbed96ca039e5bc",
+      "before": "2c1fe94bbf302304142601c19a0212563bfb0c45a3db8eb2624423b87b3adf80"
     },
-    "chrome/browser/ui/tabs/vertical_tab_strip_state.h": {
-      "after": "9e56bc34a4a394dbad38a67fb9f006f496e0fa48fb18d7cc1ea9fa47698fd28e",
-      "before": "f5371e4eaa562be083cefe6c7f26e01818445406da5c9e93897947a8597fd8b8"
-    },
-    "chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc": {
-      "after": "5860038f28890318040c4b4953e837516cc238721d0d88864c02ec7d231b4f0d",
-      "before": "4b713975385d62e9ac720c7428da1643935f32e06fb4aa755f30adca5044e579"
-    },
-    "chrome/browser/ui/views/frame/base_tab_strip_region_view.cc": {
-      "after": "5711dc987e5aee65e573a1c4637c9349d302beba2bf9c35e629e0432b2bf9391",
-      "before": "bccb1a2de5355591c6563fe4824e580d5de730d982f8aa0c7159877c4cb8e551"
+    "chrome/browser/ui/views/frame/BUILD.gn": {
+      "after": "dd7d2d53574b9006d45d850b196e33ca17e3c63cdb7dc8018e81d2c25b9b2250",
+      "before": "6b83d705190dc7830cf53a0b265bee6e8ba72932cec1b391eee6dd0b3a5b0c40"
     },
     "chrome/browser/ui/views/frame/browser_view.cc": {
-      "after": "4742eeaba1c3ac607fceabd3e4959b23b94500d5a778d3a4e5628bea12ae124e",
-      "before": "86238868b17e8dbc3cd699ab3e6eb86d2a54d456bf23b4e81e0f223f997b2cc4"
-    },
-    "chrome/browser/ui/views/frame/multi_contents_drop_target_view.cc": {
-      "after": "8412e1fa443b86b50bbd3501db3a177b382f58f1eb4afabc49e6fa14ff06feb6",
-      "before": "5f89d472564a31077bf8af90cfa5369c072f8efc2ec1422a77662df5ed20e992"
-    },
-    "chrome/browser/ui/views/frame/multi_contents_drop_target_view.h": {
-      "after": "5b0a704ca42702043c94fb9e66eec7035dff1f133e20986f4b9957cb8def7975",
-      "before": "6d2e6d5f9c66aab3e2e0c6fd71810ddb41509085566d9fdd18be99183db5d071"
-    },
-    "chrome/browser/ui/views/frame/multi_contents_drop_target_view_unittest.cc": {
-      "after": "d146391808f64c6cbe245093ccf9317e1b5fb7fe8a1ee178ef1037e893fbb82f",
-      "before": "1e3c6b66b7701c8422cea31fa22636915b5f9c2531093c61a0514a6804205e96"
-    },
-    "chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc": {
-      "after": "20cb05fe30b2e6a764d196b8cbd4060857e3020c11f769d7864b9de73cf755fe",
-      "before": "3bb4dc0513c9bb4c4dc82c1139688a584e2ffe0c1921e4c5d15a12db449ce6bc"
-    },
-    "chrome/browser/ui/views/frame/multi_contents_view_delegate.cc": {
-      "after": "a1c8ce853eb231a4198cd324bea873668c409bd3110e8afbad23c7d115b0ed70",
-      "before": "434fdde097a00c8b70fcedb8469328f5b7902269ba0f215e2be41a11dda31b6a"
-    },
-    "chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller.cc": {
-      "after": "6a87ee1964dfb21021ff6267d747dde6bff454a99a12a2fd776bb47c39a39e27",
-      "before": "652a31045b866914cff6f2f1b63e5cfa65003f54544d59567260e201f004fecd"
-    },
-    "chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller_unittest.cc": {
-      "after": "88668feaaa87b73e77e49642f5d8a1d388576287538653d516a5a728babf0927",
-      "before": "c2959776a6b2966513f6710c7ff3f9cf1cdcb7452b8410c16ecf7931f791c86c"
+      "after": "51f1dc54ad9edc687fcee51bad53053c2755f63f3ae29e90f64f2f57ce82f70e",
+      "before": "4742eeaba1c3ac607fceabd3e4959b23b94500d5a778d3a4e5628bea12ae124e"
     },
     "chrome/browser/ui/views/frame/system_menu_model_builder.cc": {
-      "after": "167297d87b87158c8f62b8c94155b0514e6ee19b87f77f5238d1fdd3e82b2bfb",
-      "before": "1cccd661e984854dc292da2384616626cd1f33354e7be181b067847ee8f1adbe"
+      "after": "0f53a6dd7c9c65776cde39f5d0d2fcdd39449aac55eb9fccb99361bea4a5e407",
+      "before": "167297d87b87158c8f62b8c94155b0514e6ee19b87f77f5238d1fdd3e82b2bfb"
+    },
+    "chrome/browser/ui/views/frame/themed_background.cc": {
+      "after": "d3604c0190a39a55fc73487fc6822b810c28bf7f7b39cb644f79bd8467724f6e",
+      "before": "3d0bd4b43311f8eff6a9f45a47a9916e6a4b51cda8afc0c04284aa806bf9bdb1"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": {
-      "after": "5e3e951fc88a86ce9243fc43b96eebf6f0d92cf6d1b625cfbb2a9b73e81794b7",
-      "before": "4f9a589ec80f0bc11eae74f0d4d0bb62d88f6fc6c70c99e93517132abc6fae0c"
+      "after": "f482695f3a68dd370bd4586ffc8c6640e0bcad14924f1d4bd402a0c7a1f188b3",
+      "before": "5e3e951fc88a86ce9243fc43b96eebf6f0d92cf6d1b625cfbb2a9b73e81794b7"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h": {
-      "after": "cbef2145f7ee2ea9bd099a79876a7a391eb7f6f0eaced578b9894f40c1434dcf",
-      "before": "0276f1c876d658e68311b0f5dc4f3f007d8341c35669b81c8545d1f7f6871a0d"
-    },
-    "chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc": {
-      "after": "2d6490c409d5ea5ec5a0effd637c6272244412c4a3e97f9c250e4fbad033b763",
-      "before": "f324388c62bd9f2f2967117d970f63b732c4583e11a17f86247fb3c3a66ca234"
-    },
-    "chrome/browser/ui/views/tabs/common/tab_drag_interactive_uitest.cc": {
-      "after": "6f0b78f182395c56535cc47b0372294bc0e037a4d74fa00a9987b3dd21b076fc",
-      "before": "471f453aafc9f1a6334b92eed5ca9ded315945c616013cfea664568b2d4483ba"
-    },
-    "chrome/browser/ui/views/tabs/common/tab_view.cc": {
-      "after": "0e5df75338738dee8f94b0dfe10a5c6ecc1e0044900eac7ae9809ca0d7bed2b5",
-      "before": "67360d1dc837bc859a41a07c97a7ed614a83f9e90b231a9985b6b3e42e7b938d"
-    },
-    "chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc": {
-      "after": "bf3bd1039b515f8178ec073b90ca63fe0a3ba36b0234adbe647177709017a823",
-      "before": "38f619a041dbe40928befff36f205f675d59a3d917ed6b3c83017c6b2d75007b"
-    },
-    "chrome/browser/ui/views/tabs/dragging/BUILD.gn": {
-      "after": "bf1a02f8616492237bf208881b69f84ed2f92c863d6a881e3d6fcbbdfd2456ef",
-      "before": "66da3701ad7644e3d26a10ae32e4426679f71f467d015da9d4c74495e5eb3d6f"
-    },
-    "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc": {
-      "after": "178f8ad37442750cdd3362e4d152cffcd623a0dca4d61a756029b0f588701be6",
-      "before": "5fbb87739ce91a1c2e7e90b618ecc1419c85f3694d29ed7a03e849aa721a47f5"
+      "after": "cd119b41ae4a50eb67dd4a6885552f2588bfce39e31109ea20492ec70980141a",
+      "before": "cbef2145f7ee2ea9bd099a79876a7a391eb7f6f0eaced578b9894f40c1434dcf"
     },
     "chrome/browser/ui/views/tabs/vertical/BUILD.gn": {
-      "after": "1d07a53d7e2b166961cf0d29fef6d8982ea65f46d49240302b7204295937dc33",
-      "before": "67cdb57ece166137f665d0827a7761168f73a7cc1b63b923393fda1493b421b7"
+      "after": "00472d78a2d1c9e54a0ba1362eb43a4a1220f0400f98eb454ccbe1f426ab6621",
+      "before": "1d07a53d7e2b166961cf0d29fef6d8982ea65f46d49240302b7204295937dc33"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc": {
-      "after": "45b3ae78b1d31ad1a4b39f41307454799edc62c1c32b3d0d7aac03f01b25f985",
-      "before": null
+      "after": "c9882a13f8c3986f12364c12e41de497963d13b5435dad0b2b872c480e3c7d07",
+      "before": "45b3ae78b1d31ad1a4b39f41307454799edc62c1c32b3d0d7aac03f01b25f985"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc": {
-      "after": "e5f4ffad8a33e9cc4c4f1e32a4521d33556b0169da0692290a99539a07fc6e29",
-      "before": "d5eb98d075cc705d09b4c7754d5845e193ce57c8241bda2cdbf8a50dc2a0209c"
+      "after": "7095b058a81286ca0f6f2a27224cf04ebb98388366a8197e0289d2c608a0e58d",
+      "before": "e5f4ffad8a33e9cc4c4f1e32a4521d33556b0169da0692290a99539a07fc6e29"
     },
-    "chrome/browser/ui/views/tabs/vertical/arc_question_routing.cc": {
-      "after": "9aa47e4a584be2949b3f7b2d507af13e4a1782c6dda10f29ea3929dbd6d08817",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": {
+      "after": "0c99f0130848bccee383fe6fef38d6ddd87afe00905b3a9eace1989f7effa852",
       "before": null
     },
-    "chrome/browser/ui/views/tabs/vertical/arc_question_routing_unittest.cc": {
-      "after": "43fd04ed55a69e1edd9984607b067e1ce7cb43b37937addc68962cc284f451e7",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": {
+      "after": "d9cf3451d1c9977f042c3dbede00df05d60e98f44566d11939be263ddb4eebb5",
       "before": null
     },
-    "chrome/browser/ui/views/toolbar/BUILD.gn": {
-      "after": "cbb8b40aff57d8347c7805ac3527eb9a4cd60ab700c7b63f240f297f21764329",
-      "before": "74deb0897f76c5ed910180202d7accbd1091c6a3164a5b53ffbeb261b5b96053"
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift": {
+      "after": "fb9953bc7ac2d5ba86967a7d35b4da767a885aef7c4c3467a3c84a87329029bf",
+      "before": null
+    },
+    "chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py": {
+      "after": "5f402b71d392b08c17f9090aee72109e8243b923c4fe9f86e75a7a4820b83cd3",
+      "before": null
     },
     "chrome/browser/ui/views/toolbar/arc_chat_button.cc": {
-      "after": "01e294bf99db867ff509bc75f399c2fd93d2782948991b9dc0a48e921c038574",
-      "before": null
-    },
-    "chrome/browser/ui/views/toolbar/arc_chat_button.h": {
-      "after": "c6642c07f98f44e41b982d8f57e53a95bc427bf175e1110ff6d43df5406f0567",
-      "before": null
+      "after": "886ff97b6d6e3104d49cb3138089b95ff030c396f79d4113f11f618c5dcb18a0",
+      "before": "01e294bf99db867ff509bc75f399c2fd93d2782948991b9dc0a48e921c038574"
     },
     "chrome/browser/ui/views/toolbar/toolbar_view.cc": {
-      "after": "06289411559fb3ed6c0475f7cdebcbfbb58ec41ed63b87cb109e98a47f5bacaa",
-      "before": "01ac5d68256e2094c299bc66d28ff9fa5549398fb8a088f5c5bc338e02ac1b9d"
+      "after": "c3ccb50c695e1c73f295d9bbad470df807cd73b78f5d79fb60acdb651a5034a4",
+      "before": "06289411559fb3ed6c0475f7cdebcbfbb58ec41ed63b87cb109e98a47f5bacaa"
     },
     "chrome/browser/ui/views/toolbar/toolbar_view.h": {
-      "after": "b12c716993edf62cbdc70bf5e170734744fe512086d106b403a4963ccf2888cf",
-      "before": "558557405e4e843f87ce29bed13cde8aec10ffabf3e7c5faf94eb0e5dddc42d3"
+      "after": "4306977840aa654912eae1e33394a9fb8931963b4b51bb6bc5cb24386159c895",
+      "before": "b12c716993edf62cbdc70bf5e170734744fe512086d106b403a4963ccf2888cf"
     },
-    "chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_handler.cc": {
-      "after": "66ad0a6fe5f9765a982f44e9ea61ccd3fd981fc0b7945c69d2486123c2255810",
-      "before": "31017e065aab67eb1d6f05ce6628f6a0aaf08cac137ad5df1123a37acb4dac8d"
+    "ui/views/BUILD.gn": {
+      "after": "5f6da415dc728ea272dc744b7d0fc6a04d13d0981330e34543c56d6257b18afc",
+      "before": "6317069a76c12553b9697a85767ca6df823919671de19b4ecdc30fc2f515ab4d"
     },
-    "chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc": {
-      "after": "46b8fc37cf7e643d8e3a465374ac1d5c6456c8b02cf8d1fe7b454a450ea4177c",
-      "before": "edadb67c7f5285adba0e97b454f3647d26e386330b89db4276d36abe6806a1af"
+    "ui/views/bubble/arc_bubble_lifecycle_unittest.cc": {
+      "after": "78fb7b98538949d45b45c781f3855fc5889aaa2f08ea1ad52024a51c439065bf",
+      "before": null
     },
-    "chrome/common/chrome_paths_mac.mm": {
-      "after": "d5cc9d7744e0a7e4fbf09ef25e14045abe8323d4d9244b6c7b66e3ae1f1beb30",
-      "before": "2498bb7a44e10820f86a2699031874d9b979d5de0816e16db2eb6a446138a906"
-    },
-    "chrome/common/pref_names.h": {
-      "after": "e65a4ebaa341da00debe43804778f8853b49350f1ea2bea02f1c37dabfc5b3f3",
-      "before": "cda4fbc0dcab2287535a8ed7636c70ffa7b2cf16d42e9fc6fb9d86f7d5a76e8c"
-    },
-    "chrome/installer/mac/signing/chromium_config.py": {
-      "after": "6d82f25f3757de590f3d1301194cfbd9f8a2638a860300cbd6a7fd4c5886ad67",
-      "before": "abdcfcd0eab0f3b1f89598e213703cdf1004a3ed927f9c46ce2436dd2a16400c"
-    },
-    "components/helium_services/helium_services_helpers.cc": {
-      "after": "cd66273f5c80b1bacf2cf8b23aa8925a6b8b5e59807a6626105ac07981aa4aee",
-      "before": "83681f18b4c5ddfcc112e0043eb21809a5ee7c5cf7917bb4ef4910e0ca7ae9c0"
-    },
-    "components/os_crypt/common/keychain_password_mac.mm": {
-      "after": "3c185d70b1b2fca115cdff20bb1cca4f0047a4c8190f9ff318822497e449eed7",
-      "before": "44bd8ccc22b56727d7d7e65e6e92fa3780839f1ace5ae2d9834c0d7beda1ac52"
-    },
-    "extensions/browser/extension_prefs.cc": {
-      "after": "617351f438463171c5d6b875793bfe50d36d4cc08c0dce4b250eb438552e6414",
-      "before": "9e9d2423868ea687ee6f77d5357dfea9dacb146ccb0972817d553b7cb8566d90"
+    "ui/views/bubble/bubble_dialog_delegate_view.cc": {
+      "after": "3fd050e3feb17e3b2cb166e7e3e6b7bbd2bc9b92f8dd0c072773c61cc0e47954",
+      "before": "0389c6c7189a3656e00ec77ef486a495e850d65c915309a8ab1f06a5ea479c22"
     }
   }
 }

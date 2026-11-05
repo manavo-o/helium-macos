@@ -1,0 +1,2482 @@
+Index: src/chrome/browser/ui/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/BUILD.gn	2026-11-04 15:04:54.574236908 -0600
++++ src/chrome/browser/ui/BUILD.gn	2026-11-05 07:34:10.485416347 -0600
+@@ -632,7 +632,10 @@
+   }
+ 
+   source_set("arc_routing_headers") {
+-    public = [ "helium/arc_question_routing.h" ]
++    public = [
++      "helium/arc_appearance_prefs.h",
++      "helium/arc_question_routing.h",
++    ]
+     public_deps = [ "//url" ]
+   }
+ 
+Index: src/chrome/browser/ui/browser_actions.cc
+===================================================================
+--- src.orig/chrome/browser/ui/browser_actions.cc	2026-11-03 13:22:31.266764255 -0600
++++ src/chrome/browser/ui/browser_actions.cc	2026-11-04 23:07:43.695939776 -0600
+@@ -106,6 +106,7 @@
+ #include "chrome/browser/ui/browser_action_prefs_listener.h"
+ #include "chrome/browser/ui/browser_command_controller.h"
+ #include "chrome/browser/ui/browser_commands.h"
++#include "chrome/browser/ui/helium/arc_command_bar.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/browser_select_file_dialog_controller.h"
+ #include "chrome/browser/ui/browser_window.h"
+@@ -1093,7 +1094,9 @@
+           base::BindRepeating(
+               [](BrowserWindowInterface* bwi, actions::ActionItem* item,
+                  actions::ActionInvocationContext context) {
+-                chrome::NewTab(bwi, NewTabTypes::kNewTabCommand);
++                if (!helium::ShowArcCommandBar(bwi)) {
++                  chrome::NewTab(bwi, NewTabTypes::kNewTabCommand);
++                }
+               },
+               bwi))
+           .SetActionId(kActionNewTab)
+Index: src/chrome/browser/ui/browser_command_controller.cc
+===================================================================
+--- src.orig/chrome/browser/ui/browser_command_controller.cc	2026-11-03 13:28:19.594240280 -0600
++++ src/chrome/browser/ui/browser_command_controller.cc	2026-11-04 23:07:43.695428192 -0600
+@@ -1618,8 +1618,7 @@
+     }
+ 
+     case IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL: {
+-      ShowCustomizeChromeSidePanel(SidePanelOpenTrigger::kAppMenu,
+-                                   CustomizeChromeSection::kAppearance);
++      helium::ShowArcAppearance(browser_);
+       break;
+     }
+ 
+Index: src/chrome/browser/ui/browser_ui_prefs.cc
+===================================================================
+--- src.orig/chrome/browser/ui/browser_ui_prefs.cc	2026-11-04 11:43:00.155939172 -0600
++++ src/chrome/browser/ui/browser_ui_prefs.cc	2026-11-04 23:07:43.697697904 -0600
+@@ -94,7 +94,7 @@
+                              base::Time());
+   registry->RegisterBooleanPref(prefs::kHeliumDefaultBrowserRejected, false);
+   registry->RegisterIntegerPref(prefs::kHeliumArcPinnedTileSize, 48);
+-  registry->RegisterIntegerPref(prefs::kHeliumArcInterfaceDensity, 0);
++  registry->RegisterIntegerPref(prefs::kHeliumArcInterfaceDensity, 1);
+ 
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+   registry->RegisterTimePref(prefs::kPdfInfoBarLastShown, base::Time());
+Index: src/chrome/browser/ui/helium/arc_appearance_prefs.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ src/chrome/browser/ui/helium/arc_appearance_prefs.h	2026-11-05 07:21:12.060320340 -0600
+@@ -0,0 +1,12 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++#ifndef CHROME_BROWSER_UI_HELIUM_ARC_APPEARANCE_PREFS_H_
++#define CHROME_BROWSER_UI_HELIUM_ARC_APPEARANCE_PREFS_H_
++namespace helium {
++inline constexpr char kArcOnlineSuggestions[] = "helium.browser.arc_online_suggestions";
++inline constexpr char kArcThemeColors[] = "helium.browser.arc_theme_colors";
++inline constexpr char kArcThemeIntensity[] = "helium.browser.arc_theme_intensity";
++inline constexpr char kArcThemeGrain[] = "helium.browser.arc_theme_grain";
++}  // namespace helium
++#endif
+Index: src/chrome/browser/ui/helium/arc_command_bar.h
+===================================================================
+--- src.orig/chrome/browser/ui/helium/arc_command_bar.h	2026-11-03 13:29:58.877646228 -0600
++++ src/chrome/browser/ui/helium/arc_command_bar.h	2026-11-04 23:14:08.108398799 -0600
+@@ -4,11 +4,18 @@
+ 
+ #ifndef CHROME_BROWSER_UI_HELIUM_ARC_COMMAND_BAR_H_
+ #define CHROME_BROWSER_UI_HELIUM_ARC_COMMAND_BAR_H_
++#include <string>
+ 
+ class BrowserWindowInterface;
++namespace content { class WebContents; }
+ 
+ namespace helium {
+ 
++// Only the built-in home surfaces; extension new-tab pages retain their URL.
++bool IsArcHome(content::WebContents* contents);
++void ShowArcAppearance(BrowserWindowInterface* browser);
++void SetArcCommandBarInputForTesting(BrowserWindowInterface* browser, const std::u16string& text);
++
+ // Opens the deferred-tab command palette. Returns false if no suitable browser
+ // view is available, allowing the caller to retain normal new-tab behavior.
+ bool ShowArcCommandBar(BrowserWindowInterface* browser);
+Index: src/chrome/browser/ui/layout_constants.cc
+===================================================================
+--- src.orig/chrome/browser/ui/layout_constants.cc	2026-11-04 15:13:03.412690425 -0600
++++ src/chrome/browser/ui/layout_constants.cc	2026-11-04 22:55:17.868795506 -0600
+@@ -42,7 +42,7 @@
+       ArcLayoutPreference(prefs::kHeliumArcInterfaceDensity, 0) == 1;
+   switch (constant) {
+     case LayoutConstant::kHeliumBasePadding:
+-      return 6;
++      return comfortable ? 10 : 6;
+     case LayoutConstant::kAppMenuProfileRowAvatarIconSize:
+       return 24;
+     case LayoutConstant::kAppMenuMaximumCharacterLength:
+@@ -176,15 +176,15 @@
+     case LayoutConstant::kMainBackgroundRegionCornerRadius:
+     case LayoutConstant::kToolbarCornerRadius:
+     case LayoutConstant::kVerticalTabCornerRadius:
+-      return 10;
++      return comfortable ? 12 : 10;
+     case LayoutConstant::kVerticalTabHeight:
+-      return comfortable ? 36 : 30;
++      return comfortable ? 36 : 32;
+     case LayoutConstant::kVerticalTabPinnedHeight:
+       return GetHeliumArcPinnedTileSize();
+     case LayoutConstant::kVerticalTabMinWidth:
+       return 30;
+     case LayoutConstant::kVerticalTabStripHorizontalPadding:
+-      return 6;
++      return comfortable ? 12 : 8;
+     case LayoutConstant::kVerticalTabStripUncollapsedVerticalPadding:
+       return 6;
+     case LayoutConstant::kVerticalTabStripCollapsedVerticalPadding:
+Index: src/chrome/browser/ui/tabs/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/tabs/BUILD.gn	2026-11-03 13:22:22.195895417 -0600
++++ src/chrome/browser/ui/tabs/BUILD.gn	2026-11-05 07:34:10.488221213 -0600
+@@ -393,6 +393,7 @@
+       "//chrome/browser/profiles:profile",
+       "//chrome/browser/reading_list",
+       "//chrome/browser/resource_coordinator",
++      "//chrome/browser/ui:arc_routing_headers",
+       "//chrome/browser/ui:browser_command_controller",
+       "//chrome/browser/ui:browser_commands",
+       "//chrome/browser/ui:browser_tab_strip",
+Index: src/chrome/browser/ui/tabs/tab_strip_prefs.cc
+===================================================================
+--- src.orig/chrome/browser/ui/tabs/tab_strip_prefs.cc	2026-11-04 15:10:53.682621037 -0600
++++ src/chrome/browser/ui/tabs/tab_strip_prefs.cc	2026-11-05 07:21:12.060657713 -0600
+@@ -14,6 +14,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/pref_names.h"
++#include "chrome/browser/ui/helium/arc_appearance_prefs.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_service.h"
+ #include "ui/actions/actions.h"
+@@ -40,6 +41,10 @@
+   registry->RegisterBooleanPref(prefs::kHeliumZenModeTopChromePinned, true);
+   registry->RegisterBooleanPref(prefs::kHeliumArcQuestionRouting, true);
+   registry->RegisterBooleanPref(prefs::kHeliumArcChatButton, true);
++  registry->RegisterBooleanPref(helium::kArcOnlineSuggestions, true);
++  registry->RegisterStringPref(helium::kArcThemeColors, "");
++  registry->RegisterIntegerPref(helium::kArcThemeIntensity, 50);
++  registry->RegisterBooleanPref(helium::kArcThemeGrain, false);
+ }
+ 
+ void MigrateHoverCardMemoryPref(PrefService* local_prefs) {
+Index: src/chrome/browser/ui/views/frame/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/BUILD.gn	2026-10-28 15:20:02.000000000 -0500
++++ src/chrome/browser/ui/views/frame/BUILD.gn	2026-11-05 07:34:10.504376661 -0600
+@@ -855,11 +855,15 @@
+   deps = [
+     ":top_container_view",
+     "//base",
++    "//cc/paint",
+     "//chrome/app/theme:theme_resources",
+     "//chrome/browser/themes",
++    "//chrome/browser/ui:arc_routing_headers",
+     "//chrome/browser/ui/color:color_headers",
+     "//chrome/browser/ui/views/frame:browser_view_header",
+     "//chrome/browser/ui/views/tabs:tab_strip",
++    "//chrome/common:constants",
++    "//components/prefs",
+     "//ui/base",
+     "//ui/color",
+     "//ui/gfx",
+Index: src/chrome/browser/ui/views/frame/browser_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/browser_view.cc	2026-11-04 15:57:56.736775084 -0600
++++ src/chrome/browser/ui/views/frame/browser_view.cc	2026-11-04 23:15:22.403011692 -0600
+@@ -135,6 +135,7 @@
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_api/tab_strip_service_feature.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/browser/ui/helium/arc_command_bar.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/tabs/tab_utils.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_metrics.h"
+@@ -1257,10 +1258,6 @@
+   // child views and it is an observer for avatar toolbar button if any.
+   autofill_bubble_handler_.reset();
+ 
+-  if (toolbar_) {
+-    toolbar_->RestoreArcSidebarControls();
+-  }
+-
+   // These are raw pointers to child views, so they need to be set to null
+   // before `RemoveAllChildViews()` is called to avoid dangling.
+   browser_widget_ = nullptr;
+@@ -2078,7 +2075,6 @@
+                                toolbar_->location_bar_view()->HasFocus();
+   if (omnibox_focused) {
+     reveal_top = true;
+-    reveal_side = ShouldDrawVerticalTabStrip();
+   }
+   const auto* focused =
+       GetFocusManager() ? GetFocusManager()->GetFocusedView() : nullptr;
+@@ -3057,6 +3053,11 @@
+ }
+ 
+ void BrowserView::SetFocusToLocationBar(bool is_user_initiated) {
++  if (is_user_initiated && helium::IsArcHome(
++          browser_->GetTabStripModel()->GetActiveWebContents()) &&
++      helium::ShowArcCommandBar(browser_)) {
++    return;
++  }
+   // On Windows, changing focus to the location bar causes the browser window to
+   // become active. This can steal focus if the user has another window open
+   // already. On Chrome OS, changing focus makes a view believe it has a focus
+@@ -3075,11 +3076,6 @@
+   // and can receive focus.  A synchronous layout is required so the toolbar
+   // has non-zero height before FocusLocation runs.
+   if (zen_mode_enabled_) {
+-    // The actual omnibox is in the sidebar. Reveal it synchronously before
+-    // focusing, including when the sidebar is temporarily hidden.
+-    if (ShouldDrawVerticalTabStrip()) {
+-      zen_side_chrome_animation_.Reset(1);
+-    }
+     RevealZenModeTopChromeImmediately();
+   }
+ 
+@@ -5812,11 +5808,6 @@
+ 
+   toolbar_->Init();
+ 
+-  if (vertical_tab_strip_region_view_ &&
+-      browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+-    vertical_tab_strip_region_view_->AttachArcToolbarControls();
+-  }
+-
+   if (omnibox::IsWebUIOmniboxInBrowserViewEnabled()) {
+     // When the WebUI Omnibox is embedded directly in the `BrowserView` (instead
+     // of being a separate popup widget), the popup view needs a reference to
+Index: src/chrome/browser/ui/views/frame/system_menu_model_builder.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/system_menu_model_builder.cc	2026-11-04 15:38:13.677351752 -0600
++++ src/chrome/browser/ui/views/frame/system_menu_model_builder.cc	2026-11-04 23:07:43.696340902 -0600
+@@ -186,8 +186,7 @@
+                                   IDS_BROWSER_LAYOUT_MENU,
+                                   browser_layout_menu_contents_.get());
+ 
+-    model->AddItemWithStringId(IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,
+-                               IDS_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL);
++    model->AddItem(IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL, u"Edit appearance…");
+   }
+ 
+ #if BUILDFLAG(IS_WIN)
+Index: src/chrome/browser/ui/views/frame/themed_background.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/themed_background.cc	2026-11-03 13:22:26.681587656 -0600
++++ src/chrome/browser/ui/views/frame/themed_background.cc	2026-11-05 07:33:55.301911464 -0600
+@@ -5,6 +5,15 @@
+ #include "chrome/browser/ui/views/frame/themed_background.h"
+ 
+ #include <optional>
++#include <vector>
++#include "base/strings/string_split.h"
++#include "base/strings/string_number_conversions.h"
++#include "cc/paint/paint_shader.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/pref_names.h"
++#include "chrome/browser/ui/helium/arc_appearance_prefs.h"
++#include "components/prefs/pref_service.h"
++#include "ui/gfx/color_utils.h"
+ 
+ #include "chrome/browser/themes/theme_properties.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+@@ -19,6 +28,25 @@
+ #include "ui/gfx/canvas.h"
+ 
+ namespace {
++std::vector<SkColor4f> ArcThemeColors(const BrowserView* browser_view) {
++  std::vector<SkColor4f> colors;
++  if (!browser_view || !browser_view->GetColorProvider()) return colors;
++  auto* prefs = browser_view->GetProfile()->GetPrefs();
++  const auto stops = base::SplitString(prefs->GetString(helium::kArcThemeColors),
++      ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
++  const SkColor surface = browser_view->GetColorProvider()->GetColor(ui::kColorSysSurface);
++  const bool dark = color_utils::IsDark(surface);
++  const int intensity = std::clamp(prefs->GetInteger(helium::kArcThemeIntensity), 10, 100);
++  for (const auto& stop : stops) {
++    if (colors.size() == 3) break;
++    unsigned value = 0;
++    if (stop.size() != 7 || stop[0] != '#' || !base::HexStringToUInt(stop.substr(1), &value)) continue;
++    const SkColor color = color_utils::AlphaBlend(0xff000000 | value, surface,
++        static_cast<SkAlpha>(intensity * (dark ? 1.1 : 1.9)));
++    colors.push_back(SkColor4f::FromColor(color));
++  }
++  return colors;
++}
+ 
+ bool WillPaintCustomImage(const views::View* view, int id) {
+   const ui::ThemeProvider* const theme_provider = view->GetThemeProvider();
+@@ -53,7 +81,8 @@
+     : browser_view_(browser_view), theme_choice_(theme_choice) {}
+ 
+ void ThemedBackground::Paint(gfx::Canvas* canvas, views::View* view) const {
+-  if (helium::ShouldUseNativeFrameMaterials(browser_view_)) {
++  if (helium::ShouldUseNativeFrameMaterials(browser_view_) &&
++      ArcThemeColors(browser_view_).empty()) {
+     return;
+   }
+ 
+@@ -64,6 +93,30 @@
+                                              const views::View* view,
+                                              const BrowserView* browser_view,
+                                              ThemeChoice theme_choice) {
++  const auto colors = ArcThemeColors(browser_view);
++  if (!colors.empty()) {
++    gfx::Point origin;
++    views::View::ConvertPointToTarget(view, browser_view, &origin);
++    const SkPoint points[] = {
++      SkPoint::Make(-origin.x(), -origin.y()),
++      SkPoint::Make(browser_view->width() - origin.x(), browser_view->height() - origin.y())};
++    cc::PaintFlags flags;
++    if (colors.size() == 1) flags.setColor(colors[0].toSkColor());
++    else flags.setShader(cc::PaintShader::MakeLinearGradient(points, colors.data(), nullptr,
++        static_cast<int>(colors.size()), SkTileMode::kClamp));
++    canvas->DrawRect(view->GetLocalBounds(), flags);
++    if (browser_view->GetProfile()->GetPrefs()->GetBoolean(helium::kArcThemeGrain)) {
++      // A sparse deterministic texture; no timers, images, or animated noise.
++      flags.setShader(nullptr);
++      flags.setColor(SkColorSetARGB(9, 128, 128, 128));
++      for (int y = 0; y < view->height(); y += 8) {
++        for (int x = (y % 3); x < view->width(); x += 8) {
++          canvas->DrawRect(gfx::Rect(x, y, 1, 1), flags);
++        }
++      }
++    }
++    return true;
++  }
+   int theme_resource_id = GetThemeChoiceInfo(theme_choice, view).first;
+ 
+   if (!WillPaintCustomImage(view, theme_resource_id)) {
+@@ -124,6 +177,8 @@
+     const views::View* view,
+     const BrowserView* browser_view,
+     ThemeChoice theme_choice) {
++  const auto colors = ArcThemeColors(browser_view);
++  if (!colors.empty()) return colors.front().toSkColor();
+   std::pair<int, ui::ColorId> theme_choice_info =
+       GetThemeChoiceInfo(theme_choice, view);
+   if (helium::ShouldUseNativeFrameMaterials(browser_view)) {
+Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc	2026-11-04 15:10:53.683077952 -0600
++++ src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc	2026-11-04 22:55:17.866234919 -0600
+@@ -140,17 +140,6 @@
+   // --------------
+   // Views that go into the content area below
+ 
+-  auto header = std::make_unique<views::View>();
+-  auto* header_layout =
+-      header->SetLayoutManager(std::make_unique<views::BoxLayout>(
+-          views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(10, 8), 8));
+-  header_layout->set_cross_axis_alignment(
+-      views::BoxLayout::CrossAxisAlignment::kStretch);
+-  arc_navigation_ = header->AddChildView(std::make_unique<views::View>());
+-  arc_navigation_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+-      views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), 2));
+-  arc_header_ = content_area_view_->AddChildView(std::move(header));
+-
+   const int region_horizontal_padding =
+       GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
+ 
+@@ -223,11 +212,6 @@
+   state_controller_->SetDelegate(nullptr);
+ }
+ 
+-void VerticalTabStripRegionView::AttachArcToolbarControls() {
+-  browser_view()->toolbar()->AttachArcSidebarControls(arc_navigation_,
+-                                                      arc_header_);
+-}
+-
+ bool VerticalTabStripRegionView::IsAnimatingSize() const {
+   return BrowserAnimationController::From(browser_view()->browser())
+       ->IsAnimating(TabStripAnimations::kVerticalTabStrip);
+Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h	2026-11-04 11:41:04.039371496 -0600
++++ src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h	2026-11-04 22:55:17.867249462 -0600
+@@ -88,7 +88,6 @@
+     return bottom_button_container_;
+   }
+ 
+-  void AttachArcToolbarControls();
+ 
+   bool IsPositionInWindowCaption(const gfx::Point& point) override;
+ 
+@@ -271,8 +270,6 @@
+   gfx::Insets interior_margin_;
+ 
+   raw_ptr<VerticalTabStripBottomContainer> bottom_button_container_ = nullptr;
+-  raw_ptr<views::View> arc_header_ = nullptr;
+-  raw_ptr<views::View> arc_navigation_ = nullptr;
+   raw_ptr<views::View> gemini_button_ = nullptr;
+   raw_ptr<views::ResizeArea> resize_area_ = nullptr;
+   raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;
+Index: src/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/BUILD.gn	2026-11-04 15:05:22.652488779 -0600
++++ src/chrome/browser/ui/views/tabs/vertical/BUILD.gn	2026-11-05 07:34:10.440960115 -0600
+@@ -2,6 +2,7 @@
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
++import("//build/config/mac/mac_sdk.gni")
+ import("//build/config/ui.gni")
+ import("//chrome/common/features.gni")
+ import("//testing/test.gni")
+@@ -37,8 +38,20 @@
+ }
+ 
+ source_set("impl") {
++  frameworks = [
++    "AppKit.framework",
++    "SwiftUI.framework",
++    "Combine.framework",
++  ]
++  libs = [ "$target_gen_dir/arc_native_swift.o" ]
++  ldflags = [
++    "-L" + rebase_path("$mac_sdk_path/usr/lib/swift", root_build_dir),
++    "-Wl,-rpath,/usr/lib/swift",
++  ]
+   sources = [
+     "arc_command_bar_view.cc",
++    "arc_native_ui.h",
++    "arc_native_ui.mm",
+     "arc_question_routing.cc",
+     "top_container_button.cc",
+     "vertical_new_tab_button.cc",
+@@ -50,7 +63,7 @@
+   ]
+ 
+   deps = [
+-    "//chrome/browser/ui/views/frame:multi_contents_view",
++    ":arc_native_swift",
+     "//chrome/browser:primitives",
+     "//chrome/browser/autocomplete",
+     "//chrome/browser/glic",
+@@ -77,6 +90,8 @@
+     "//chrome/browser/ui/views:layout_provider",
+     "//chrome/browser/ui/views/frame",
+     "//chrome/browser/ui/views/frame:browser_view_header",
++    "//chrome/browser/ui/views/frame:multi_contents_view",
++    "//chrome/browser/ui/views/frame:themed_background",
+     "//chrome/browser/ui/views/tabs/common",
+     "//chrome/browser/ui/views/tabs/common:impl",
+     "//chrome/browser/ui/views/tabs/dragging:tab_drag_target",
+@@ -84,6 +99,7 @@
+     "//chrome/browser/ui/views/toolbar",
+     "//chrome/browser/ui/window_metadata",
+     "//components/contextual_tasks/public:feature_list",
++    "//components/favicon/content",
+     "//components/omnibox/browser",
+     "//components/performance_manager",
+     "//components/search_engines",
+@@ -124,7 +140,6 @@
+   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+   sources = [ "arc_command_bar_browsertest.cc" ]
+   deps = [
+-    "//chrome/browser/ui/views/frame:browser_view_header",
+     ":impl",
+     "//base",
+     "//chrome/browser",
+@@ -138,6 +153,7 @@
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/tabs/tab_strip_api",
+     "//chrome/browser/ui/views/animations",
++    "//chrome/browser/ui/views/frame:browser_view_header",
+     "//chrome/browser/ui/views/tabs/common",
+     "//chrome/browser/ui/views/tabs/common:browser_tests",
+     "//chrome/browser/ui/views/tabs/shared",
+@@ -162,6 +178,7 @@
+     "vertical_tab_strip_top_container_unittest.cc",
+   ]
+   deps = [
++    ":arc_native_swift",
+     ":impl",
+     "//base/test:test_support",
+     "//chrome/browser/ui:arc_routing_headers",
+@@ -172,6 +189,7 @@
+     "//chrome/browser/ui/views/tabs/vertical",
+     "//chrome/test:test_support",
+     "//chrome/test:test_support_ui",
++    "//components/favicon/content",
+     "//components/omnibox/browser",
+     "//components/tabs:test_support",
+     "//net",
+@@ -224,9 +242,11 @@
+     "arc_question_routing_unittest.cc",
+   ]
+   deps = [
++    ":arc_native_swift",
+     "//base",
+     "//base/test:run_all_unittests",
+     "//chrome/browser/ui:arc_routing_headers",
++    "//components/favicon/content",
+     "//components/omnibox/browser",
+     "//net",
+     "//testing/gtest",
+@@ -234,3 +254,25 @@
+     "//url",
+   ]
+ }
++
++# Swift support is confined to these UI files; C++ toolchain inputs stay intact.
++action("arc_native_swift") {
++  script = "compile_arc_swift.py"
++  sources = [ "arc_native_ui.swift" ]
++  outputs = [
++    "$target_gen_dir/arc_native_swift.o",
++    "$target_gen_dir/arc_native_swift.h",
++  ]
++  args = [
++    "--source",
++    rebase_path(sources[0], root_build_dir),
++    "--output",
++    rebase_path(outputs[0], root_build_dir),
++    "--header",
++    rebase_path(outputs[1], root_build_dir),
++    "--sdk",
++    rebase_path(mac_sdk_path, root_build_dir),
++    "--arch",
++    current_cpu,
++  ]
++}
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc	2026-11-04 16:19:59.439282697 -0600
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc	2026-11-05 07:32:26.614287732 -0600
+@@ -7,11 +7,14 @@
+ #include <atomic>
+ 
+ #include "base/run_loop.h"
++#include "chrome/browser/ui/helium/arc_appearance_prefs.h"
++#include "components/prefs/pref_service.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/test/bind.h"
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/browser/search_engines/template_url_service_factory.h"
+ #include "chrome/browser/ui/browser.h"
++#include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -61,9 +64,9 @@
+     }
+     return nullptr;
+   }
+-  void Key(views::Widget* widget, ui::KeyboardCode key) {
++  void Key(views::Widget* widget, ui::KeyboardCode key, bool command = false) {
+     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
+-        widget->GetNativeWindow(), key, false, false, false, false));
++        widget->GetNativeWindow(), key, false, false, false, command));
+   }
+ };
+ 
+@@ -81,12 +84,12 @@
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
+-                       FocusLocationRevealsHiddenSidebar) {
++                       FocusLocationOnHomeOpensCommandBarWithoutPinningSidebar) {
+   auto* view = BrowserView::GetBrowserViewForBrowser(browser());
+   view->ToggleZenModeSideChrome();
+   ASSERT_FALSE(view->IsZenModeSideChromePinned());
+   ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_FOCUS_LOCATION));
+-  EXPECT_FLOAT_EQ(1.0f, view->GetSideChromeRevealRatio());
++  EXPECT_TRUE(OpenPalette());
+   EXPECT_FALSE(view->IsZenModeSideChromePinned());
+ }
+ 
+@@ -111,7 +114,7 @@
+   ASSERT_TRUE(palette);
+   auto* input = FindInput(palette->GetContentsView());
+   ASSERT_TRUE(input);
+-  input->SetText(u"about:blank");
++  helium::SetArcCommandBarInputForTesting(browser(), u"about:blank");
+   Key(palette, ui::VKEY_RETURN);
+   base::RunLoop().RunUntilIdle();
+   EXPECT_EQ(count + 1, browser()->tab_strip_model()->count());
+@@ -126,7 +129,7 @@
+   ASSERT_TRUE(palette);
+   auto* input = FindInput(palette->GetContentsView());
+   ASSERT_TRUE(input);
+-  input->SetText(u"about:blank?why=how are you");
++  helium::SetArcCommandBarInputForTesting(browser(), u"about:blank?why=how are you");
+   Key(palette, ui::VKEY_RETURN);
+   base::RunLoop().RunUntilIdle();
+   EXPECT_EQ(
+@@ -135,7 +138,8 @@
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
+-                       TypingNeverRequestsSearchSuggestions) {
++                       LocalModeNeverRequestsSearchSuggestions) {
++  browser()->GetProfile()->GetPrefs()->SetBoolean(helium::kArcOnlineSuggestions, false);
+   auto* service =
+       TemplateURLServiceFactory::GetForProfile(browser()->GetProfile());
+   search_test_utils::WaitForTemplateURLServiceToLoad(service);
+@@ -170,4 +174,59 @@
+   Key(palette, ui::VKEY_ESCAPE);
+ }
+ 
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, OnlineModeRequestsDefaultEngineSuggestions) {
++  browser()->GetProfile()->GetPrefs()->SetBoolean(helium::kArcOnlineSuggestions, true);
++  auto* service = TemplateURLServiceFactory::GetForProfile(browser()->GetProfile());
++  search_test_utils::WaitForTemplateURLServiceToLoad(service);
++  TemplateURLData data;
++  data.SetShortName(u"Test search");
++  data.SetKeyword(u"arc-test");
++  data.SetURL("https://arc-search.invalid/?q={searchTerms}");
++  data.suggestions_url = "https://arc-suggestions.invalid/?q={searchTerms}";
++  service->SetUserSelectedDefaultSearchProvider(service->Add(std::make_unique<TemplateURL>(data)));
++  std::atomic<int> suggestion_requests{0};
++  content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
++      [&](content::URLLoaderInterceptor::RequestParams* params) {
++        if (params->url_request.url.host() != "arc-suggestions.invalid") return false;
++        ++suggestion_requests;
++        content::URLLoaderInterceptor::WriteResponse(
++            "HTTP/1.1 200 OK\nContent-Type: application/json\n\n",
++            "[\"rainbow\",[\"rainbow colors\"]]", params->client.get());
++        return true;
++      }));
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  helium::SetArcCommandBarInputForTesting(browser(), u"rainbow");
++  base::RunLoop settle;
++  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
++      FROM_HERE, settle.QuitClosure(), base::Seconds(1));
++  settle.Run();
++  EXPECT_GT(suggestion_requests.load(), 0);
++  Key(palette, ui::VKEY_ESCAPE);
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, RepeatedShortcutReusesPalette) {
++  auto* first = OpenPalette();
++  ASSERT_TRUE(first);
++  EXPECT_EQ(first, OpenPalette());
++  Key(first, ui::VKEY_ESCAPE);
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, CommandEnterSearchesRawQuestionAfterSelectionMoves) {
++  auto* service = TemplateURLServiceFactory::GetForProfile(browser()->GetProfile());
++  search_test_utils::WaitForTemplateURLServiceToLoad(service);
++  TemplateURLData data;
++  data.SetShortName(u"Test search");
++  data.SetKeyword(u"arc-test");
++  data.SetURL("https://arc-search.invalid/?q={searchTerms}");
++  service->SetUserSelectedDefaultSearchProvider(service->Add(std::make_unique<TemplateURL>(data)));
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  helium::SetArcCommandBarInputForTesting(browser(), u"why is the sky blue");
++  Key(palette, ui::VKEY_DOWN);
++  Key(palette, ui::VKEY_RETURN, true);
++  base::RunLoop().RunUntilIdle();
++  EXPECT_EQ("arc-search.invalid", browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL().host());
++}
++
+ }  // namespace
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc	2026-11-04 16:19:59.427475286 -0600
++++ src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc	2026-11-05 07:32:26.614511482 -0600
+@@ -11,6 +11,12 @@
+ #include <vector>
+ 
+ #include "base/functional/bind.h"
++#include "base/timer/timer.h"
++#include "base/strings/string_split.h"
++#include "chrome/browser/ui/helium/arc_appearance_prefs.h"
++#include "chrome/browser/autocomplete/shortcuts_backend_factory.h"
++#include "components/omnibox/browser/autocomplete_provider.h"
++#include "components/omnibox/browser/shortcuts_backend.h"
+ #include "base/strings/escape.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+@@ -30,6 +36,7 @@
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/themed_background.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/omnibox/browser/autocomplete_classifier.h"
+@@ -57,498 +64,534 @@
+ #include "ui/views/background.h"
+ #include "ui/views/border.h"
+ #include "ui/views/controls/button/label_button.h"
+-#include "ui/views/controls/image_view.h"
+ #include "ui/views/controls/label.h"
+ #include "ui/views/controls/textfield/textfield.h"
+ #include "ui/views/controls/textfield/textfield_controller.h"
+ #include "ui/views/layout/box_layout.h"
+ #include "ui/views/view_tracker.h"
++#include "ui/views/view_utils.h"
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/widget/widget_observer.h"
+ #include "url/gurl.h"
+ 
++#include "components/favicon/content/content_favicon_driver.h"
++#include "ui/accessibility/ax_enums.mojom.h"
++#include "ui/views/controls/native/native_view_host.h"
++#include "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h"
++#include "ui/views/layout/flex_layout.h"
++#include "ui/views/view_class_properties.h"
++
+ namespace {
+ 
+-constexpr int kBarWidth = 820;
+-constexpr int kRowHeight = 48;
+-constexpr int kCornerRadius = 16;
+-constexpr int kMaxResults = 8;
++constexpr int kBarWidth = 760;
++constexpr int kRowHeight = 46;
++constexpr int kCornerRadius = 12;
++constexpr int kMaxResults = 12;
++
+ bool LooksLikeURL(std::u16string_view text, Profile* profile) {
+-  // Native parsing is local and understands ports, IPv6, browser schemes and
+-  // spaces inside an explicit URL's query without starting any provider.
+   const AutocompleteInput input(std::u16string(text),
+                                 metrics::OmniboxEventProto::INVALID_SPEC,
+                                 ChromeAutocompleteSchemeClassifier(profile));
+   return input.type() == metrics::OmniboxInputType::URL;
+ }
+ 
++struct Command {
++  std::u16string_view title;
++  int id;
++  std::u16string_view shortcut;
++  const gfx::VectorIcon* icon;
++};
++
++const auto kCommands = std::to_array<Command>({
++    {u"New window", IDC_NEW_WINDOW, u"⌘N", &vector_icons::kAdd2Icon},
++    {u"New private window", IDC_NEW_INCOGNITO_WINDOW, u"⇧⌘N", &vector_icons::kVisibilityOffIcon},
++    {u"History", IDC_SHOW_HISTORY, u"⌘Y", &vector_icons::kHistoryIcon},
++    {u"Downloads", IDC_SHOW_DOWNLOADS, u"⇧⌘J", &vector_icons::kDownloadIcon},
++    {u"Settings", IDC_OPTIONS, u"⌘,", &vector_icons::kSettingsIcon},
++    {u"Bookmark this page", IDC_BOOKMARK_THIS_TAB, u"⌘D", &vector_icons::kStarOldIcon},
++    {u"Reopen closed tab", IDC_RESTORE_TAB, u"⇧⌘T", &vector_icons::kHistoryIcon},
++    {u"Find in page", IDC_FIND, u"⌘F", &vector_icons::kSearchIcon},
++    {u"Reload page", IDC_RELOAD, u"⌘R", &vector_icons::kReloadCustomIcon},
++    {u"Toggle fullscreen", IDC_FULLSCREEN, u"⌃⌘F", &vector_icons::kOpenInNewFlippableIcon},
++});
++
++// The native SearchProvider retains its own URL/private-query eligibility
++// checks. This client scopes the user's explicit suggestion choice to this UI
++// and continues honoring a managed browser-wide prohibition.
++class ArcSuggestionClient : public ChromeAutocompleteProviderClient {
++ public:
++  explicit ArcSuggestionClient(Profile* profile)
++      : ChromeAutocompleteProviderClient(profile), profile_(profile) {}
++  bool SearchSuggestEnabled() const override {
++    const auto* settings = profile_->GetPrefs();
++    return !profile_->IsOffTheRecord() && settings->GetBoolean(helium::kArcOnlineSuggestions) &&
++        (!settings->IsManagedPreference(prefs::kSearchSuggestEnabled) ||
++         ChromeAutocompleteProviderClient::SearchSuggestEnabled());
++  }
++ private:
++  raw_ptr<Profile> profile_;
++};
++
++struct Result {
++  enum class Kind { kInput, kTab, kCommand, kNavigation } kind;
++  int command = 0;
++  std::u16string title;
++  std::u16string detail;
++  std::u16string action;
++  GURL url;
++  base::WeakPtr<content::WebContents> tab;
++  base::WeakPtr<BrowserWindowInterface> window;
++  const gfx::VectorIcon* icon = &vector_icons::kSearchIcon;
++  int score = 0;
++  std::optional<AutocompleteMatch> match;
++
++  bool SameIdentity(const Result& other) const {
++    return kind == other.kind && command == other.command && url == other.url &&
++           tab.get() == other.tab.get() && window.get() == other.window.get();
++  }
++};
++
+ class ArcCommandBarView : public views::View,
+                           public views::TextfieldController,
+                           public views::WidgetObserver,
+                           public AutocompleteController::Observer {
+   METADATA_HEADER(ArcCommandBarView, views::View)
+-
+  public:
+-  ArcCommandBarView(BrowserWindowInterface* browser, int width, int max_results)
+-      : browser_(browser), width_(width), max_results_(max_results) {
+-    SetBackground(views::CreateRoundedRectBackground(ui::kColorSysSurface1,
+-                                                     kCornerRadius));
+-    SetBorder(
+-        views::CreateRoundedRectBorder(1, kCornerRadius, ui::kColorSysOutline));
++  ArcCommandBarView(BrowserWindowInterface* browser, int width, int visible_rows)
++      : browser_(browser->GetWeakPtr()), width_(width), visible_rows_(visible_rows) {
+     SetLayoutManager(std::make_unique<views::BoxLayout>(
+-        views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(13, 11), 5));
+-    auto* input_row = AddChildView(std::make_unique<views::View>());
+-    auto* input_layout =
+-        input_row->SetLayoutManager(std::make_unique<views::BoxLayout>(
+-            views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(0, 12),
+-            12));
+-    auto* search_icon =
+-        input_row->AddChildView(std::make_unique<views::ImageView>());
+-    search_icon->SetImage(ui::ImageModel::FromVectorIcon(
+-        vector_icons::kSearchIcon, ui::kColorSysOnSurface, 20));
+-    textfield_ = input_row->AddChildView(std::make_unique<views::Textfield>());
+-    input_layout->SetFlexForView(textfield_, 1);
+-    textfield_->SetPlaceholderText(u"Search or Enter URL...");
+-    textfield_->SetFontList(textfield_->GetFontList().DeriveWithSizeDelta(4));
+-    textfield_->SetBorder(views::CreateEmptyBorder(gfx::Insets()));
+-    textfield_->SetPreferredSize(gfx::Size(width_ - 80, 58));
+-    textfield_->SetBackgroundColor(ui::kColorSysSurface1);
+-    textfield_->SetTextColorId(ui::kColorSysOnSurface);
++        views::BoxLayout::Orientation::kVertical));
++    // The input model remains a Chromium Textfield for the existing routing
++    // interface; all visible editing and layout are owned by SwiftUI/AppKit.
++    textfield_ = AddChildView(std::make_unique<views::Textfield>());
++    textfield_->SetVisible(false);
+     textfield_->set_controller(this);
+-    textfield_->GetViewAccessibility().SetName(u"Command palette");
+-    auto* divider = AddChildView(std::make_unique<views::View>());
+-    divider->SetPreferredSize(gfx::Size(width_ - 24, 1));
+-    divider->SetBackground(views::CreateSolidBackground(ui::kColorSysDivider));
+-    results_container_ = AddChildView(std::make_unique<views::View>());
+-    results_container_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+-        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 4));
+-    for (int i = 0; i < max_results_; ++i) {
+-      auto* row =
+-          results_container_->AddChildView(std::make_unique<views::LabelButton>(
+-              base::BindRepeating(&ArcCommandBarView::ActivateResult,
+-                                  base::Unretained(this), i),
+-              u""));
+-      row->SetPreferredSize(gfx::Size(width_ - 24, kRowHeight));
+-      row->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+-      row->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(0, 13)));
+-      row->SetVisible(false);
+-      result_rows_.push_back(row);
+-    }
+-    destination_ = AddChildView(std::make_unique<views::Label>());
+-    destination_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+-    destination_->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(5, 13)));
+-    destination_->SetEnabledColor(ui::kColorSysOnSurfaceVariant);
+     AutocompleteControllerConfig config;
+     config.provider_types = helium::ArcLocalAutocompleteProviders();
+     config.disable_ml = true;
+     config.show_iph_matches = false;
+     autocomplete_ = std::make_unique<AutocompleteController>(
+-        std::make_unique<ChromeAutocompleteProviderClient>(
+-            browser_->GetProfile()),
+-        config);
++        std::make_unique<ChromeAutocompleteProviderClient>(browser_->GetProfile()), config);
+     autocomplete_->AddObserver(this);
+-    if (auto* view = BrowserView::GetBrowserViewForBrowser(browser_)) {
+-      if (view->GetFocusManager()) {
+-        previous_focus_.SetView(view->GetFocusManager()->GetFocusedView());
++    AutocompleteControllerConfig search_config;
++    search_config.provider_types = static_cast<int>(AutocompleteProvider::Type::kSearch);
++    search_config.disable_ml = true;
++    search_config.show_iph_matches = false;
++    remote_ = std::make_unique<AutocompleteController>(
++        std::make_unique<ArcSuggestionClient>(browser_->GetProfile()), search_config);
++    remote_->AddObserver(this);
++    auto* view = BrowserView::GetBrowserViewForBrowser(browser_.get());
++    if (view && view->GetFocusManager()) {
++      previous_focus_.SetView(view->GetFocusManager()->GetFocusedView());
++    }
++    native_ = helium::CreateArcNativeCommandBar(base::BindRepeating(
++        &ArcCommandBarView::NativeEvent, base::Unretained(this)));
++    native_host_ = AddChildView(std::make_unique<views::NativeViewHost>());
++    native_host_->SetFocusBehavior(FocusBehavior::ALWAYS);
++    native_host_->Attach(native_->view());
++    UpdateResults();
++  }
++  ~ArcCommandBarView() override {
++    search_timer_.Stop();
++    remote_->RemoveObserver(this);
++    remote_->Stop(AutocompleteStopReason::kClobbered);
++    autocomplete_->RemoveObserver(this);
++    autocomplete_->Stop(AutocompleteStopReason::kClobbered);
++  }
++  views::Textfield* textfield() { return textfield_; }
++  void FocusInput() { native_->Focus(); }
++  void SetInputForTesting(const std::u16string& text) { native_->SetText(text); }
++  gfx::Size CalculatePreferredSize(const views::SizeBounds&) const override {
++    return gfx::Size(width_, 20 + 56 + 1 + 8 +
++        std::min(static_cast<int>(results_.size()), visible_rows_) * (kRowHeight + 4));
++  }
++
++  void ContentsChanged(views::Textfield*, const std::u16string& text) override {
++    if (!browser_) { GetWidget()->Close(); return; }
++    selection_explicit_ = false;
++    selected_ = 0;
++    updating_input_ = true;
++    search_timer_.Stop();
++    remote_query_.clear();
++    remote_->Stop(AutocompleteStopReason::kClobbered);
++    if (text.empty()) {
++      autocomplete_->Stop(AutocompleteStopReason::kClobbered);
++    } else {
++      AutocompleteInput input(text, metrics::OmniboxEventProto::INVALID_SPEC,
++                              ChromeAutocompleteSchemeClassifier(browser_->GetProfile()));
++      input.set_prevent_inline_autocomplete(true);
++      autocomplete_->Start(input);
++      if (!browser_->GetProfile()->IsOffTheRecord() &&
++          browser_->GetProfile()->GetPrefs()->GetBoolean(helium::kArcOnlineSuggestions)) {
++        search_timer_.Start(FROM_HERE, base::Milliseconds(120), base::BindOnce(
++            &ArcCommandBarView::StartRemoteSuggestions, base::Unretained(this), text));
+       }
+     }
++    updating_input_ = false;
+     UpdateResults();
+-    UpdateDestination();
+   }
+-  ArcCommandBarView(const ArcCommandBarView&) = delete;
+-  ArcCommandBarView& operator=(const ArcCommandBarView&) = delete;
+-  ~ArcCommandBarView() override { autocomplete_->RemoveObserver(this); }
+-
+-  views::Textfield* textfield() { return textfield_; }
+-
+-  void ContentsChanged(views::Textfield* sender,
+-                       const std::u16string& new_contents) override {
+-    selected_result_ = -1;
+-    // Resolve the local destination before invoking the strictly local
+-    // provider set. Neither search nor extension suggestion providers exist.
+-    UpdateDestination();
+-    AutocompleteInput input(
+-        new_contents, metrics::OmniboxEventProto::INVALID_SPEC,
+-        ChromeAutocompleteSchemeClassifier(browser_->GetProfile()));
++  void StartRemoteSuggestions(const std::u16string& query) {
++    if (closing_ || !browser_ || textfield_->GetText() != query) return;
++    remote_query_ = query;
++    AutocompleteInput input(query, metrics::OmniboxEventProto::INVALID_SPEC,
++                            ChromeAutocompleteSchemeClassifier(browser_->GetProfile()));
+     input.set_prevent_inline_autocomplete(true);
+-    autocomplete_->Start(input);
++    remote_->Start(input);
+     UpdateResults();
+   }
+-
+   void OnResultChanged(AutocompleteController*, bool) override {
+-    UpdateResults();
++    if (!closing_ && !updating_input_) UpdateResults();
+   }
+-
+   void OnWidgetDestroying(views::Widget* widget) override {
++    closing_ = true;
++    search_timer_.Stop();
++    remote_->Stop(AutocompleteStopReason::kClobbered);
+     widget->RemoveObserver(this);
+-    if (restore_focus_ && previous_focus_.view()) {
++    autocomplete_->Stop(AutocompleteStopReason::kClobbered);
++    if (restore_focus_ && browser_ && previous_focus_.view()) {
+       previous_focus_.view()->RequestFocus();
+     }
+   }
+-
+-  bool OnKeyPressed(const ui::KeyEvent& event) override {
+-    if (event.key_code() == ui::VKEY_ESCAPE) {
+-      GetWidget()->Close();
+-      return true;
++  void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
++    if (!active && !widget->IsClosed()) {
++      restore_focus_ = false;
++      widget->Close();
+     }
+-    if (event.key_code() == ui::VKEY_F6) {
+-      if (textfield_->HasFocus() && !results_.empty()) {
+-        result_rows_.front()->RequestFocus();
+-      } else {
+-        textfield_->RequestFocus();
+-      }
+-      return true;
++  }
++  bool OnKeyPressed(const ui::KeyEvent& event) override {
++    if (event.key_code() == ui::VKEY_ESCAPE) { GetWidget()->Close(); return true; }
++    if (event.key_code() == ui::VKEY_RETURN && event.IsCommandDown()) {
++      Submit(true); return true;
+     }
+     return views::View::OnKeyPressed(event);
+   }
+-
+-  bool HandleKeyEvent(views::Textfield* sender,
+-                      const ui::KeyEvent& key_event) override {
+-    if (key_event.type() != ui::EventType::kKeyPressed) {
+-      return false;
+-    }
+-    if (key_event.key_code() == ui::VKEY_ESCAPE) {
+-      GetWidget()->Close();
+-      return true;
+-    }
+-    if (key_event.key_code() == ui::VKEY_TAB) {
+-      if (key_event.IsShiftDown()) {
+-        return false;
+-      }
+-      explicit_chatgpt_ = !ShouldAskChatGPT();
+-      UpdateDestination();
+-      UpdateResults();
+-      return true;
+-    }
+-    if (key_event.key_code() == ui::VKEY_DOWN && !results_.empty()) {
+-      selected_result_ = (selected_result_ + 1) % results_.size();
+-      UpdateResultAppearance();
+-      return true;
+-    }
+-    if (key_event.key_code() == ui::VKEY_UP && !results_.empty()) {
+-      selected_result_ =
+-          (selected_result_ + results_.size() - 1) % results_.size();
+-      UpdateResultAppearance();
++  bool HandleKeyEvent(views::Textfield* sender, const ui::KeyEvent& event) override {
++    if (event.type() != ui::EventType::kKeyPressed || sender->IsIMEComposing()) return false;
++    if (event.key_code() == ui::VKEY_ESCAPE) { GetWidget()->Close(); return true; }
++    if (event.key_code() == ui::VKEY_DOWN || event.key_code() == ui::VKEY_UP) {
++      if (results_.empty()) return true;
++      selected_ = (selected_ + (event.key_code() == ui::VKEY_DOWN ? 1 : results_.size() - 1)) % results_.size();
++      UpdateAppearance();
+       return true;
+     }
+-    if (key_event.key_code() == ui::VKEY_RETURN) {
+-      if (selected_result_ >= 0) {
+-        ActivateResult(selected_result_);
+-        return true;
+-      }
+-      Submit(sender->GetText());
++    if (event.key_code() == ui::VKEY_RETURN) {
++      if (event.IsCommandDown()) Submit(true);
++      else if (!results_.empty()) ActivateResult(selected_);
++      else Submit(false);
+       return true;
+     }
+     return false;
+   }
+-
+-  void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
+-    if (!active && !widget->IsClosed()) {
+-      widget->Close();
+-    }
++  void OnThemeChanged() override {
++    views::View::OnThemeChanged();
++    if (!GetColorProvider() || !textfield_) return;
++    auto* browser_view = browser_ ? BrowserView::GetBrowserViewForBrowser(browser_.get()) : nullptr;
++    const SkColor base = browser_view ? ThemedBackground::GetBackgroundColor(
++        browser_view, browser_view, ThemedBackground::kFrameTheme)
++        .value_or(GetColorProvider()->GetColor(ui::kColorFrameActive))
++        : GetColorProvider()->GetColor(ui::kColorFrameActive);
++    const bool dark = color_utils::IsDark(GetColorProvider()->GetColor(ui::kColorSysSurface));
++    surface_ = color_utils::GetResultingPaintColor(
++        dark ? SkColorSetARGB(240, 20, 22, 25) : SkColorSetARGB(245, 255, 255, 255), base);
++    SetBackground(nullptr);
++    UpdateAppearance();
+   }
+-
+  private:
+-  struct Result {
+-    enum class Kind { kInput, kTab, kCommand, kNavigation } kind;
+-    int value;
+-    std::u16string label;
+-    GURL url;
+-    base::WeakPtr<content::WebContents> tab;
+-    base::WeakPtr<BrowserWindowInterface> window;
+-  };
+-
++  void NativeEvent(int kind, const std::u16string& text, int index) {
++    if (!browser_) { GetWidget()->Close(); return; }
++    if (kind == 1) {
++      if (textfield_->GetText() != text) {
++        textfield_->SetText(text);
++        ContentsChanged(textfield_, text);
++      }
++    }
++    if (kind == 7) { ActivateResult(index); }
++    else if (kind == 2) {
++      if (text.empty() && index >= 0 && index < static_cast<int>(results_.size()) &&
++          results_[index].kind == Result::Kind::kCommand) return;
++      ActivateResult(index);
++    } else if (kind == 3) Submit(true);
++    else if (kind == 4 && index >= 0 && index < static_cast<int>(results_.size())) {
++      selection_explicit_ = true; selected_ = index; UpdateAppearance();
++    } else if (kind == 5) GetWidget()->Close();
++    else if (kind == 6) ToggleDestination();
++  }
++  bool AskChatGPT() const {
++    return browser_ && helium::ResolveArcFreeText(textfield_->GetText(), false, explicit_chatgpt_,
++        browser_->GetProfile()->GetPrefs()->GetBoolean(prefs::kHeliumArcQuestionRouting),
++        browser_->GetProfile()->IsOffTheRecord()) == helium::ArcDestination::kChatGPT;
++  }
++  void ToggleDestination() {
++    explicit_chatgpt_ = !AskChatGPT();
++    UpdateResults();
++    if (native_) native_->Focus();
++  }
+   void UpdateResults() {
+-    const std::u16string previous =
+-        selected_result_ >= 0 &&
+-                static_cast<size_t>(selected_result_) < results_.size()
+-            ? results_[selected_result_].label
+-            : std::u16string();
+-    results_.clear();
++    if (!browser_) return;
++    std::optional<Result> previous;
+     const std::u16string query = base::ToLowerASCII(std::u16string(
+         base::TrimWhitespace(textfield_->GetText(), base::TRIM_ALL)));
+-    if (!query.empty()) {
+-      results_.push_back(
+-          {Result::Kind::kInput, 0,
+-           LooksLikeURL(query, browser_->GetProfile())
+-               ? u"Open URL  ·  " + std::u16string(textfield_->GetText())
+-               : (ShouldAskChatGPT() ? u"Ask ChatGPT  ·  " : u"Search  ·  ") +
+-                     std::u16string(textfield_->GetText())});
+-    }
+-    GlobalBrowserCollection::GetInstance()->ForEach(
+-        [&](BrowserWindowInterface* window) {
+-          if (window->GetProfile() != browser_->GetProfile() || query.empty()) {
+-            return true;
+-          }
+-          auto* tabs = window->GetTabStripModel();
+-          for (int i = 0;
+-               i < tabs->count() &&
+-               results_.size() < static_cast<size_t>(std::min(4, max_results_));
+-               ++i) {
+-            auto* contents = tabs->GetWebContentsAt(i);
+-            const std::u16string title = contents->GetTitle();
+-            const std::u16string url =
+-                base::UTF8ToUTF16(contents->GetVisibleURL().spec());
+-            if (base::ToLowerASCII(title).find(query) != std::u16string::npos ||
+-                base::ToLowerASCII(url).find(query) != std::u16string::npos) {
+-              results_.push_back(
+-                  {Result::Kind::kTab, 0, u"Switch to tab  ·  " + title,
+-                   contents->GetVisibleURL(), contents->GetWeakPtr(),
+-                   window->GetWeakPtr()});
+-            }
+-          }
+-          return true;
+-        });
+-    if (!query.empty()) {
+-      for (const auto& match : autocomplete_->result()) {
+-        if (results_.size() >=
+-            static_cast<size_t>(std::max(1, max_results_ - 2))) {
+-          break;
+-        }
+-        if (!match.destination_url.is_valid() ||
+-            AutocompleteMatch::IsSearchType(match.type)) {
+-          continue;
+-        }
+-        results_.push_back({Result::Kind::kNavigation, 0,
+-                            match.description.empty()
+-                                ? match.contents
+-                                : match.description + u"  ·  " + match.contents,
+-                            match.destination_url});
+-      }
+-    }
+-    constexpr struct {
+-      std::u16string_view label;
+-      int command;
+-    } commands[] = {{u"New window", IDC_NEW_WINDOW},
+-                    {u"New private window", IDC_NEW_INCOGNITO_WINDOW},
+-                    {u"History", IDC_SHOW_HISTORY},
+-                    {u"Downloads", IDC_SHOW_DOWNLOADS},
+-                    {u"Settings", IDC_OPTIONS},
+-                    {u"Bookmark this page", IDC_BOOKMARK_THIS_TAB},
+-                    {u"Reopen closed tab", IDC_RESTORE_TAB},
+-                    {u"Find in page", IDC_FIND},
+-                    {u"Reload page", IDC_RELOAD},
+-                    {u"Toggle fullscreen", IDC_FULLSCREEN}};
+-    for (const auto& command : commands) {
+-      if (results_.size() >= static_cast<size_t>(max_results_)) {
+-        break;
+-      }
+-      if (chrome::IsCommandEnabled(browser_, command.command) &&
+-          (query.empty() || base::ToLowerASCII(command.label).find(query) !=
+-                                std::u16string::npos)) {
+-        results_.push_back({Result::Kind::kCommand, command.command,
+-                            u"Action  ·  " + std::u16string(command.label)});
+-      }
+-    }
+-    selected_result_ = query.empty() ? -1 : 0;
+-    for (size_t i = 0; i < results_.size(); ++i) {
+-      if (!previous.empty() && results_[i].label == previous) {
+-        selected_result_ = static_cast<int>(i);
++    if (selection_explicit_ && query == previous_query_ && selected_ >= 0 && selected_ < static_cast<int>(results_.size()))
++      previous = results_[selected_];
++    previous_query_ = query;
++    results_.clear();
++    const bool question = AskChatGPT();
++    const auto tokens = base::SplitString(query, u" ", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
++    auto command_score = [&](std::u16string_view title) {
++      const auto name = base::ToLowerASCII(title);
++      if (query.empty()) return 100;
++      if (name == query) return 2200;
++      if (query.size() >= 3 && name.starts_with(query)) return 2000;
++      return name.find(query) != std::u16string::npos ? 600 : 0;
++    };
++    for (const auto& command : kCommands) {
++      const int score = command_score(command.title);
++      if (score && chrome::IsCommandEnabled(browser_.get(), command.id)) {
++        results_.push_back({Result::Kind::kCommand, command.id, std::u16string(command.title),
++            u"", std::u16string(command.shortcut), {}, {}, {}, command.icon, score});
+       }
+     }
+-    for (size_t i = 0; i < result_rows_.size(); ++i) {
+-      result_rows_[i]->SetVisible(i < results_.size());
+-      if (i < results_.size()) {
+-        result_rows_[i]->SetText(results_[i].label);
++    if (!query.empty()) {
++      const bool url = LooksLikeURL(textfield_->GetText(), browser_->GetProfile());
++      results_.push_back({Result::Kind::kInput, 0, std::u16string(textfield_->GetText()),
++          u"", url ? u"Open URL" : question ? u"Ask ChatGPT" : u"Search", {}, {}, {},
++          &vector_icons::kSearchIcon, url ? 2100 : question ? 2100 : 1100});
++    }
++    std::vector<Result> tabs;
++    GlobalBrowserCollection::GetInstance()->ForEach([&](BrowserWindowInterface* window) {
++      if (window->GetProfile() != browser_->GetProfile()) return true;
++      auto* strip = window->GetTabStripModel();
++      for (int i = 0; i < strip->count(); ++i) {
++        auto* contents = strip->GetWebContentsAt(i);
++        if (helium::IsArcHome(contents)) continue;
++        const auto title = contents->GetTitle();
++        const auto url = contents->GetVisibleURL();
++        const auto title_key = base::ToLowerASCII(title);
++        const auto url_key = base::ToLowerASCII(base::UTF8ToUTF16(url.spec()));
++        const auto host = base::UTF8ToUTF16(url.host());
++        if (!std::ranges::all_of(tokens, [&](const auto& token) {
++              return title_key.find(token) != std::u16string::npos || url_key.find(token) != std::u16string::npos;
++            })) continue;
++        int score = query.empty() ? 1600 : title_key == query || host == query ? 1800
++            : host.starts_with(query) ? 1700 : title_key.starts_with(query) ? 1600 : 1000;
++        tabs.push_back({Result::Kind::kTab, 0, title.empty() ? host : title,
++            host, u"Switch to Tab", url, contents->GetWeakPtr(), window->GetWeakPtr(),
++            &vector_icons::kGlobeIcon, score});
+       }
++      return true;
++    });
++    std::stable_sort(tabs.begin(), tabs.end(), [](const Result& a, const Result& b) {
++      return a.score != b.score ? a.score > b.score
++          : a.tab->GetLastActiveTimeTicks() > b.tab->GetLastActiveTimeTicks();
++    });
++    for (const auto& tab : tabs) {
++      if (query.empty() && results_.size() >= 5 + kCommands.size()) break;
++      results_.push_back(tab);
+     }
+-    UpdateResultAppearance();
++    if (!query.empty()) {
++      auto add_matches = [&](const AutocompleteResult& matches, bool remote) {
++        for (const auto& match : matches) {
++          if (!match.destination_url.is_valid()) continue;
++          const bool search = AutocompleteMatch::IsSearchType(match.type);
++          if (search && (!remote || base::ToLowerASCII(match.fill_into_edit) == query)) continue;
++          if (std::ranges::any_of(results_, [&](const Result& r) { return r.url == match.destination_url; })) continue;
++          Result result{Result::Kind::kNavigation, 0,
++              search ? match.fill_into_edit : match.description.empty() ? match.contents : match.description,
++              search ? u"" : base::UTF8ToUTF16(match.destination_url.spec()),
++              search ? u"" : u"Open", match.destination_url, {}, {},
++              search ? &vector_icons::kSearchIcon : &vector_icons::kGlobeIcon,
++              search ? std::min(1050, match.relevance) : match.allowed_to_be_default_match
++                  ? std::max(1500, match.relevance) : std::min(1090, match.relevance)};
++          result.match = match;
++          results_.push_back(std::move(result));
++        }
++      };
++      add_matches(autocomplete_->result(), false);
++      if (remote_query_ == textfield_->GetText()) add_matches(remote_->result(), true);
++    }
++    if (query.empty() || query == u"edit appearance" || query == u"appearance" || query == u"theme") {
++      results_.push_back({Result::Kind::kCommand, IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,
++          u"Edit appearance", u"", u"Customize", {}, {}, {}, &vector_icons::kSettingsIcon,
++          query.empty() ? 500 : 2200});
++    }
++    std::stable_sort(results_.begin(), results_.end(), [](const Result& a, const Result& b) { return a.score > b.score; });
++    if (results_.size() > (query.empty() ? 5u : kMaxResults)) results_.resize(query.empty() ? 5u : kMaxResults);
++    selected_ = 0;
++    for (size_t i = 0; previous && i < results_.size(); ++i) {
++      if (results_[i].SameIdentity(*previous)) { selected_ = i; break; }
++    }
++    if (results_.size() > kMaxResults) results_.resize(kMaxResults);
++    selected_ = std::min(selected_, std::max(0, static_cast<int>(results_.size()) - 1));
++    UpdateAppearance();
+     if (GetWidget()) {
+-      GetWidget()->SetSize(GetPreferredSize());
++      const auto size = GetPreferredSize();
++      if (GetWidget()->GetWindowBoundsInScreen().size() != size) GetWidget()->SetSize(size);
+     }
+   }
+-
+-  void OnThemeChanged() override {
+-    views::View::OnThemeChanged();
+-    // Keep the floating panel related to the window accent while maintaining
+-    // readable foreground contrast in either system appearance.
+-    const SkColor base = GetColorProvider()->GetColor(ui::kColorFrameActive);
+-    const SkColor veil =
+-        color_utils::IsDark(GetColorProvider()->GetColor(ui::kColorSysSurface))
+-            ? SkColorSetARGB(222, 12, 16, 14)
+-            : SkColorSetARGB(242, 255, 255, 255);
+-    surface_ = color_utils::GetResultingPaintColor(veil, base);
+-    SetBackground(views::CreateRoundedRectBackground(surface_, kCornerRadius));
+-    textfield_->SetBackgroundColor(surface_);
+-    UpdateResultAppearance();
+-  }
+-
+-  void UpdateResultAppearance() {
+-    for (size_t i = 0; i < results_.size(); ++i) {
+-      const bool selected = static_cast<int>(i) == selected_result_;
+-      result_rows_[i]->SetBackground(views::CreateRoundedRectBackground(
+-          selected ? ui::ColorVariant(ui::kColorSysPrimary)
+-                   : ui::ColorVariant(surface_),
+-          8));
+-      result_rows_[i]->GetViewAccessibility().SetDescription(
+-          selected ? u"Selected result. Enter to open. F6 to move focus."
+-                   : u"");
+-      const auto foreground =
+-          selected ? ui::kColorSysOnPrimary : ui::kColorSysOnSurface;
+-      const gfx::VectorIcon& icon = results_[i].kind == Result::Kind::kCommand
+-                                        ? vector_icons::kSettingsIcon
+-                                    : results_[i].kind == Result::Kind::kTab
+-                                        ? vector_icons::kArrowForwardIcon
+-                                        : vector_icons::kSearchIcon;
+-      result_rows_[i]->SetImageModel(
+-          views::Button::STATE_NORMAL,
+-          ui::ImageModel::FromVectorIcon(icon, foreground, 18));
+-      result_rows_[i]->SetImageLabelSpacing(12);
+-      result_rows_[i]->SetEnabledTextColors(selected ? ui::kColorSysOnPrimary
+-                                                     : ui::kColorSysOnSurface);
++  void UpdateAppearance() {
++    if (native_ && GetColorProvider()) {
++      std::vector<helium::ArcNativeRow> values;
++      for (const auto& result : results_) {
++        std::string symbol = "globe";
++        if (result.kind == Result::Kind::kInput) symbol = AskChatGPT() ? "bubble.left" : "magnifyingglass";
++        if (result.kind == Result::Kind::kCommand) {
++          switch (result.command) {
++            case IDC_NEW_WINDOW: symbol = "plus.rectangle"; break;
++            case IDC_NEW_INCOGNITO_WINDOW: symbol = "eye.slash"; break;
++            case IDC_SHOW_HISTORY: case IDC_RESTORE_TAB: symbol = "clock.arrow.circlepath"; break;
++            case IDC_SHOW_DOWNLOADS: symbol = "arrow.down.circle"; break;
++            case IDC_BOOKMARK_THIS_TAB: symbol = "star"; break;
++            case IDC_FIND: symbol = "magnifyingglass"; break;
++            case IDC_RELOAD: symbol = "arrow.clockwise"; break;
++            case IDC_FULLSCREEN: symbol = "arrow.up.left.and.arrow.down.right"; break;
++            case IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL: symbol = "paintpalette"; break;
++            default: symbol = "gearshape";
++          }
++        }
++        gfx::ImageSkia favicon;
++        if (result.tab) {
++          auto* driver = favicon::ContentFaviconDriver::FromWebContents(result.tab.get());
++          if (driver && !driver->GetFavicon().IsEmpty()) favicon = driver->GetFavicon().AsImageSkia();
++        }
++        values.push_back({result.title, result.detail, result.action, symbol, favicon,
++            (result.kind == Result::Kind::kTab ||
++             (result.kind == Result::Kind::kNavigation && result.action == u"Open"))
++                ? base::UTF8ToUTF16(result.url.spec()) : result.title});
++      }
++      auto color = [&](ui::ColorId id) { return GetColorProvider()->GetColor(id); };
++      native_->Update(values, selected_, AskChatGPT() ? u"Ask ChatGPT" : u"Search", surface_,
++          color(ui::kColorSysPrimary), color(ui::kColorSysOnPrimary),
++          color(ui::kColorSysOnSurface), color(ui::kColorSysOnSurfaceVariant));
++      if (native_host_) native_host_->SetPreferredSize(GetPreferredSize());
+     }
+   }
+-
+   void ActivateResult(int index) {
+-    if (index < 0 || static_cast<size_t>(index) >= results_.size()) {
+-      return;
+-    }
++    if (!browser_ || index < 0 || index >= static_cast<int>(results_.size())) return;
+     const Result result = results_[index];
+-    if (result.kind == Result::Kind::kInput) {
+-      Submit(textfield_->GetText());
+-      return;
+-    }
++    if (result.kind == Result::Kind::kInput) { Submit(false); return; }
+     if (result.kind == Result::Kind::kTab) {
+-      if (!result.window || !result.tab) {
+-        UpdateResults();
+-        return;
+-      }
++      if (!result.window || !result.tab) { UpdateResults(); return; }
+       auto* tabs = result.window->GetTabStripModel();
+       const int tab_index = tabs->GetIndexOfWebContents(result.tab.get());
+-      if (tab_index == TabStripModel::kNoTab) {
+-        UpdateResults();
+-        return;
+-      }
++      if (tab_index == TabStripModel::kNoTab) { UpdateResults(); return; }
+       restore_focus_ = false;
+       GetWidget()->Close();
+       tabs->ActivateTabAt(tab_index);
+       result.window->GetWindow()->Activate();
+       return;
+     }
++    if (result.match && !browser_->GetProfile()->IsOffTheRecord()) {
++      auto backend = ShortcutsBackendFactory::GetForProfile(browser_->GetProfile());
++      if (backend && backend->initialized()) backend->AddOrUpdateShortcut(
++          std::u16string(textfield_->GetText()), *result.match);
++    }
+     restore_focus_ = false;
+     GetWidget()->Close();
+-    if (result.kind == Result::Kind::kCommand) {
+-      chrome::ExecuteCommand(browser_, result.value);
+-    } else {
+-      NavigateParams params(browser_, result.url, ui::PAGE_TRANSITION_TYPED);
+-      params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+-      Navigate(&params);
+-    }
+-  }
+-
+-  bool ShouldAskChatGPT() const {
+-    return helium::ResolveArcFreeText(
+-               textfield_->GetText(), false, explicit_chatgpt_,
+-               browser_->GetProfile()->GetPrefs()->GetBoolean(
+-                   prefs::kHeliumArcQuestionRouting),
+-               browser_->GetProfile()->IsOffTheRecord()) ==
+-           helium::ArcDestination::kChatGPT;
++    if (result.kind == Result::Kind::kCommand) chrome::ExecuteCommand(browser_.get(), result.command);
++    else NavigateTo(result.url);
+   }
+-
+-  std::u16string SearchDestinationLabel() const {
+-    auto* service =
+-        TemplateURLServiceFactory::GetForProfile(browser_->GetProfile());
+-    const auto* engine =
+-        service ? service->GetDefaultSearchProvider() : nullptr;
+-    return u"Search " + (engine ? engine->short_name() : u"default engine") +
+-           u" · Tab to ask ChatGPT · F6 for results";
++  void NavigateTo(const GURL& url) {
++    if (!browser_ || !url.is_valid()) return;
++    NavigateParams params(browser_.get(), url, ui::PAGE_TRANSITION_TYPED);
++    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++    Navigate(&params);
+   }
+-
+-  void UpdateDestination() {
+-    if (LooksLikeURL(textfield_->GetText(), browser_->GetProfile())) {
+-      destination_->SetText(u"Open URL");
++  void Submit(bool force_search) {
++    if (!browser_) return;
++    const std::u16string text(base::TrimWhitespace(textfield_->GetText(), base::TRIM_ALL));
++    if (text.empty()) return;
++    GURL destination;
++    if (force_search) {
++      auto* service = TemplateURLServiceFactory::GetForProfile(browser_->GetProfile());
++      if (service) destination = service->GenerateSearchURLForDefaultSearchProvider(text);
+     } else {
+-      destination_->SetText(ShouldAskChatGPT() ? u"Ask ChatGPT · Tab to search"
+-                                               : SearchDestinationLabel());
+-    }
+-  }
+-
+-  void Submit(std::u16string_view text) {
+-    const std::u16string trimmed(base::TrimWhitespace(text, base::TRIM_ALL));
+-    if (trimmed.empty()) {
+-      return;
+-    }
+-    AutocompleteMatch match;
+-    AutocompleteClassifierFactory::GetForProfile(browser_->GetProfile())
+-        ->Classify(trimmed, /*in_keyword_mode=*/false,
+-                   /*allow_exact_keyword_match=*/true,
+-                   metrics::OmniboxEventProto::INVALID_SPEC, &match, nullptr);
+-    if (!match.destination_url.is_valid()) {
+-      return;
+-    }
+-    const bool is_url = !AutocompleteMatch::IsSearchType(match.type);
+-    const GURL destination =
+-        !is_url && ShouldAskChatGPT()
+-            ? helium::ChatGPTWebsiteProvider::BuildSubmissionURL(trimmed)
+-            : match.destination_url;
+-    if (!destination.is_valid()) {
+-      return;
++      AutocompleteMatch match;
++      AutocompleteClassifierFactory::GetForProfile(browser_->GetProfile())->Classify(
++          text, false, true, metrics::OmniboxEventProto::INVALID_SPEC, &match, nullptr);
++      destination = AutocompleteMatch::IsSearchType(match.type) && AskChatGPT()
++          ? helium::ChatGPTWebsiteProvider::BuildSubmissionURL(text) : match.destination_url;
+     }
+-    NavigateParams params(browser_.get(), destination,
+-                          ui::PAGE_TRANSITION_TYPED);
+-    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++    if (!destination.is_valid()) return;
+     restore_focus_ = false;
+     GetWidget()->Close();
+-    Navigate(&params);
++    NavigateTo(destination);
+   }
+-
+-  raw_ptr<BrowserWindowInterface> browser_;
++  std::unique_ptr<helium::ArcNativeCommandBar> native_;
++  raw_ptr<views::NativeViewHost> native_host_ = nullptr;
++  base::WeakPtr<BrowserWindowInterface> browser_;
+   const int width_;
+-  const int max_results_;
++  const int visible_rows_;
+   SkColor surface_ = SK_ColorTRANSPARENT;
+   raw_ptr<views::Textfield> textfield_ = nullptr;
+-  raw_ptr<views::Label> destination_ = nullptr;
+-  raw_ptr<views::View> results_container_ = nullptr;
+-  std::vector<raw_ptr<views::LabelButton>> result_rows_;
+   std::vector<Result> results_;
+-  int selected_result_ = -1;
++  std::u16string previous_query_;
++  int selected_ = 0;
+   std::optional<bool> explicit_chatgpt_;
+   std::unique_ptr<AutocompleteController> autocomplete_;
++  std::unique_ptr<AutocompleteController> remote_;
++  base::OneShotTimer search_timer_;
++  std::u16string remote_query_;
++  bool closing_ = false;
++  bool updating_input_ = false;
++  bool selection_explicit_ = false;
+   views::ViewTracker previous_focus_;
+   bool restore_focus_ = true;
+ };
+-
+ BEGIN_METADATA(ArcCommandBarView)
+ END_METADATA
+-
+ }  // namespace
+ 
+ namespace helium {
+-
++void SetArcCommandBarInputForTesting(BrowserWindowInterface* browser, const std::u16string& text) {
++  auto* view = BrowserView::GetBrowserViewForBrowser(browser);
++  if (!view || !view->GetWidget()) return;
++  for (views::Widget* widget : views::Widget::GetAllOwnedWidgets(view->GetWidget()->GetNativeView())) {
++    if (widget->GetName() == "ArcCommandBar" && !widget->IsClosed()) {
++      if (auto* bar = views::AsViewClass<ArcCommandBarView>(widget->GetContentsView())) bar->SetInputForTesting(text);
++    }
++  }
++}
++bool IsArcHome(content::WebContents* contents) {
++  if (!contents) return false;
++  const auto& url = contents->GetVisibleURL();
++  return url.SchemeIs("chrome") &&
++      (url.host() == "newtab" || url.host() == "new-tab-page" || url.host() == "new-tab-page-third-party");
++}
+ bool ShowArcCommandBar(BrowserWindowInterface* browser) {
+-  auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+-  views::Widget* parent = browser_view ? browser_view->GetWidget() : nullptr;
+-  if (!parent || !browser_view->multi_contents_view()) {
+-    return false;
++  auto* view = BrowserView::GetBrowserViewForBrowser(browser);
++  auto* parent = view ? view->GetWidget() : nullptr;
++  if (!parent || !view->multi_contents_view()) return false;
++  for (views::Widget* widget : views::Widget::GetAllOwnedWidgets(parent->GetNativeView())) {
++    if (widget->GetName() == "ArcCommandBar" && !widget->IsClosed()) {
++      widget->Activate();
++      if (auto* bar = views::AsViewClass<ArcCommandBarView>(widget->GetContentsView())) bar->FocusInput();
++      return true;
++    }
+   }
+-  const gfx::Rect page =
+-      browser_view->multi_contents_view()->GetBoundsInScreen();
+-  auto contents = std::make_unique<ArcCommandBarView>(
+-      browser, std::min(kBarWidth, std::max(260, page.width() - 32)),
+-      std::clamp((page.height() - 160) / (kRowHeight + 4), 1, kMaxResults));
+-  ArcCommandBarView* bar = contents.get();
+-  views::Widget::InitParams params(
+-      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+-      views::Widget::InitParams::TYPE_POPUP);
++  const auto page = view->multi_contents_view()->GetBoundsInScreen();
++  if (page.width() < 160 || page.height() < 180) return false;
++  const int width = std::min(kBarWidth, page.width() - 48);
++  const int rows = std::clamp((page.height() - 180) / (kRowHeight + 4), 1, 5);
++  auto contents = std::make_unique<ArcCommandBarView>(browser, width, rows);
++  auto* bar = contents.get();
++  const auto size = contents->GetPreferredSize();
++  views::Widget::InitParams params(views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
++                                  views::Widget::InitParams::TYPE_POPUP);
+   params.parent = parent->GetNativeView();
+   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
+   params.shadow_type = views::Widget::InitParams::ShadowType::kDrop;
+   params.rounded_corners = gfx::RoundedCornersF(kCornerRadius);
+   params.activatable = views::Widget::InitParams::Activatable::kYes;
+   params.name = "ArcCommandBar";
+-  const gfx::Size size = bar->GetPreferredSize();
+-  params.bounds =
+-      gfx::Rect(page.CenterPoint().x() - size.width() / 2,
+-                page.y() + std::max(16, (page.height() - size.height()) / 3),
+-                size.width(), size.height());
++  params.bounds = gfx::Rect(page.CenterPoint().x() - size.width() / 2,
++      page.y() + std::max(16, (page.height() - size.height()) / 3), size.width(), size.height());
+   auto* widget = new views::Widget();
+   widget->Init(std::move(params));
+   widget->SetContentsView(std::move(contents));
+   widget->AddObserver(bar);
+   widget->Show();
+   widget->Activate();
+-  bar->textfield()->RequestFocus();
++  bar->FocusInput();
+   return true;
+ }
+-
+ }  // namespace helium
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h	2026-11-05 07:14:55.573969614 -0600
+@@ -0,0 +1,36 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++#ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARC_NATIVE_UI_H_
++#define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARC_NATIVE_UI_H_
++#include <memory>
++#include <string>
++#include <vector>
++#include "base/functional/callback.h"
++#include "ui/gfx/native_ui_types.h"
++#include "ui/gfx/image/image_skia.h"
++class BrowserWindowInterface;
++namespace helium {
++struct ArcNativeRow {
++  std::u16string title, detail, action;
++  std::string symbol;
++  gfx::ImageSkia favicon;
++  std::u16string input;
++};
++// Events: query, activate, force-search, selection, dismiss, destination.
++using ArcNativeEvent = base::RepeatingCallback<void(int, const std::u16string&, int)>;
++class ArcNativeCommandBar {
++ public:
++  virtual ~ArcNativeCommandBar() = default;
++  virtual gfx::NativeView view() = 0;
++  virtual void Focus() = 0;
++  virtual void SetText(const std::u16string& text) = 0;
++  virtual void Update(const std::vector<ArcNativeRow>& rows, int selected,
++                      const std::u16string& destination, unsigned surface,
++                      unsigned accent, unsigned on_accent, unsigned foreground,
++                      unsigned secondary) = 0;
++};
++std::unique_ptr<ArcNativeCommandBar> CreateArcNativeCommandBar(ArcNativeEvent event);
++void ShowArcAppearance(BrowserWindowInterface* browser);
++}  // namespace helium
++#endif
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm	2026-11-05 07:21:12.061420002 -0600
+@@ -0,0 +1,162 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++#import <AppKit/AppKit.h>
++#import <objc/runtime.h>
++#include <algorithm>
++#include "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h"
++#include "chrome/browser/ui/views/tabs/vertical/arc_native_swift.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/sys_string_conversions.h"
++#include "chrome/browser/browser_process.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/themes/theme_service.h"
++#include "chrome/browser/themes/theme_service_factory.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/common/pref_names.h"
++#include "chrome/browser/ui/helium/arc_appearance_prefs.h"
++#include "components/prefs/pref_service.h"
++#include "ui/gfx/image/image_skia_util_mac.h"
++#include "ui/views/widget/widget.h"
++
++namespace {
++NSColor* NativeColor(unsigned color) {
++  return [NSColor colorWithSRGBRed:((color >> 16) & 255) / 255.0
++                           green:((color >> 8) & 255) / 255.0
++                            blue:(color & 255) / 255.0 alpha:1];
++}
++class NativeCommandBar : public helium::ArcNativeCommandBar {
++ public:
++  explicit NativeCommandBar(helium::ArcNativeEvent event) {
++    host_ = [[HeliumCommandBarHost alloc] initWithEvent:^(NSInteger kind, NSString* text, NSInteger index) {
++      event.Run(static_cast<int>(kind), base::SysNSStringToUTF16(text), static_cast<int>(index));
++    }];
++  }
++  ~NativeCommandBar() override { [host_ invalidate]; }
++  gfx::NativeView view() override { return gfx::NativeView(host_.view); }
++  void Focus() override { [host_ focus]; }
++  void SetText(const std::u16string& text) override { [host_ setText:base::SysUTF16ToNSString(text)]; }
++  void Update(const std::vector<helium::ArcNativeRow>& rows, int selected,
++              const std::u16string& destination, unsigned surface, unsigned accent,
++              unsigned on_accent, unsigned foreground, unsigned secondary) override {
++    NSMutableArray* values = [NSMutableArray arrayWithCapacity:rows.size()];
++    for (const auto& row : rows) {
++      NSMutableDictionary* value = [@{
++        @"title":base::SysUTF16ToNSString(row.title),
++        @"detail":base::SysUTF16ToNSString(row.detail),
++        @"action":base::SysUTF16ToNSString(row.action),
++        @"symbol":base::SysUTF8ToNSString(row.symbol),
++        @"input":base::SysUTF16ToNSString(row.input)} mutableCopy];
++      if (!row.favicon.isNull()) value[@"favicon"] = gfx::NSImageFromImageSkia(row.favicon);
++      [values addObject:value];
++    }
++    [host_ updateWithRows:values selected:selected destination:base::SysUTF16ToNSString(destination)
++                  colors:@[NativeColor(surface), NativeColor(accent), NativeColor(on_accent),
++                           NativeColor(foreground), NativeColor(secondary)]];
++  }
++ private:
++  HeliumCommandBarHost* __strong host_;
++};
++const char kAppearanceWindowKey = 0;
++}  // namespace
++
++@interface HeliumAppearanceWindow : NSWindowController
++@property(nonatomic, strong) HeliumAppearanceHost* host;
++@property(nonatomic, strong) id closeObserver;
++@end
++@implementation HeliumAppearanceWindow
++- (void)dealloc {
++  if (_closeObserver) [[NSNotificationCenter defaultCenter] removeObserver:_closeObserver];
++}
++@end
++
++namespace helium {
++std::unique_ptr<ArcNativeCommandBar> CreateArcNativeCommandBar(ArcNativeEvent event) {
++  return std::make_unique<NativeCommandBar>(std::move(event));
++}
++void ShowArcAppearance(BrowserWindowInterface* browser) {
++  auto* view = BrowserView::GetBrowserViewForBrowser(browser);
++  if (!view || !view->GetWidget()) return;
++  NSWindow* parent = view->GetWidget()->GetNativeWindow().GetNativeNSWindow();
++  if (HeliumAppearanceWindow* existing = objc_getAssociatedObject(parent, &kAppearanceWindowKey)) {
++    [existing showWindow:nil];
++    [existing.window makeKeyAndOrderFront:nil];
++    return;
++  }
++  auto weak_browser = browser->GetWeakPtr();
++  auto* prefs = browser->GetProfile()->GetPrefs();
++  auto* local = g_browser_process->local_state();
++  auto* theme = ThemeServiceFactory::GetForProfile(browser->GetProfile());
++  NSPanel* panel = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, 408, 600)
++      styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskUtilityWindow
++      backing:NSBackingStoreBuffered defer:NO];
++  panel.title = @"Appearance";
++  panel.releasedWhenClosed = NO;
++  panel.animationBehavior = NSWindowAnimationBehaviorUtilityWindow;
++  __weak NSPanel* weak_panel = panel;
++  NSDictionary* values = @{
++    @"colors":base::SysUTF8ToNSString(prefs->GetString(helium::kArcThemeColors)),
++    @"intensity":@(prefs->GetInteger(helium::kArcThemeIntensity)).stringValue,
++    @"suggestions":prefs->GetBoolean(helium::kArcOnlineSuggestions) ? @"true" : @"false",
++    @"grain":prefs->GetBoolean(helium::kArcThemeGrain) ? @"true" : @"false",
++    @"scheme":@(static_cast<int>(theme->GetBrowserColorScheme())).stringValue,
++    @"density":@(local->GetInteger(prefs::kHeliumArcInterfaceDensity)).stringValue,
++    @"tile":@(local->GetInteger(prefs::kHeliumArcPinnedTileSize)).stringValue};
++  HeliumAppearanceHost* host = [[HeliumAppearanceHost alloc] initWithValues:values event:^(NSString* key, NSString* value) {
++    if (!weak_browser) { [weak_panel close]; return; }
++    auto* profile = weak_browser->GetProfile();
++    auto* settings = profile->GetPrefs();
++    auto* theme_service = ThemeServiceFactory::GetForProfile(profile);
++    const std::string name = base::SysNSStringToUTF8(key);
++    const std::string text = base::SysNSStringToUTF8(value);
++    int number = 0;
++    base::StringToInt(text, &number);
++    if (name == "colors") {
++      settings->SetString(helium::kArcThemeColors, text);
++      unsigned color = 0;
++      if (text.size() >= 7 && base::HexStringToUInt(text.substr(1, 6), &color))
++        theme_service->SetUserColor(0xff000000 | color);
++    } else if (name == "suggestions") settings->SetBoolean(helium::kArcOnlineSuggestions, text == "true");
++    else if (name == "intensity") settings->SetInteger(helium::kArcThemeIntensity, std::clamp(number, 10, 100));
++    else if (name == "grain") settings->SetBoolean(helium::kArcThemeGrain, text == "true");
++    else if (name == "scheme") theme_service->SetBrowserColorScheme(static_cast<ThemeService::BrowserColorScheme>(std::clamp(number, 0, 2)));
++    else if (name == "density") g_browser_process->local_state()->SetInteger(prefs::kHeliumArcInterfaceDensity, std::clamp(number, 0, 1));
++    else if (name == "tile") g_browser_process->local_state()->SetInteger(prefs::kHeliumArcPinnedTileSize, std::clamp(number, 40, 72));
++    else if (name == "reset") {
++      for (const char* pref : {helium::kArcThemeColors, helium::kArcThemeIntensity, helium::kArcThemeGrain}) settings->ClearPref(pref);
++      g_browser_process->local_state()->ClearPref(prefs::kHeliumArcInterfaceDensity);
++      g_browser_process->local_state()->ClearPref(prefs::kHeliumArcPinnedTileSize);
++      theme_service->SetBrowserColorScheme(ThemeService::BrowserColorScheme::kSystem);
++      theme_service->SetUserColor(std::nullopt);
++    } else if (name == "close") [weak_panel close];
++    GlobalBrowserCollection::GetInstance()->ForEach([&](BrowserWindowInterface* other) {
++      if (other->GetProfile() == profile || name == "density" || name == "tile") {
++        auto* view = BrowserView::GetBrowserViewForBrowser(other);
++        if (view && view->GetWidget()) {
++          view->GetWidget()->ScheduleThemeChanged();
++          view->InvalidateLayout();
++          view->SchedulePaint();
++        }
++      }
++      return true;
++    });
++  }];
++  panel.contentView = host.view;
++  [panel setContentSize:host.view.fittingSize];
++  auto* controller = [[HeliumAppearanceWindow alloc] initWithWindow:panel];
++  controller.host = host;
++  controller.closeObserver = [[NSNotificationCenter defaultCenter]
++      addObserverForName:NSWindowWillCloseNotification object:parent queue:nil
++      usingBlock:^(NSNotification*) { [weak_panel close]; }];
++  objc_setAssociatedObject(parent, &kAppearanceWindowKey, controller, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
++  [parent addChildWindow:panel ordered:NSWindowAbove];
++  NSRect frame = panel.frame;
++  frame.origin = NSMakePoint(NSMidX(parent.frame) - frame.size.width / 2,
++                            NSMidY(parent.frame) - frame.size.height / 2);
++  [panel setFrame:frame display:YES];
++  [controller showWindow:nil];
++  [panel makeKeyAndOrderFront:nil];
++}
++}  // namespace helium
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift	2026-11-05 07:29:05.679647189 -0600
+@@ -0,0 +1,326 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++import AppKit
++import SwiftUI
++
++private final class CommandState: ObservableObject {
++    @Published var rows: [[String: Any]] = []
++    @Published var selected = 0
++    @Published var destination = "Search"
++    @Published var surface = NSColor.windowBackgroundColor
++    @Published var accent = NSColor.controlAccentColor
++    @Published var onAccent = NSColor.white
++    @Published var foreground = NSColor.labelColor
++    @Published var secondary = NSColor.secondaryLabelColor
++    var rawQuery = ""
++    var movedSelection = false
++    weak var field: NSTextField?
++    var event: (Int, String, Int) -> Void
++    init(event: @escaping (Int, String, Int) -> Void) { self.event = event }
++    func move(_ direction: Int) {
++        guard !rows.isEmpty else { return }
++        selected = (selected + direction + rows.count) % rows.count
++        movedSelection = true
++        let text = rows[selected]["input"] as? String ?? rawQuery
++        field?.stringValue = text
++        if let editor = field?.currentEditor() {
++            editor.string = text
++            editor.selectedRange = NSRange(location: (text as NSString).length, length: 0)
++        }
++        event(4, "", selected)
++    }
++}
++
++private final class CommandQueryField: NSTextField {
++    var search: (() -> Void)?
++    override func performKeyEquivalent(with event: NSEvent) -> Bool {
++        if event.keyCode == 36 && event.modifierFlags.contains(.command) {
++            if let editor = currentEditor() as? NSTextView, editor.hasMarkedText() { return false }
++            search?()
++            return true
++        }
++        return super.performKeyEquivalent(with: event)
++    }
++}
++private struct QueryInput: NSViewRepresentable {
++    @ObservedObject var state: CommandState
++    func makeCoordinator() -> Coordinator { Coordinator(state) }
++    func makeNSView(context: Context) -> NSTextField {
++        let field = CommandQueryField()
++        field.search = { [weak state] in state?.event(3, state?.rawQuery ?? "", state?.selected ?? 0) }
++        field.isBordered = false
++        field.drawsBackground = false
++        field.focusRingType = .none
++        field.font = .systemFont(ofSize: 18, weight: .medium)
++        field.placeholderString = "Search or Enter URL…"
++        field.delegate = context.coordinator
++        field.setAccessibilityLabel("Search, enter a URL, or ask ChatGPT")
++        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
++        state.field = field
++        return field
++    }
++    func updateNSView(_ field: NSTextField, context: Context) {
++        field.textColor = state.foreground
++    }
++    final class Coordinator: NSObject, NSTextFieldDelegate {
++        let state: CommandState
++        init(_ state: CommandState) { self.state = state }
++        func controlTextDidChange(_ notification: Notification) {
++            guard let field = notification.object as? NSTextField else { return }
++            if let editor = field.currentEditor() as? NSTextView, editor.hasMarkedText() { return }
++            state.rawQuery = field.stringValue
++            state.movedSelection = false
++            state.event(1, field.stringValue, 0)
++        }
++        func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
++            if textView.hasMarkedText() { return false }
++            switch selector {
++            case #selector(NSResponder.moveDown(_:)): state.move(1)
++            case #selector(NSResponder.moveUp(_:)): state.move(-1)
++            case #selector(NSResponder.insertNewline(_:)):
++                let search = NSApp.currentEvent?.modifierFlags.contains(.command) == true
++                state.event(search ? 3 : 2, state.rawQuery, state.selected)
++            case #selector(NSResponder.cancelOperation(_:)): state.event(5, "", 0)
++            default: return false
++            }
++            return true
++        }
++    }
++}
++
++private struct CommandSurface: View {
++    @ObservedObject var state: CommandState
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
++    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
++    var body: some View {
++        VStack(spacing: 4) {
++            HStack(spacing: 12) {
++                Image(systemName: state.rows.indices.contains(state.selected) ? state.rows[state.selected]["symbol"] as? String ?? "magnifyingglass" : "magnifyingglass")
++                    .font(.system(size: 17)).frame(width: 20)
++                QueryInput(state: state)
++            }
++            .padding(.horizontal, 16).frame(height: 56)
++            Divider().opacity(0.3)
++            ScrollViewReader { proxy in
++                ScrollView {
++                    LazyVStack(spacing: 4) {
++                        ForEach(state.rows.indices, id: \.self) { index in
++                            let row = state.rows[index]
++                            let selected = index == state.selected
++                            Button { state.event(7, state.rawQuery, index) } label: {
++                                HStack(spacing: 12) {
++                                    Group {
++                                        if let icon = row["favicon"] as? NSImage {
++                                            Image(nsImage: icon).resizable().scaledToFit()
++                                        } else {
++                                            Image(systemName: row["symbol"] as? String ?? "globe")
++                                        }
++                                    }.frame(width: 20, height: 20)
++                                    HStack(spacing: 4) {
++                                        Text(row["title"] as? String ?? "")
++                                            .font(.system(size: 13, weight: .medium)).layoutPriority(1)
++                                        if row["action"] as? String == "Open", let detail = row["detail"] as? String, !detail.isEmpty {
++                                            Text("— " + detail).font(.system(size: 13)).opacity(0.45)
++                                        }
++                                    }.lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
++                                    let action = row["action"] as? String ?? ""
++                                    if action != "Open" && !action.isEmpty {
++                                        Text(action).font(.system(size: 12, weight: .medium))
++                                            .opacity(selected ? 1 : 0.4)
++                                    }
++                                    if action == "Switch to Tab" {
++                                        Image(systemName: "arrow.right").font(.system(size: 16, weight: .medium))
++                                            .frame(width: 24, height: 24)
++                                            .foregroundColor(selected ? Color(nsColor: state.accent) : Color(nsColor: state.foreground).opacity(0.45))
++                                            .background(selected ? Color(nsColor: state.onAccent) : Color(nsColor: state.foreground).opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
++                                    } else if action.contains("⌘") {
++                                        EmptyView()
++                                    }
++                                }
++                                .padding(.horizontal, 10).frame(height: 46)
++                                .foregroundColor(Color(nsColor: selected ? state.onAccent : state.foreground))
++                                .background(selected ? Color(nsColor: state.accent).opacity(0.88) : .clear, in: RoundedRectangle(cornerRadius: 7))
++                                .contentShape(Rectangle())
++                            }
++                            .buttonStyle(.plain).id(index)
++                            .accessibilityLabel("\(row["title"] as? String ?? "") \(row["action"] as? String ?? "")")
++                            .accessibilityHint("Enter to open. Command Enter searches your original text.")
++                            .accessibilityAddTraits(selected ? .isSelected : [])
++                        }
++                    }
++                }
++                .onChange(of: state.selected) { value in
++                    if reduceMotion { proxy.scrollTo(value) }
++                    else { withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(value) } }
++                }
++            }
++        }
++        .padding(10)
++        .foregroundColor(Color(nsColor: state.foreground))
++        .background(Color(nsColor: state.surface).opacity(reduceTransparency ? 1 : 0.38))
++        .clipShape(RoundedRectangle(cornerRadius: 12))
++        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
++    }
++}
++private final class ClearHostingView<Content: View>: NSHostingView<Content> {
++    override var isOpaque: Bool { false }
++}
++
++@objc(HeliumCommandBarHost) public final class HeliumCommandBarHost: NSObject {
++    private let state: CommandState
++    @objc public let view: NSView
++    @objc(initWithEvent:) public init(event: @escaping (Int, String, Int) -> Void) {
++        let model = CommandState(event: event)
++        state = model
++        let effect = NSVisualEffectView()
++        effect.material = .popover
++        effect.blendingMode = .behindWindow
++        effect.state = .active
++        effect.wantsLayer = true
++        effect.layer?.cornerRadius = 12
++        effect.layer?.masksToBounds = true
++        let content = ClearHostingView(rootView: CommandSurface(state: model))
++        content.translatesAutoresizingMaskIntoConstraints = false
++        effect.addSubview(content)
++        NSLayoutConstraint.activate([
++            content.leadingAnchor.constraint(equalTo: effect.leadingAnchor),
++            content.trailingAnchor.constraint(equalTo: effect.trailingAnchor),
++            content.topAnchor.constraint(equalTo: effect.topAnchor),
++            content.bottomAnchor.constraint(equalTo: effect.bottomAnchor)])
++        view = effect
++        super.init()
++    }
++    @objc public func invalidate() { state.event = { _, _, _ in } }
++    @objc public func setText(_ text: String) {
++        state.field?.stringValue = text
++        state.rawQuery = text
++        state.movedSelection = false
++        state.event(1, text, 0)
++    }
++    @objc public func focus() {
++        view.layoutSubtreeIfNeeded()
++        guard let field = state.field else { return }
++        field.window?.makeFirstResponder(field)
++    }
++    @objc(updateWithRows:selected:destination:colors:)
++    public func update(rows: [[String: Any]], selected: Int, destination: String, colors: [NSColor]) {
++        state.rows = rows
++        state.selected = selected
++        state.destination = destination
++        if !state.movedSelection, !state.rawQuery.isEmpty, let first = rows.first,
++           let completion = first["input"] as? String,
++           first["action"] as? String == "Switch to Tab" || first["action"] as? String == "Open",
++           completion.lowercased().hasPrefix(state.rawQuery.lowercased()),
++           completion.utf16.count > state.rawQuery.utf16.count,
++           let field = state.field, let editor = field.currentEditor() as? NSTextView,
++           !editor.hasMarkedText() {
++            field.stringValue = completion
++            editor.string = completion
++            editor.selectedRange = NSRange(location: state.rawQuery.utf16.count,
++                length: completion.utf16.count - state.rawQuery.utf16.count)
++        }
++        if colors.count == 5 {
++            state.surface = colors[0]; state.accent = colors[1]; state.onAccent = colors[2]
++            state.foreground = colors[3]; state.secondary = colors[4]
++        }
++    }
++}
++
++private final class AppearanceState: ObservableObject {
++    @Published var colors: [Color]
++    @Published var intensity: Double
++    @Published var suggestions: Bool
++    @Published var grain: Bool
++    @Published var scheme: Int
++    @Published var density: Int
++    @Published var tile: Int
++    let event: (String, String) -> Void
++    init(values: [String: String], event: @escaping (String, String) -> Void) {
++        self.event = event
++        let parsed: [Color] = (values["colors"] ?? "#7aa89c").split(separator: ",").compactMap {
++            let hex = String($0).replacingOccurrences(of: "#", with: "")
++            guard let n = UInt32(hex, radix: 16) else { return nil }
++            return Color(red: Double(n >> 16 & 255) / 255, green: Double(n >> 8 & 255) / 255, blue: Double(n & 255) / 255)
++        }
++        colors = parsed.isEmpty ? [Color(red: 0.48, green: 0.66, blue: 0.61)] : parsed
++        intensity = Double(values["intensity"] ?? "50") ?? 50
++        grain = values["grain"] == "true"
++        suggestions = values["suggestions"] != "false"
++        scheme = Int(values["scheme"] ?? "0") ?? 0
++        density = Int(values["density"] ?? "1") ?? 1
++        tile = Int(values["tile"] ?? "48") ?? 48
++    }
++    func saveColors() {
++        let text = colors.map { color -> String in
++            let c = NSColor(color).usingColorSpace(.sRGB) ?? .gray
++            return String(format: "#%02x%02x%02x", Int((c.redComponent * 255).rounded()), Int((c.greenComponent * 255).rounded()), Int((c.blueComponent * 255).rounded()))
++        }.joined(separator: ",")
++        event("colors", text)
++    }
++}
++private struct AppearanceSurface: View {
++    @ObservedObject var state: AppearanceState
++    private let presets: [[Color]] = [
++        [Color(red: 0.48, green: 0.66, blue: 0.61), Color(red: 0.78, green: 0.88, blue: 0.79)],
++        [Color(red: 0.94, green: 0.56, blue: 0.43), Color(red: 0.98, green: 0.77, blue: 0.61)],
++        [Color(red: 0.49, green: 0.56, blue: 0.79), Color(red: 0.74, green: 0.65, blue: 0.85)],
++        [Color(red: 0.33, green: 0.37, blue: 0.42)]]
++    var body: some View {
++        VStack(alignment: .leading, spacing: 20) {
++            Text("Make it yours").font(.system(size: 22, weight: .semibold))
++            RoundedRectangle(cornerRadius: 14)
++                .fill(LinearGradient(colors: state.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
++                .overlay(RoundedRectangle(cornerRadius: 8).fill(.background).padding(12).padding(.leading, 76))
++                .frame(height: 110).accessibilityLabel("Browser theme preview")
++            Picker("Appearance", selection: $state.scheme) {
++                Text("System").tag(0); Text("Light").tag(1); Text("Dark").tag(2)
++            }.pickerStyle(.segmented).onChange(of: state.scheme) { state.event("scheme", String($0)) }
++            HStack(spacing: 12) {
++                ForEach(presets.indices, id: \.self) { i in
++                    Button { state.colors = presets[i]; state.saveColors() } label: {
++                        Circle().fill(LinearGradient(colors: presets[i], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 30, height: 30)
++                    }.buttonStyle(.plain).accessibilityLabel(["Mint", "Coral", "Lavender", "Graphite"][i])
++                }
++                Spacer()
++                Button { if state.colors.count < 3 { state.colors.append(state.colors.last ?? .gray); state.saveColors() } } label: { Image(systemName: "plus") }
++                    .disabled(state.colors.count == 3).help("Add gradient color")
++                Button { if state.colors.count > 1 { state.colors.removeLast(); state.saveColors() } } label: { Image(systemName: "minus") }
++                    .disabled(state.colors.count == 1).help("Remove gradient color")
++            }
++            HStack {
++                ForEach(state.colors.indices, id: \.self) { i in
++                    ColorPicker("Color \(i + 1)", selection: $state.colors[i], supportsOpacity: false)
++                }
++            }.onChange(of: state.colors) { _ in state.saveColors() }
++            VStack(alignment: .leading) {
++                Text("Color intensity")
++                Slider(value: $state.intensity, in: 10...100, step: 1)
++                    .onChange(of: state.intensity) { state.event("intensity", String(Int($0))) }
++            }
++            Toggle("Subtle grain", isOn: $state.grain).onChange(of: state.grain) { state.event("grain", String($0)) }
++            Divider()
++            Picker("Spacing", selection: $state.density) {
++                Text("Compact").tag(0); Text("Comfortable").tag(1)
++            }.onChange(of: state.density) { state.event("density", String($0)) }
++            Picker("Pinned tiles", selection: $state.tile) {
++                ForEach([40, 48, 56, 64, 72], id: \.self) { Text("\($0) pt").tag($0) }
++            }.onChange(of: state.tile) { state.event("tile", String($0)) }
++            Toggle("Online search suggestions", isOn: $state.suggestions)
++                .help("Send typed queries to your default search engine. Private windows stay local.")
++                .onChange(of: state.suggestions) { state.event("suggestions", String($0)) }
++            HStack {
++                Button("Reset appearance") { state.event("reset", ""); state.event("close", "") }
++                Spacer()
++                Button("Done") { state.event("close", "") }.keyboardShortcut(.defaultAction)
++            }
++        }.padding(24).frame(width: 360).background(.regularMaterial)
++    }
++}
++@objc(HeliumAppearanceHost) public final class HeliumAppearanceHost: NSObject {
++    @objc public let view: NSView
++    @objc(initWithValues:event:) public init(values: [String: String], event: @escaping (String, String) -> Void) {
++        view = NSHostingView(rootView: AppearanceSurface(state: AppearanceState(values: values, event: event)))
++        super.init()
++    }
++}
+Index: src/chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ src/chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py	2026-11-04 23:05:03.611752910 -0600
+@@ -0,0 +1,20 @@
++#!/usr/bin/env python3
++"""Compile the isolated macOS SwiftUI surface without changing the C++ toolchain."""
++import argparse
++from pathlib import Path
++import subprocess
++
++parser = argparse.ArgumentParser()
++parser.add_argument('--source', required=True)
++parser.add_argument('--output', required=True)
++parser.add_argument('--header', required=True)
++parser.add_argument('--sdk', required=True)
++parser.add_argument('--arch', required=True)
++args = parser.parse_args()
++Path(args.output).parent.mkdir(parents=True, exist_ok=True)
++subprocess.run(['xcrun', '--sdk', 'macosx', 'swiftc', '-parse-as-library',
++    '-O', '-whole-module-optimization', '-module-name', 'HeliumNativeUI',
++    '-target', args.arch + '-apple-macos13.0', '-sdk', str(Path(args.sdk).resolve()),
++    '-module-cache-path', str(Path(args.output).parent / 'swift-module-cache'),
++    '-emit-object', args.source, '-o', args.output,
++    '-emit-objc-header-path', args.header], check=True)
+Index: src/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/toolbar/arc_chat_button.cc	2026-11-04 15:12:51.241902645 -0600
++++ src/chrome/browser/ui/views/toolbar/arc_chat_button.cc	2026-11-04 22:58:53.605301633 -0600
+@@ -153,14 +153,18 @@
+     const bool available =
+         IsAllowed() &&
+         registry->enabled_extensions().Contains(kChatExtensionId);
+-    SetTooltipText(available ? u"Open ChatGPT extension side panel"
+-                             : u"Set up the ChatGPT extension in this profile");
++    const std::u16string name = IsOpen() ? u"Close Chat"
++        : available ? u"Open Chat" : u"Set up the ChatGPT extension in this profile";
++    SetTooltipText(name);
++    GetViewAccessibility().SetName(name);
++    if (IsOpen()) GetViewAccessibility().SetIsExpanded();
++    else GetViewAccessibility().SetIsCollapsed();
+   }
+   void Activate() {
+     if (IsAllowed() && IsOpen()) {
+       restore_focus_ = true;
+-      auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
+-      view->side_panel()->SetPaneFocusAndFocusDefault();
++      SidePanelUI::From(browser_)->Close();
++      Update();
+       return;
+     }
+     auto* model = extensions_ ? extensions_->GetToolbarViewModel() : nullptr;
+Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/toolbar/toolbar_view.cc	2026-11-04 15:20:33.162971790 -0600
++++ src/chrome/browser/ui/views/toolbar/toolbar_view.cc	2026-11-05 07:31:28.549018786 -0600
+@@ -67,6 +67,7 @@
+ #include "chrome/browser/ui/side_panel/side_panel_entry_id.h"
+ #include "chrome/browser/ui/tabs/public/tab_features.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/browser/ui/helium/arc_command_bar.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/toolbar/app_menu_model.h"
+@@ -604,6 +605,13 @@
+   if (location_bar_view) {
+     location_bar_view_ = AddChildView(std::move(location_bar_view));
+     location_bar_ = location_bar_view_;
++    arc_home_spacer_ = AddChildView(std::make_unique<views::View>());
++    arc_home_spacer_->SetVisible(false);
++    arc_home_spacer_->SetProperty(
++        views::kFlexBehaviorKey,
++        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
++                                 views::MaximumFlexSizeRule::kUnbounded)
++            .WithWeight(1));
+   } else {
+     location_bar_ = toolbar_webview_->GetLocationBar();
+   }
+@@ -948,52 +956,6 @@
+   initialized_ = true;
+ }
+ 
+-void ToolbarView::AttachArcSidebarControls(views::View* navigation,
+-                                           views::View* header) {
+-  if (!location_bar_view_ || display_mode_ != DisplayMode::kNormal ||
+-      !arc_transferred_controls_.empty()) {
+-    return;
+-  }
+-  // Save indices before moving any views. This also provides a safe ownership
+-  // order during BrowserView teardown, regardless of child destruction order.
+-  for (views::View* view : std::array<views::View*, 5>{
+-           back_, forward_, reload_, home_, location_bar_view_}) {
+-    if (view && view->parent() == this) {
+-      arc_transferred_controls_.push_back({view, GetIndexOf(view).value()});
+-    }
+-  }
+-  for (const auto& control : arc_transferred_controls_) {
+-    auto owned = RemoveChildViewT(control.view.get());
+-    (control.view == location_bar_view_ ? header : navigation)
+-        ->AddChildView(std::move(owned));
+-  }
+-  // Keep extension controls and Chat aligned to the trailing toolbar edge.
+-  arc_toolbar_spacer_ = AddChildViewAt(std::make_unique<views::View>(), 1);
+-  arc_toolbar_spacer_->SetProperty(
+-      views::kFlexBehaviorKey,
+-      views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
+-                               views::MaximumFlexSizeRule::kUnbounded)
+-          .WithWeight(1));
+-  UpdateVerticalTabsCollapseButton();
+-  InvalidateLayout();
+-}
+-
+-void ToolbarView::RestoreArcSidebarControls() {
+-  if (arc_toolbar_spacer_) {
+-    RemoveChildViewT(arc_toolbar_spacer_.get());
+-    arc_toolbar_spacer_ = nullptr;
+-  }
+-  for (const auto& control : arc_transferred_controls_) {
+-    auto* parent = control.view->parent();
+-    if (parent && parent != this) {
+-      auto owned = parent->RemoveChildViewT(control.view.get());
+-      AddChildViewAt(std::move(owned),
+-                     std::min(control.index, children().size()));
+-    }
+-  }
+-  arc_transferred_controls_.clear();
+-}
+-
+ void ToolbarView::InitGlicContainer() {
+   if (base::FeatureList::IsEnabled(features::kGlicActorUi) &&
+       features::kGlicActorUiTaskIcon.Get()) {
+@@ -1487,6 +1449,12 @@
+ void ToolbarView::Update(WebContents* tab) {
+   if (location_bar_) {
+     location_bar_->Update(tab);
++    if (location_bar_view_ && display_mode_ == DisplayMode::kNormal) {
++      auto* active = browser_->GetTabStripModel()->GetActiveWebContents();
++      const bool is_home = helium::IsArcHome(active);
++      location_bar_view_->SetVisible(!is_home);
++      if (arc_home_spacer_) arc_home_spacer_->SetVisible(is_home);
++    }
+   }
+ 
+   if (custom_tab_bar_) {
+@@ -1866,11 +1834,13 @@
+ }
+ 
+ void ToolbarView::NewTabButtonPressed(const ui::Event& event) {
+-  chrome::NewTab(browser_, NewTabTypes::kNewTabButton);
++  if (!helium::ShowArcCommandBar(browser_)) {
++    chrome::NewTab(browser_, NewTabTypes::kNewTabButton);
++  }
+ }
+ 
+ void ToolbarView::VerticalTabsCollapseButtonPressed(const ui::Event& event) {
+-  if (!arc_transferred_controls_.empty()) {
++  if (IsVerticalLayout()) {
+     browser_->GetProfile()->GetPrefs()->SetBoolean(prefs::kHeliumZenMode, true);
+     browser_view_->ToggleZenModeSideChrome();
+     return;
+@@ -2403,7 +2373,7 @@
+ 
+   auto* controller =
+       tabs::VerticalTabStripStateController::From(browser_view_->browser());
+-  if (!arc_transferred_controls_.empty()) {
++  if (IsVerticalLayout()) {
+     vertical_tabs_collapse_button_->SetVisible(true);
+     vertical_tabs_collapse_button_->SetVectorIcon(views::kSidebarLeftIcon);
+     const std::u16string name = browser_view_->IsZenModeSideChromePinned()
+@@ -2417,7 +2387,7 @@
+                         !browser_view_->IsZenModeSideChromePinned();
+   const bool should_show = controller && IsVerticalLayout() &&
+                            show_vertical_tabs_collapse_button_.GetValue() &&
+-                           !zen_hide && arc_transferred_controls_.empty();
++                           !zen_hide;
+   // Let overflow layout decide whether the eligible button fits.
+   if (should_show !=
+       layout_manager_->CanBeVisible(vertical_tabs_collapse_button_)) {
+Index: src/chrome/browser/ui/views/toolbar/toolbar_view.h
+===================================================================
+--- src.orig/chrome/browser/ui/views/toolbar/toolbar_view.h	2026-11-04 11:43:28.678411027 -0600
++++ src/chrome/browser/ui/views/toolbar/toolbar_view.h	2026-11-05 07:31:28.549259400 -0600
+@@ -123,10 +123,6 @@
+   // Create the contents of the Browser Toolbar.
+   void Init();
+ 
+-  // Reparent the real omnibox and navigation views into the permanent sidebar.
+-  // The toolbar remains their delegate and retains all browser integrations.
+-  void AttachArcSidebarControls(views::View* navigation, views::View* header);
+-  void RestoreArcSidebarControls();
+ 
+   // Forces the toolbar (and transitively the location bar) to update its
+   // current state.  If |tab| is non-NULL, we're switching (back?) to this tab
+@@ -477,6 +473,7 @@
+   raw_ptr<SplitTabsToolbarButton> split_tabs_ = nullptr;
+   raw_ptr<CustomTabBarView> custom_tab_bar_ = nullptr;
+   raw_ptr<LocationBarView> location_bar_view_ = nullptr;
++  raw_ptr<views::View> arc_home_spacer_ = nullptr;
+ 
+   // An alias for `location_bar_view_` or `toolbar_webview_->GetLocationBar()`.
+   raw_ptr<LocationBar> location_bar_ = nullptr;
+@@ -589,12 +586,6 @@
+   bool should_show_glic_actor_ = false;
+ 
+   bool was_mouse_down_ = false;
+-  struct ArcTransferredControl {
+-    raw_ptr<views::View> view;
+-    size_t index;
+-  };
+-  std::vector<ArcTransferredControl> arc_transferred_controls_;
+-  raw_ptr<views::View> arc_toolbar_spacer_ = nullptr;
+ };
+ 
+ extern const ui::ClassProperty<bool>* const kActionItemUnderlineIndicatorKey;
+Index: src/ui/views/BUILD.gn
+===================================================================
+--- src.orig/ui/views/BUILD.gn	2026-11-03 13:22:24.765020969 -0600
++++ src/ui/views/BUILD.gn	2026-11-05 07:34:10.446418056 -0600
+@@ -1816,3 +1816,23 @@
+     ]
+   }
+ }
++
++# Focused regression coverage for the native theme-notification crash. Reuses
++# existing Views objects without compiling the full views_unittests suite.
++test("arc_bubble_lifecycle_tests") {
++  sources = [
++    "bubble/arc_bubble_lifecycle_unittest.cc",
++    "run_all_unittests_main.cc",
++  ]
++  deps = [
++    ":test_support",
++    ":views",
++    "//base",
++    "//base/test:test_support",
++    "//mojo/core/embedder",
++    "//testing/gtest",
++    "//ui/base",
++    "//ui/resources:ui_test_pak",
++  ]
++  data_deps = [ "//ui/resources:ui_test_pak_data" ]
++}
+Index: src/ui/views/bubble/arc_bubble_lifecycle_unittest.cc
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ src/ui/views/bubble/arc_bubble_lifecycle_unittest.cc	2026-11-05 07:30:23.417894938 -0600
+@@ -0,0 +1,56 @@
++// Copyright 2026 The Helium Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++#include "ui/views/bubble/bubble_dialog_delegate_view.h"
++#include <memory>
++#include "base/test/scoped_feature_list.h"
++#include "testing/gtest/include/gtest/gtest.h"
++#include "ui/base/ui_base_features.h"
++#include "ui/views/test/views_test_base.h"
++#include "ui/views/widget/widget.h"
++#include "ui/views/widget/widget_observer.h"
++
++namespace views {
++namespace {
++class ArcBubbleLifecycleTest : public ViewsTestBase {
++ public:
++  ArcBubbleLifecycleTest() {
++    features_.InitAndDisableFeature(::features::kThemeChangeOptimization);
++  }
++ private:
++  base::test::ScopedFeatureList features_;
++};
++class ThemeCounter : public WidgetObserver {
++ public:
++  void OnWidgetThemeChanged(Widget*) override { ++changes; }
++  int changes = 0;
++};
++TEST_F(ArcBubbleLifecycleTest, AnchorThemeChangeBeforeBubbleWidgetExists) {
++  auto anchor = std::make_unique<Widget>();
++  anchor->Init(CreateParamsForTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET,
++                                        Widget::InitParams::TYPE_WINDOW));
++  auto* contents = anchor->SetContentsView(std::make_unique<View>());
++  auto bubble = std::make_unique<BubbleDialogDelegate>(BubbleAnchor(contents), BubbleBorder::TOP_LEFT);
++  ASSERT_EQ(nullptr, bubble->GetWidget());
++  // This used to call Widget::ThemeChanged() with a null `this`, matching the
++  // supplied ARM64 crash at theme_update_scheduled_ (offset 0x338).
++  anchor->ThemeChanged();
++  EXPECT_EQ(nullptr, bubble->GetWidget());
++}
++TEST_F(ArcBubbleLifecycleTest, LiveBubbleStillReceivesThemeChanges) {
++  auto anchor = std::make_unique<Widget>();
++  anchor->Init(CreateParamsForTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET,
++                                        Widget::InitParams::TYPE_WINDOW));
++  auto* contents = anchor->SetContentsView(std::make_unique<View>());
++  auto delegate = std::make_unique<BubbleDialogDelegate>(BubbleAnchor(contents), BubbleBorder::TOP_LEFT);
++  auto* bubble = BubbleDialogDelegate::CreateBubbleDeprecated(
++      std::move(delegate), Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
++  ThemeCounter observer;
++  bubble->AddObserver(&observer);
++  anchor->ThemeChanged();
++  EXPECT_GT(observer.changes, 0);
++  bubble->RemoveObserver(&observer);
++  bubble->CloseNow();
++}
++}  // namespace
++}  // namespace views
+Index: src/ui/views/bubble/bubble_dialog_delegate_view.cc
+===================================================================
+--- src.orig/ui/views/bubble/bubble_dialog_delegate_view.cc	2026-10-28 15:20:02.000000000 -0500
++++ src/ui/views/bubble/bubble_dialog_delegate_view.cc	2026-11-05 07:17:48.514810793 -0600
+@@ -338,7 +338,12 @@
+   void OnWidgetThemeChanged(Widget* widget) override {
+     // TODO(dfried): Consider merging BubbleWidget with ThemeCopyingWidget
+     // instead of observing the theme here.
+-    owner_->GetWidget()->ThemeChanged();
++    // An anchored delegate starts observing before its bubble widget exists,
++    // and can also outlive the widget during teardown. System appearance
++    // notifications may arrive in either interval.
++    if (Widget* bubble_widget = owner_->GetWidget()) {
++      bubble_widget->ThemeChanged();
++    }
+   }
+ 
+ #if !BUILDFLAG(IS_MAC)

@@ -27,7 +27,7 @@ jobs:
           submodules: true
           persist-credentials: false
       - id: checkpoint
-        run: python3 .github/scripts/github_repair_arc_checkpoint.py --select
+        run: python3 .github/scripts/github_repair_arc_checkpoint.py --select --require-checkpoint
   build:
     needs: select-checkpoint
     name: Build on Xcode 27

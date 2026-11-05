@@ -77,6 +77,14 @@ class CheckpointDeltaTest(unittest.TestCase):
             patch.write_text(patch.read_text() + '\n')
             self.assertIsNone(checkpoint.compatible_delta(self.root))
 
+    def test_required_checkpoint_refuses_full_rebuild(self):
+        with mock.patch.object(sys, 'argv', ['checkpoint', '--select', '--require-checkpoint']), \
+             mock.patch.object(checkpoint.subprocess, 'check_output', return_value=str(self.root)), \
+             mock.patch.object(checkpoint, 'compatible_delta', return_value=None), \
+             mock.patch.object(checkpoint, 'source_fingerprint', return_value='incompatible'):
+            with self.assertRaisesRegex(SystemExit, 'refusing a full rebuild'):
+                checkpoint.main()
+
     def test_selector_rejects_changed_substitution_rules(self):
         with mock.patch.object(checkpoint, 'source_fingerprint', return_value=DATA['input_sha256']):
             self.assertIsNotNone(checkpoint.compatible_delta(self.root))

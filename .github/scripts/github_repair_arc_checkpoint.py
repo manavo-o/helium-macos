@@ -165,12 +165,15 @@ def repair(root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--select', action='store_true')
+    parser.add_argument('--require-checkpoint', action='store_true')
     args = parser.parse_args()
     root = Path(subprocess.check_output(
         ['git', 'rev-parse', '--show-toplevel'], text=True).strip())
     delta = compatible_delta(root)
     if args.select:
         compatible = delta is not None or source_fingerprint(root) == INPUT_SHA256
+        if args.require_checkpoint and not compatible:
+            raise SystemExit('No verified incremental checkpoint matches these inputs; refusing a full rebuild.')
         selected_run = delta['source_run'] if delta else SOURCE_RUN
         with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
             output.write(f'source_run={selected_run if compatible else ""}\n')

@@ -72,3 +72,25 @@ Palette/test preflight failures now enter the existing failed-build archive
 path without starting browser compilation. CI remains failed, but compiled
 objects are uploaded as a checkpoint. The previous successful build marker is
 removed after restoration so a failed new build cannot package an old app.
+
+
+## November 5 native command bar update
+
+The current manifest uses successful run `41956948198` at commit
+`8689a4d336a5bde7b1fb2caad64d207504b56765`. The append-only
+`arc-navigation-polish.patch` was checked against source files extracted from
+that exact archive by audit run `42035346056`. It covers the SwiftUI/AppKit
+command bar, top navigation, appearance editor, and the anchored-bubble theme
+notification crash fix.
+
+The Arc workflow now requires a matching checkpoint. If source fingerprints,
+patches, domain substitution rules, or source preimages differ, it stops;
+it does not silently start a full browser rebuild. GN regeneration retains the
+existing objects, and Ninja/Siso rebuilds affected dependencies and relinks.
+The Swift surface has its own compile action without changing the C++ toolchain.
+
+Five checkpoint tests cover replay, output retention, idempotence, source and
+patch rejection, domain rules, and refusing a full-build fallback. CI compiles
+both native bridge objects and runs focused routing and bubble lifecycle tests
+before continuing browser compilation. Browser interaction tests additionally
+cover default-engine online suggestions and the local-only preference.
