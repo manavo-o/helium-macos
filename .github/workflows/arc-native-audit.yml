@@ -1,0 +1,56 @@
+name: Audit native UI checkpoint
+on:
+  push:
+    branches: [codex/arc-native-ui-audit]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: github_build_artifact_arm64
+          run-id: 41956948198
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify and extract sources and crash symbols
+        run: |
+          sha256sum -c sums.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq zstd
+          python3 - <<'PY'
+          import json, tarfile, subprocess, shutil
+          from pathlib import Path
+          wanted = set(['chrome/browser/ui/browser_actions.cc', 'chrome/browser/ui/browser_command_controller.cc', 'chrome/browser/ui/layout_constants.cc', 'chrome/browser/ui/browser_ui_prefs.cc', 'chrome/browser/ui/tabs/tab_strip_prefs.cc', 'chrome/browser/ui/helium/arc_command_bar.h', 'chrome/browser/ui/views/tabs/shared/new_tab_button.cc', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift', 'chrome/browser/ui/views/tabs/vertical/BUILD.gn', 'chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm', 'chrome/browser/ui/views/tabs/vertical/compile_arc_swift.py', 'chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc', 'chrome/browser/ui/views/tabs/vertical/arc_native_ui.h', 'chrome/browser/ui/views/toolbar/toolbar_view.h', 'chrome/browser/ui/views/toolbar/BUILD.gn', 'chrome/browser/ui/views/toolbar/arc_chat_button.cc', 'chrome/browser/ui/views/toolbar/toolbar_view.cc', 'chrome/browser/ui/views/frame/browser_view.cc', 'chrome/browser/ui/views/frame/BUILD.gn', 'chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h', 'chrome/browser/ui/views/frame/browser_view.h', 'chrome/browser/ui/views/frame/themed_background.h', 'chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc', 'chrome/browser/ui/views/frame/themed_background.cc', 'chrome/browser/ui/views/frame/system_menu_model_builder.cc', 'chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts', 'chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts', 'chrome/browser/resources/settings/appearance_page/appearance_layout_page.css', 'chrome/browser/extensions/api/settings_private/prefs_util.cc', 'chrome/common/pref_names.h'])
+          result = Path('checkpoint-audit')
+          result.mkdir()
+          process = subprocess.Popen(['zstd', '-dc', 'build_src.tar.zst'], stdout=subprocess.PIPE)
+          inventory = []
+          with tarfile.open(fileobj=process.stdout, mode='r|') as archive:
+              for member in archive:
+                  name = member.name.removeprefix('./')
+                  if not member.isfile() or not name.startswith('src/'):
+                      continue
+                  relative = name[4:]
+                  symbol = '.dSYM/' in relative and 'Framework' in relative
+                  binary = relative.endswith('/Helium Sidebar Framework') and '/out/Default/' in '/' + relative
+                  if relative not in wanted and not symbol and not binary:
+                      continue
+                  if '..' in Path(relative).parts:
+                      raise RuntimeError('Unsafe archive path')
+                  destination = result / relative
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  with archive.extractfile(member) as source, destination.open('wb') as output:
+                      shutil.copyfileobj(source, output)
+                  inventory.append(dict(path=relative, bytes=member.size))
+          if process.wait() != 0:
+              raise RuntimeError('Decompression failed')
+          (result / 'inventory.json').write_text(json.dumps(inventory, indent=2))
+          print(json.dumps(inventory, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arc-native-checkpoint-audit
+          path: checkpoint-audit/
