@@ -1,8 +1,8 @@
 {
-  "artifact_id": "13542957750",
-  "artifact_sha256": "43eede4ba1c68538b03224dc99539ec093f08d479fc1fcedbcd41fb16b3bbb69",
-  "source_commit": "ca6d340671a753ae794d8bb7c061ae707a299193",
-  "source_run": "42294427007",
+  "artifact_id": "13544622723",
+  "artifact_sha256": "a9a382d94b20864d3003fb05eea35b7390172908a72f84069cec9825719075af",
+  "source_commit": "5d4a25d9bd488f2f8159a8349db62860aa2aa076",
+  "source_run": "42299500645",
   "sources": {
     "chrome/app/theme/chromium/BRANDING": "8481abb6f6255fe4bf9d6106bf627e89167848d3e4127bf460ba820ec1ae5d23",
     "chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts": "59e81f4fdd2cedcddec10ff61ebe536f3b67062115d8c94f2c9eb333c9d989aa",
@@ -28,10 +28,11 @@
     "chrome/browser/ui/views/toolbar/toolbar_view.cc": "008024d9f1458a53ad23fde9db8109fd4cf052565653ce2f7a6787f051d4e511",
     "chrome/browser/ui/views/toolbar/toolbar_view.h": "3e9dac4f0198d94a34b5c68d37e8a85e49076cd9dd67f226fd979d211adc7573",
     "chrome/installer/mac/signing/chromium_config.py": "660fb6bfb9f69ca7b0be93b76a3ade71d2b775684dd50b4efc3969fa7c29dcc8",
-    "chrome/test/data/webui/cr_elements/cr_profile_avatar_selector_test.ts": "6d58d3cc2a2141a800cf813974b41bf4d5f93ab9d84b59cb7effda6234533dad",
-    "chrome/test/data/webui/settings/people_page_manage_profile_test.ts": "4135b44fab86b8786077cb1a61646f8157bf3d3910f1b25dc588e2abe843b37c",
-    "chrome/test/data/webui/signin/test_manage_profiles_browser_proxy.ts": "aa48455a728d1443da730164a51a8cb3be5c5f3732b6e2b879848e125aaf98e0",
-    "chrome/test/data/webui/signin/test_profile_customization_browser_proxy.ts": "95eb7143d26c4ad5c3330e0648c826478ef5b9033eaf7b55fdac545a999e2e25",
+    "chrome/test/data/webui/cr_elements/cr_profile_avatar_selector_test.ts": "11814a1b6c7bed883993a14dc33bb3932d3c22a7c940dd4289842d1354cb4f1e",
+    "chrome/test/data/webui/history/history_routing_test.ts": "1b8fa89cc5ce6e905af68593c2c8848443c6e9a3cae96740ad003c5cbf9423ef",
+    "chrome/test/data/webui/settings/people_page_manage_profile_test.ts": "b733e7ba3993d9a69e4113294e52b4d6d0bf9eab9391f4d0e0dd75e96cc160e9",
+    "chrome/test/data/webui/signin/test_manage_profiles_browser_proxy.ts": "7db2c0907ce45746e22a404ee4454c44950d265a3c56ee14fee6f19c45d612f8",
+    "chrome/test/data/webui/signin/test_profile_customization_browser_proxy.ts": "9ca02424de3a147e4b62c190bbfd9c14b8fe807eaba00a34d0c6dde6122a5eee",
     "extensions/browser/extension_prefs.cc": "6d6e218cd9290fe24f09e60867e7731a232ea7a08e0db44ca00e949fe7bf9048"
   }
 }
