@@ -1,8 +1,8 @@
 {
-  "artifact_id": "13547086489",
-  "artifact_sha256": "c3d778b3706abf3fa67cca30bbd16b49bd6b5c3f95e1d8bf86a77dd8a2d071c4",
-  "source_commit": "d0dcb2b4e75bba708d91f46a371629d05ec5d4c7",
-  "source_run": "42304152083",
+  "artifact_id": "13548718413",
+  "artifact_sha256": "ab4266078e811eaf1618f0b5a70900fab44ac0908c73868087cd1e9e624aa0cb",
+  "source_commit": "1169433840442bd22597927699d2c25634548807",
+  "source_run": "42309316403",
   "sources": {
     "chrome/app/theme/chromium/BRANDING": "8481abb6f6255fe4bf9d6106bf627e89167848d3e4127bf460ba820ec1ae5d23",
     "chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts": "59e81f4fdd2cedcddec10ff61ebe536f3b67062115d8c94f2c9eb333c9d989aa",
@@ -29,9 +29,10 @@
     "chrome/browser/ui/views/toolbar/toolbar_view.h": "3e9dac4f0198d94a34b5c68d37e8a85e49076cd9dd67f226fd979d211adc7573",
     "chrome/installer/mac/signing/chromium_config.py": "660fb6bfb9f69ca7b0be93b76a3ade71d2b775684dd50b4efc3969fa7c29dcc8",
     "chrome/test/data/webui/cr_elements/cr_profile_avatar_selector_test.ts": "11814a1b6c7bed883993a14dc33bb3932d3c22a7c940dd4289842d1354cb4f1e",
-    "chrome/test/data/webui/extensions/sidebar_test.ts": "a459be5df779f182600697577c01ca039478d55c0f3a5749bf615ad8c7e03654",
+    "chrome/test/data/webui/extensions/sidebar_test.ts": "08bf39650734a81477b0c9e90fd8db1d3b6a987909fe898586b0b9122dafa33d",
     "chrome/test/data/webui/history/history_routing_test.ts": "601c24e23de773a221f595f40cee998718ed1fec93733c403b82efe5af853cc8",
     "chrome/test/data/webui/settings/people_page_manage_profile_test.ts": "b733e7ba3993d9a69e4113294e52b4d6d0bf9eab9391f4d0e0dd75e96cc160e9",
+    "chrome/test/data/webui/side_panel/customize_chrome/appearance_test.ts": "075257d97900a2f94534aa60b7bd97a11f401a788c614034a56edf8d01665456",
     "chrome/test/data/webui/signin/test_manage_profiles_browser_proxy.ts": "7db2c0907ce45746e22a404ee4454c44950d265a3c56ee14fee6f19c45d612f8",
     "chrome/test/data/webui/signin/test_profile_customization_browser_proxy.ts": "9ca02424de3a147e4b62c190bbfd9c14b8fe807eaba00a34d0c6dde6122a5eee",
     "extensions/browser/extension_prefs.cc": "6d6e218cd9290fe24f09e60867e7731a232ea7a08e0db44ca00e949fe7bf9048"
