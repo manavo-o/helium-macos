@@ -92,6 +92,9 @@ jobs:
       - name: Apply verified Arc source delta
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
         run: python3 .github/scripts/github_repair_arc_checkpoint.py
+      - name: Verify an exact checkpoint resume without regenerating GN
+        if: ${{ inputs.resume && !inputs.repair_arc_checkpoint }}
+        run: python3 .github/scripts/github_repair_arc_checkpoint.py --verify-after
       - name: Regenerate native UI build configuration
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
         run: |
@@ -118,7 +121,7 @@ jobs:
         id: arc-palette
         continue-on-error: true
         timeout-minutes: 5
-        if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
+        if: ${{ inputs.resume }}
         working-directory: build/src
         run: timeout -k 15s 180s python3 ../../.github/scripts/github_check_arc_swift_link.py
       - name: Run retained regression tests for the audited link-only repair

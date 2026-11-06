@@ -1,5 +1,7 @@
 {
   "base_commit": "f4b4ec5940d1cc95e729465922a3def410b105cb",
+  "checkpoint_commit": "3bd423d99d0c78b82828aac44167d0c521021645",
+  "checkpoint_contains_delta": true,
   "domain_inputs": {
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
@@ -11,7 +13,7 @@
       "sha256": "10bd42c0810d6da9230cec808c3ff73bdb043c8eb8231a67c46be2b0d1cb9f97"
     }
   ],
-  "source_run": "42042324498",
+  "source_run": "42121217689",
   "sources": {
     "chrome/browser/ui/views/tabs/vertical/BUILD.gn": {
       "after": "d9522ba7392ed8c16277107db80766dea81f433ee946d8509c0126315e78aeef",

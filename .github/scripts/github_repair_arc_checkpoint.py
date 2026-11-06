@@ -143,6 +143,12 @@ def apply_delta(root, data):
     print('Applied verified native UI patches; retained compiled build outputs.')
 
 
+def verify_after(root, data):
+    if not data or not check_sources(root / 'build/src', data['sources'], 'after'):
+        raise SystemExit('Checkpoint is not the verified patched source; refusing an exact resume.')
+    print('Verified patched checkpoint; preserving GN configuration and compiled outputs.')
+
+
 def repair(root):
     if source_fingerprint(root) != INPUT_SHA256:
         raise SystemExit('Build inputs changed: refusing this checkpoint repair.')
@@ -166,6 +172,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--select', action='store_true')
     parser.add_argument('--require-checkpoint', action='store_true')
+    parser.add_argument('--verify-after', action='store_true')
     args = parser.parse_args()
     root = Path(subprocess.check_output(
         ['git', 'rev-parse', '--show-toplevel'], text=True).strip())
@@ -177,9 +184,12 @@ def main():
         selected_run = delta['source_run'] if delta else SOURCE_RUN
         with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
             output.write(f'source_run={selected_run if compatible else ""}\n')
-            output.write(f'repair_arc_checkpoint={str(compatible).lower()}\n')
+            repair_required = compatible and not (delta and delta.get('checkpoint_contains_delta', False))
+            output.write(f'repair_arc_checkpoint={str(repair_required).lower()}\n')
         print(f'Using pinned Arc checkpoint {selected_run}.' if compatible else
               'Source inputs differ; using a fresh build.')
+    elif args.verify_after:
+        verify_after(root, delta)
     elif delta:
         apply_delta(root, delta)
     else:

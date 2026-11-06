@@ -68,7 +68,7 @@ jobs:
 
   build_job_02:
     needs: build_job_01
-    if: ${{needs.build_job_01.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_01.result == 'success' && needs.build_job_01.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -78,7 +78,7 @@ jobs:
 
   build_job_03:
     needs: build_job_02
-    if: ${{needs.build_job_02.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_02.result == 'success' && needs.build_job_02.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -88,7 +88,7 @@ jobs:
 
   build_job_04:
     needs: build_job_03
-    if: ${{needs.build_job_03.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_03.result == 'success' && needs.build_job_03.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -98,7 +98,7 @@ jobs:
 
   build_job_05:
     needs: build_job_04
-    if: ${{needs.build_job_04.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_04.result == 'success' && needs.build_job_04.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -108,7 +108,7 @@ jobs:
 
   build_job_06:
     needs: build_job_05
-    if: ${{needs.build_job_05.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_05.result == 'success' && needs.build_job_05.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -118,7 +118,7 @@ jobs:
 
   build_job_07:
     needs: build_job_06
-    if: ${{needs.build_job_06.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_06.result == 'success' && needs.build_job_06.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -128,7 +128,7 @@ jobs:
 
   build_job_08:
     needs: build_job_07
-    if: ${{needs.build_job_07.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_07.result == 'success' && needs.build_job_07.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -138,7 +138,7 @@ jobs:
 
   build_job_09:
     needs: build_job_08
-    if: ${{needs.build_job_08.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_08.result == 'success' && needs.build_job_08.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
@@ -148,10 +148,24 @@ jobs:
 
   build_job_10:
     needs: build_job_09
-    if: ${{needs.build_job_09.outputs.status == 'running'}}
+    if: ${{ !cancelled() && needs.build_job_09.result == 'success' && needs.build_job_09.outputs.status == 'running' }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
       resume: true
+
+  verify-completion:
+    name: Verify the browser build actually finished
+    needs: [build_job_01, build_job_02, build_job_03, build_job_04, build_job_05, build_job_06, build_job_07, build_job_08, build_job_09, build_job_10]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reject a green but unfinished build
+        env:
+          HELIUM_PHASE_RESULTS: ${{ toJSON(needs) }}
+        run: python3 .github/scripts/github_verify_arc_completion.py

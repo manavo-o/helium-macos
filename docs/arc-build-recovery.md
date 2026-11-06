@@ -128,3 +128,24 @@ pushing changes. Diagnostics upload independently when checkpoint packaging fail
 The CI compile command now requests only `chrome` and `chrome/installer/mac`.
 ChromeDriver is not part of this browser disk image and is no longer built as
 an additional target. Existing driver outputs in checkpoints are preserved.
+
+## Resuming the saved phase instead of reporting false success
+
+Run `42121217689` saved checkpoint artifact `13474086644` after completing
+20,457 additional build steps. Exit 124 was the intentional phase deadline;
+there were no compiler failures and 57,363 steps remained. Its later phases
+were incorrectly skipped because continuation conditions inherited GitHub's
+implicit success check through a skipped resource-preparation ancestor.
+
+Every continuation now explicitly checks cancellation, the previous phase's
+successful result, and its `running` output. A final completion check fails
+the workflow unless a phase actually reports `finished`; an uploaded checkpoint
+alone is insufficient. Six tests cover this completion policy and continuation
+conditions alongside eight checkpoint replay/selection tests.
+
+The manifest now selects this newer checkpoint, which already contains the
+audited native source delta. Exact resumes verify the patched source hashes
+and preserve the saved GN configuration rather than running configuration
+again. This retains the latest compiled outputs; it does not establish the
+cause of earlier broad compiler-cache misses. The manual resume entry point
+uses the same continuation workflow and Xcode 27 runner as production CI.

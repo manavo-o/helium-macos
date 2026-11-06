@@ -5,6 +5,7 @@ import importlib.util
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -97,6 +98,31 @@ class CheckpointDeltaTest(unittest.TestCase):
             rules = self.root / 'helium-chromium/domain_regex.list'
             rules.write_text(rules.read_text() + '\nexample#changed\n')
             self.assertIsNone(checkpoint.compatible_delta(self.root))
+
+    def test_exact_resume_selector_does_not_request_gn_regeneration(self):
+        output = self.root / 'selection'
+        for applied in (False, True):
+            data = dict(DATA, checkpoint_contains_delta=applied)
+            output.write_text('')
+            with mock.patch.object(sys, 'argv', ['checkpoint', '--select', '--require-checkpoint']), \
+                 mock.patch.object(checkpoint.subprocess, 'check_output', return_value=str(self.root)), \
+                 mock.patch.object(checkpoint, 'compatible_delta', return_value=data), \
+                 mock.patch.dict(os.environ, {'GITHUB_OUTPUT': str(output)}):
+                checkpoint.main()
+            self.assertIn('source_run=' + DATA['source_run'], output.read_text())
+            self.assertIn('repair_arc_checkpoint=' + str(not applied).lower(), output.read_text())
+
+    def test_exact_resume_rejects_unpatched_sources(self):
+        with self.assertRaisesRegex(SystemExit, 'refusing an exact resume'):
+            checkpoint.verify_after(self.root, DATA)
+
+    def test_exact_resume_keeps_existing_ninja_configuration(self):
+        checkpoint.apply_delta(self.root, DATA)
+        ninja = self.root / 'build/src/out/Default/build.ninja'
+        ninja.parent.mkdir(parents=True)
+        ninja.write_bytes(b'retained generated configuration')
+        checkpoint.verify_after(self.root, DATA)
+        self.assertEqual(b'retained generated configuration', ninja.read_bytes())
 
 
 if __name__ == '__main__':
