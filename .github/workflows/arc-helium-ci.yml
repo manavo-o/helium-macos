@@ -33,6 +33,7 @@ jobs:
           python3 .github/scripts/test_arc_checkpoint.py
           python3 .github/scripts/test_arc_completion.py
           python3 .github/scripts/test_xenon_tests.py
+          python3 .github/scripts/test_xenon_test_inputs.py
           bash -n .github/scripts/github_build.sh .github/scripts/github_prepare_artifacts.sh
       - id: checkpoint
         run: python3 .github/scripts/github_repair_arc_checkpoint.py --select --require-checkpoint

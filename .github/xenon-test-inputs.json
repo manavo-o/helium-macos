@@ -1,0 +1,56 @@
+{
+  "chromium_version": "156.0.8078.79",
+  "chromium_revision": "a21ce95c24ce3964416f09ae1862f53f319eb4d0",
+  "packages": [
+    {
+      "name": "webui",
+      "destination": "chrome/test/data/webui",
+      "format": "tar.gz",
+      "url": "https://chromium.googlesource.com/chromium/src/+archive/a21ce95c24ce3964416f09ae1862f53f319eb4d0/chrome/test/data/webui.tar.gz",
+      "content_sha256": "7f6669ac0176d041f18e6a66210c07957f2040d6c42fea13f937910859abdb86"
+    },
+    {
+      "name": "pdf",
+      "destination": "chrome/test/data/pdf",
+      "format": "tar.gz",
+      "url": "https://chromium.googlesource.com/chromium/src/+archive/a21ce95c24ce3964416f09ae1862f53f319eb4d0/chrome/test/data/pdf.tar.gz",
+      "content_sha256": "f53116f1906ae67b736990949ef85fa17b58df508e114a309acb169a3b36906e"
+    },
+    {
+      "name": "cast",
+      "destination": "chrome/test/data/cast",
+      "format": "tar.gz",
+      "url": "https://chromium.googlesource.com/chromium/src/+archive/a21ce95c24ce3964416f09ae1862f53f319eb4d0/chrome/test/data/cast.tar.gz",
+      "content_sha256": "2609be9caa411d5cfa58ed4c6803c14af9dffb7c76a13919ccbfffed538ef69b"
+    },
+    {
+      "name": "extension_api_unittest",
+      "destination": "chrome/test/data/extensions/extension_api_unittest",
+      "format": "tar.gz",
+      "url": "https://chromium.googlesource.com/chromium/src/+archive/a21ce95c24ce3964416f09ae1862f53f319eb4d0/chrome/test/data/extensions/extension_api_unittest.tar.gz",
+      "content_sha256": "6a461596793bf9cebaa07dff333f0ebaf74af2b3c36ef8dea8f97f657e0b7e6a"
+    },
+    {
+      "name": "bear",
+      "destination": "content/test/data/media/bear-opus.ogg",
+      "format": "base64",
+      "url": "https://chromium.googlesource.com/chromium/src/+/a21ce95c24ce3964416f09ae1862f53f319eb4d0/content/test/data/media/bear-opus.ogg?format=TEXT",
+      "content_sha256": "9b354bc500a9224ff425a190e035ffaa329bdd5442c30c71efbe61bbca392911"
+    },
+    {
+      "name": "mei",
+      "destination": "chrome/browser/resources/media/mei_preload/preloaded_data.pb",
+      "format": "base64",
+      "url": "https://chromium.googlesource.com/chromium/src/+/a21ce95c24ce3964416f09ae1862f53f319eb4d0/chrome/browser/resources/media/mei_preload/preloaded_data.pb?format=TEXT",
+      "content_sha256": "c69c5c1d4efa0ea6d1b913c262825ab92c676559dad8d0b9c9c805d2c2eefabd"
+    },
+    {
+      "name": "fonts",
+      "destination": "third_party/test_fonts/test_fonts",
+      "format": "tar.gz",
+      "url": "https://storage.googleapis.com/chromium-fonts/9c07d19d9c5ee1ff94f717e6fb17e0c8c354e6f9?generation=1775663926405386",
+      "content_sha256": "9884f59bad3ca9e20b689d23cca6f120093f65478ded420e14a3481567748a1a",
+      "archive_sha256": "f0e9628f9e43e3f3476cde06a1849058de460e0e037b7449ce0d42b9a73c37d5"
+    }
+  ]
+}

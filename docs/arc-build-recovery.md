@@ -1,5 +1,38 @@
 # Incremental Arc-style Helium builds
 
+## Missing test-source recovery — November 6, 2026
+
+Run [42260582785](https://github.com/manavo-o/helium-macos/actions/runs/42260582785)
+failed before compilation because source preparation prunes test fixtures:
+`chrome/test/data/webui/chai_assert.ts` was the first missing dependency.
+A graph inspection found 1,466 missing static inputs, including WebUI/PDF test
+sources and the DEPS-pinned test font bundle. This was not a compiler failure
+and no browser regressions ran in that attempt.
+
+Before compiling fresh regressions, `github_restore_xenon_test_inputs.py` now
+restores the required fixture packages from immutable Chromium revision
+`a21ce95c24ce3964416f09ae1862f53f319eb4d0` (156.0.8078.79), plus the exact
+33 MB font object and generation pinned in Chromium DEPS. The manifest binds
+file names and bytes; Gitiles archive request timestamps are deliberately
+excluded from the content digest. The font archive additionally retains its
+DEPS SHA-256. Existing prepared files, GN configuration and compiled outputs
+are never overwritten. The MEI binary is restored solely as a test dependency;
+the inherited production dependency removals remain in effect.
+
+A read-only Ninja input-graph check rejects remaining missing source inputs
+before compilation. Restoration shares the phase deadline, and errors remain
+failures. Retained fixture files are hashed on subsequent phases. Regression
+result signatures also bind the fixture manifest and restoration script.
+
+The next build resumes checkpoint `13526212928` from the failed run, SHA-256
+`2bf101ff9300ad0cefa9f3cd3c8164e26d7517b967749288e1792327199a0666`.
+[Audit 42293524385](https://github.com/manavo-o/helium-macos/actions/runs/42293524385)
+verified the archive and all 25 delta postimages. The checkpoint already contains
+the source changes and regenerated GN files, so the restart preserves that
+configuration. The original baseline/preimage audit below remains the provenance
+for the delta itself. No passing test stamp exists yet; fresh regressions remain
+mandatory before production compilation and packaging.
+
 ## Xenon functional changes — November 6, 2026
 
 The new native refinement delta uses successful build `42156459305`, commit

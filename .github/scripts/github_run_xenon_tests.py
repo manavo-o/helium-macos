@@ -35,7 +35,10 @@ def signature(root, data, arch):
     payload = dict(plan=PLAN, arch=arch, sources=data['sources'],
                    patches=data['patches'], required=sorted(REQUIRED_BROWSER_TESTS),
                    browser_filter=BROWSER_FILTER,
-                   runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
+                   runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                   test_inputs={path: hashlib.sha256((root / path).read_bytes()).hexdigest()
+                                for path in ('.github/xenon-test-inputs.json',
+                                             '.github/scripts/github_restore_xenon_test_inputs.py')})
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 

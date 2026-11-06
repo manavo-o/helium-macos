@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,12 @@ class FreshRegressionTest(unittest.TestCase):
         self.data = dict(test_plan=runner.PLAN, patches=[dict(sha256='patch')],
                          sources={'example.cc': dict(before='old', after=digest)})
         self.stamp = self.output / 'xenon-regressions.json'
+        repo = Path(__file__).resolve().parents[2]
+        for relative in ('.github/xenon-test-inputs.json',
+                         '.github/scripts/github_restore_xenon_test_inputs.py'):
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(repo / relative, target)
 
     def summary(self):
         return {'per_iteration_data': [{name: [dict(status='SUCCESS')]
@@ -39,6 +46,11 @@ class FreshRegressionTest(unittest.TestCase):
         (self.root / 'build/src/example.cc').write_text('different')
         with self.assertRaisesRegex(ValueError, 'audited delta'):
             runner.signature(self.root, self.data, 'arm64')
+
+    def test_signature_binds_test_input_manifest(self):
+        before = runner.signature(self.root, self.data, 'arm64')
+        (self.root / '.github/xenon-test-inputs.json').write_text('different fixture policy')
+        self.assertNotEqual(before, runner.signature(self.root, self.data, 'arm64'))
 
     def test_signature_rejects_unknown_plan(self):
         self.data['test_plan'] = 'skip-tests'

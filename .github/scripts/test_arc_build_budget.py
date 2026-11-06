@@ -11,7 +11,7 @@ SCRIPT = Path(__file__).with_name('github_build.sh')
 
 
 class PhaseBudgetTest(unittest.TestCase):
-    def run_phase(self, elapsed, result, advance_deadline=False, plan=None, stamp_result=1):
+    def run_phase(self, elapsed, result, advance_deadline=False, plan=None, stamp_result=1, restore_result=0):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
@@ -41,6 +41,10 @@ class PhaseBudgetTest(unittest.TestCase):
             programs['timeout'] = programs['timeout'].replace(
                 'exit ' + str(result),
                 'echo 17200 > "' + str(root / 'clock') + '"\nexit ' + str(result))
+        programs['timeout'] = programs['timeout'].replace(
+            '#!/bin/sh\n',
+            '#!/bin/sh\ncase "$*" in *github_restore_xenon_test_inputs.py*) '
+            'echo restored > "' + str(root / 'restoration-called') + '"; exit ' + str(restore_result) + ';; esac\n')
         for name, text in programs.items():
             path = root / 'bin' / name
             path.write_text(text)
@@ -97,6 +101,18 @@ class PhaseBudgetTest(unittest.TestCase):
         self.assertIn('browser_tests', targets)
         self.assertIn('ui/views:arc_bubble_lifecycle_tests', targets)
         self.assertNotIn('chrome/installer/mac', targets)
+        self.assertFalse((root / 'build_finished_arm64.log').exists())
+
+    def test_test_input_restore_failure_stops_compilation(self):
+        root, result = self.run_phase(0, 0, plan='xenon-native-v1', restore_result=42)
+        self.assertEqual(42, result.returncode)
+        self.assertTrue((root / 'restoration-called').exists())
+        self.assertFalse((root / 'timeout-args').exists())
+        self.assertFalse((root / 'build_finished_arm64.log').exists())
+
+    def test_test_input_restore_deadline_remains_resumable(self):
+        root, result = self.run_phase(0, 0, plan='xenon-native-v1', restore_result=124)
+        self.assertEqual(0, result.returncode)
         self.assertFalse((root / 'build_finished_arm64.log').exists())
 
     def test_fresh_test_compiler_failure_stops_browser_build(self):
