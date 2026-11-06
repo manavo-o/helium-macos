@@ -189,6 +189,27 @@ class TestInputRecoveryTest(unittest.TestCase):
                 before_sha256=restore.digest(b'before'), after_sha256=restore.digest(b'after'))])
         self.assertEqual(b'unexpected', path.read_bytes())
 
+    def test_appearance_fixture_uses_supported_upload_and_preserves_theme_cases(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        item = next(item for item in data['adaptations'] if item['path'].endswith('/appearance_test.ts'))
+        original = (root / item['preimage']).read_bytes()
+        self.assertEqual(item['before_sha256'], restore.digest(original))
+        path = self.source / item['path']
+        path.parent.mkdir(parents=True)
+        path.write_bytes(original)
+        records = restore.adapt_fixtures(self.source, [item])
+        result = path.read_text()
+        for member in ('uploadedImageButton', 'searchedImageButton'):
+            self.assertNotIn('appearanceElement.$.' + member, result)
+            self.assertIn("querySelector('#" + member + "')", result)
+        self.assertEqual(original.count(b'test('), result.count('test('))
+        self.assertEqual(3, result.count("assertEquals(1, handler.getCallCount('chooseLocalCustomBackground'))"))
+        for member in ('themeSnapshot', 'chromeColors', 'setClassicChromeButton'):
+            self.assertEqual(original.decode().count('appearanceElement.$.' + member),
+                             result.count('appearanceElement.$.' + member))
+        self.assertEqual(records, restore.adapt_fixtures(self.source, [item]))
+
     def test_adaptation_validates_all_results_before_any_write(self):
         for name in ('first.ts', 'second.ts'):
             (self.source / name).write_bytes(b'before')

@@ -182,7 +182,76 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/extensions/sidebar_test.ts"
+    },
+    {
+      "path": "chrome/test/data/webui/side_panel/customize_chrome/appearance_test.ts",
+      "reason": "Helium removes image-specific buttons and uses editThemeButton for local wallpaper upload; retain theme assertions and verify supported upload behavior with either search flag.",
+      "before_sha256": "075257d97900a2f94534aa60b7bd97a11f401a788c614034a56edf8d01665456",
+      "after_sha256": "ffc92a408ab25925bce7873e432ed304a9980f4d69e2befede8369729676f3f2",
+      "replacements": [
+        {
+          "before": "assertNotStyle(appearanceElement.$.uploadedImageButton, 'display', 'none');",
+          "after": "assertFalse(!!appearanceElement.shadowRoot.querySelector('#uploadedImageButton'));",
+          "count": 2
+        },
+        {
+          "before": "assertStyle(appearanceElement.$.uploadedImageButton, 'display', 'none');",
+          "after": "assertFalse(!!appearanceElement.shadowRoot.querySelector('#uploadedImageButton'));",
+          "count": 1
+        },
+        {
+          "before": "assertNotStyle(appearanceElement.$.searchedImageButton, 'display', 'none');",
+          "after": "assertFalse(!!appearanceElement.shadowRoot.querySelector('#searchedImageButton'));",
+          "count": 1
+        },
+        {
+          "before": "assertStyle(appearanceElement.$.searchedImageButton, 'display', 'none');",
+          "after": "assertFalse(!!appearanceElement.shadowRoot.querySelector('#searchedImageButton'));",
+          "count": 1
+        },
+        {
+          "before": "appearanceElement.$.uploadedImageButton.click();",
+          "after": "appearanceElement.$.editThemeButton.click();",
+          "count": 1
+        },
+        {
+          "before": "test('uploaded image shows button and no snapshot'",
+          "after": "test('uploaded image omits removed buttons and snapshot'",
+          "count": 1
+        },
+        {
+          "before": "test('uploadedImageButton opens upload image dialog'",
+          "after": "test('editThemeButton opens upload image dialog'",
+          "count": 1
+        },
+        {
+          "before": "test('searched image shows button'",
+          "after": "test('searched image omits removed buttons'",
+          "count": 1
+        },
+        {
+          "before": "    const clickEvent = eventToPromise('edit-theme-click', appearanceElement);\n    appearanceElement.$.searchedImageButton.click();\n    await clickEvent;",
+          "after": "    assertFalse(!!appearanceElement.shadowRoot.querySelector('#searchedImageButton'));\n    appearanceElement.$.editThemeButton.click();\n    assertEquals(1, handler.getCallCount('chooseLocalCustomBackground'));",
+          "count": 1
+        },
+        {
+          "before": "test('searched image button opens themes when feature disabled'",
+          "after": "test('wallpaper editing opens upload when search feature disabled'",
+          "count": 1
+        },
+        {
+          "before": "          const clickEvent =\n              eventToPromise('wallpaper-search-click', appearanceElement);\n          appearanceElement.$.searchedImageButton.click();\n          await clickEvent;",
+          "after": "          assertFalse(!!appearanceElement.shadowRoot.querySelector('#searchedImageButton'));\n          appearanceElement.$.editThemeButton.click();\n          assertEquals(1, handler.getCallCount('chooseLocalCustomBackground'));",
+          "count": 1
+        },
+        {
+          "before": "'searched image button opens wallpaper search when feature enabled'",
+          "after": "'wallpaper editing opens upload when search feature enabled'",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/side_panel/customize_chrome/appearance_test.ts"
     }
   ],
-  "previous_policy_sha256": "daf8ea5c623385033376dd7ff88091cdadd4ae7e7d44c65b4fa1e0c1135ab660"
+  "previous_policy_sha256": "c1bafc49bdc6202a5be050cfa4cc9a99ee25ca91a10973120b01d554176cb2a7"
 }

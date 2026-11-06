@@ -1,0 +1,70 @@
+name: Check retained WebUI types without browser compilation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  types:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check diagnostic runner and fixture policies
+        run: |
+          python3 .github/scripts/test_webui_types.py
+          python3 .github/scripts/test_xenon_test_inputs.py
+      - name: Download and verify pinned diagnostic checkpoint
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          d = json.loads(Path('.github/xenon-checkpoint-audit.json').read_text())
+          with Path('checkpoint.zip').open('wb') as output:
+              subprocess.run(['gh', 'api', 'repos/' + __import__('os').environ['GITHUB_REPOSITORY'] + '/actions/artifacts/' + d['artifact_id'] + '/zip'], stdout=output, check=True)
+          subprocess.run(['sha256sum', '-c', '-'], input=(d['artifact_sha256'] + '  checkpoint.zip\n').encode(), check=True)
+          PY
+      - name: Extract isolated type-check inputs only
+        run: |
+          python3 - <<'PY'
+          import subprocess, tarfile
+          from pathlib import Path
+          unzip = subprocess.Popen(['unzip', '-p', 'checkpoint.zip', 'build_src.tar.zst'], stdout=subprocess.PIPE)
+          zstd = subprocess.Popen(['zstd', '-dc'], stdin=unzip.stdout, stdout=subprocess.PIPE)
+          unzip.stdout.close()
+          total = 0
+          with tarfile.open(fileobj=zstd.stdout, mode='r|') as archive:
+              for entry in archive:
+                  p = Path(entry.name.removeprefix('./'))
+                  if not entry.isfile() or p.is_absolute() or '..' in p.parts or p.parts[0] != 'src':
+                      continue
+                  generated = str(p).startswith('src/out/Default/gen/') and p.suffix in ('.ts', '.json')
+                  fixture = str(p).startswith('src/chrome/test/data/webui/') and p.suffix in ('.ts', '.json')
+                  definition = p.name.endswith('.d.ts') or (p.name.startswith('tsconfig') and p.suffix == '.json')
+                  compiler = str(p).startswith('src/third_party/typescript/linux-amd64/')
+                  if not (generated or fixture or definition or compiler):
+                      continue
+                  total += entry.size
+                  if total > 1500000000:
+                      raise RuntimeError('Diagnostic input size exceeded 1.5 GB limit')
+                  output = Path('diagnostic') / p
+                  output.parent.mkdir(parents=True, exist_ok=True)
+                  output.write_bytes(archive.extractfile(entry).read())
+                  if compiler and entry.mode & 0o111:
+                      output.chmod(0o755)
+          if zstd.wait() or unzip.wait():
+              raise RuntimeError('Checkpoint decompression failed')
+          print('Extracted', total, 'bytes of type-check inputs; no compiled browser output extracted.')
+          PY
+      - name: Check every retained WebUI TypeScript project
+        run: |
+          python3 .github/scripts/github_check_webui_types.py \
+            --source diagnostic/src \
+            --compiler diagnostic/src/third_party/typescript/linux-amd64/src/lib/tsc
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webui-typecheck-report
+          path: webui-typecheck-report/
