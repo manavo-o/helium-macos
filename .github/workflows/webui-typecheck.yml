@@ -14,6 +14,9 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
       - name: Check diagnostic runner and fixture policies
         run: |
           python3 .github/scripts/test_webui_types.py
