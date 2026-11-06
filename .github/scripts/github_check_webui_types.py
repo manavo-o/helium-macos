@@ -7,6 +7,8 @@ errors rather than stopping at the first incompatible upstream fixture.
 import argparse
 import importlib.util
 import json
+import shlex
+import sys
 from pathlib import Path
 import subprocess
 import tempfile
@@ -18,21 +20,14 @@ def check(source, policy, compiler, report_dir):
     restore = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(restore)
     adaptations = json.loads(policy.read_text())['adaptations']
-    changed = [item for item in adaptations
-               if restore.digest((source / item['path']).read_bytes()) != item['after_sha256']]
     restore.adapt_fixtures(source, adaptations)
-    # Preprocessed inputs are generated, isolated diagnostic copies. Apply only
-    # the same exact replacements as the verified raw fixture adaptation.
     gen = source / 'out/Default/gen'
-    for item in changed:
-        relative = Path(item['path'])
-        generated = gen / relative.parent / 'preprocessed' / relative.name
-        text = generated.read_text()
-        for replacement in item['replacements']:
-            if text.count(replacement['before']) != replacement['count']:
-                raise ValueError('Generated fixture replacement count differs: ' + str(generated))
-            text = text.replace(replacement['before'], replacement['after'])
-        generated.write_text(text)
+    if (source / 'out/Default/build.ninja').is_file():
+        prepare_projects(source)
+    else:
+        # Unit-test mirrors need not contain a build graph.
+        if adaptations:
+            raise ValueError('Retained build graph required to preprocess adapted fixtures')
     configs = sorted((gen / 'chrome/test/data/webui').rglob('tsconfig_build_ts.json'))
     if not configs:
         raise ValueError('No retained WebUI TypeScript projects found')
@@ -72,7 +67,62 @@ def check(source, policy, compiler, report_dir):
     return 1 if failed else 0
 
 
+def prepare_projects(source):
+    """Read the graph, then run only fixture preprocessing/config generation."""
+    output = source / 'out/Default'
+    commands = subprocess.check_output(['ninja', '-C', str(output), '-t', 'commands', 'browser_tests'], text=True)
+    count = 0
+    for line in commands.splitlines():
+        if 'chrome/test/data/webui' not in line:
+            continue
+        args = shlex.split(line)
+        if len(args) < 2 or args[0] != 'python3':
+            continue
+        if args[1] == '../../tools/grit/preprocess_if_expr.py':
+            if '--in-folder' not in args or not args[args.index('--in-folder') + 1].startswith('../../chrome/test/data/webui'):
+                continue
+            if not any(value.endswith(('.ts', '.js')) for value in args):
+                continue
+            subprocess.run(args, cwd=output, check=True, timeout=60)
+        elif args[1] == '../../tools/typescript/ts_library.py':
+            if '--gen_dir' not in args or not args[args.index('--gen_dir') + 1].startswith('gen/chrome/test/data/webui'):
+                continue
+            subprocess.run([sys.executable, str(Path(__file__).resolve()),
+                            '--generate-config', str(source), *args[2:]],
+                           cwd=output, check=True, timeout=60)
+            count += 1
+    if not count:
+        raise ValueError('No WebUI TypeScript actions found in retained graph')
+    print('Prepared', count, 'WebUI project configurations without compiling.', flush=True)
+
+
+def generate_config(source, arguments):
+    # Stop the pinned config generator at its compiler call. No TS compiler,
+    # Ninja action or browser compiler is invoked by this mode.
+    directory = source / 'tools/typescript'
+    sys.path.insert(0, str(directory))
+    spec = importlib.util.spec_from_file_location('ts_library', directory / 'ts_library.py')
+    library = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(library)
+
+    class ConfigReady(Exception):
+        pass
+
+    def stop(*args, **kwargs):
+        raise ConfigReady()
+
+    library.typescript.RunTypeScript = stop
+    try:
+        library.main(arguments)
+    except ConfigReady:
+        return
+    raise ValueError('Config generator did not reach its compiler boundary')
+
+
 if __name__ == '__main__':
+    if len(sys.argv) > 2 and sys.argv[1] == '--generate-config':
+        generate_config(Path(sys.argv[2]), sys.argv[3:])
+        raise SystemExit(0)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, type=Path)
     parser.add_argument('--policy', default='.github/xenon-test-inputs.json', type=Path)

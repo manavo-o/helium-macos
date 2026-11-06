@@ -45,11 +45,13 @@ jobs:
                   p = Path(entry.name.removeprefix('./'))
                   if not entry.isfile() or p.is_absolute() or '..' in p.parts or p.parts[0] != 'src':
                       continue
-                  generated = str(p).startswith('src/out/Default/gen/') and p.suffix in ('.ts', '.json')
-                  fixture = str(p).startswith('src/chrome/test/data/webui/') and p.suffix in ('.ts', '.json')
+                  generated = str(p).startswith('src/out/Default/gen/') and p.suffix in ('.ts', '.js', '.json')
+                  fixture = str(p).startswith('src/chrome/test/data/webui/') and p.suffix in ('.ts', '.js', '.json')
                   definition = p.name.endswith('.d.ts') or (p.name.startswith('tsconfig') and p.suffix == '.json')
                   compiler = str(p).startswith('src/third_party/typescript/linux-amd64/')
-                  if not (generated or fixture or definition or compiler):
+                  helper = p.suffix == '.py' and str(p).startswith(('src/tools/grit/', 'src/tools/typescript/', 'src/third_party/typescript/'))
+                  metadata = p.name == 'package.json' or (p.suffix == '.ninja' and str(p).startswith('src/out/Default/'))
+                  if not (generated or fixture or definition or compiler or helper or metadata):
                       continue
                   total += entry.size
                   if total > 1500000000:
@@ -63,6 +65,13 @@ jobs:
               raise RuntimeError('Checkpoint decompression failed')
           print('Extracted', total, 'bytes of type-check inputs; no compiled browser output extracted.')
           PY
+      - name: Save small diagnostic inputs for local checks
+        run: tar --zstd -cf webui-typecheck-inputs.tar.zst diagnostic
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webui-typecheck-inputs
+          path: webui-typecheck-inputs.tar.zst
+          retention-days: 3
       - name: Check every retained WebUI TypeScript project
         run: |
           python3 .github/scripts/github_check_webui_types.py \
