@@ -124,11 +124,23 @@ jobs:
         if: ${{ inputs.resume }}
         working-directory: build/src
         run: timeout -k 15s 180s python3 ../../.github/scripts/github_check_arc_swift_link.py
+      - name: Select regression validation policy
+        id: validation
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          plan = json.loads(Path('.github/arc-checkpoint-delta.json').read_text()).get('test_plan', 'link-only')
+          if plan not in ('link-only', 'xenon-native-v1'):
+              raise SystemExit('Unknown regression validation policy: ' + plan)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('fresh=' + str(plan == 'xenon-native-v1').lower() + '\n')
+          PY
       - name: Run retained regression tests for the audited link-only repair
         id: arc-tests
         continue-on-error: true
         timeout-minutes: 5
-        if: ${{ inputs.resume && inputs.repair_arc_checkpoint && steps.arc-palette.outcome != 'failure' }}
+        if: ${{ inputs.resume && inputs.repair_arc_checkpoint && steps.arc-palette.outcome != 'failure' && steps.validation.outputs.fresh != 'true' }}
         run: timeout -k 15s 240s python3 .github/scripts/github_run_arc_cached_tests.py --arch '${{ inputs.arch }}'
       - uses: ./.github/actions/do-build
         id: build

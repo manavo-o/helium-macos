@@ -1,5 +1,33 @@
 # Incremental Arc-style Helium builds
 
+## Xenon functional changes — November 6, 2026
+
+The new native refinement delta uses successful build `42156459305`, commit
+`8f0097e9e90fdb2a32d0336b88f519aff27b64c3`. Linux audit
+[`42258633447`](https://github.com/manavo-o/helium-macos/actions/runs/42258633447)
+verified checkpoint artifact `13511187126` against its published SHA-256
+`fd5474ae6308b44065d92894c2b27343a00d1e76e3943fac1e15a6db9c6660b2`.
+All 25 required source preimages matched. Exact extracted preimages are retained
+under `.github/checkpoint-preimages/xenon-native/`, with their hashes in the new
+delta manifest. The ordered patch still replays with zero fuzz and verifies
+postimages before changing restored source files.
+
+This is a functional change, so the manifest specifies `xenon-native-v1`.
+Retained link-only tests are not used as its validation. The normal phase
+budget first compiles `browser_tests`, `arc_routing_tests` and
+`arc_bubble_lifecycle_tests`, then runs all Arc command-bar cases and the new
+pending-panel cancellation case, plus the routing and bubble suites. A passing
+stamp binds results to source hashes, patch hashes, architecture and required
+test names. Production browser/installer compilation runs only after that stamp
+verifies. A failed test or missing result remains a failure.
+
+Test compilation, execution and production compilation share the existing
+4h30 deadline; timeout retains outputs and continues in the next phase. Fresh
+test work is not an unbounded preflight. Completed test results can carry across
+phases only with an identical validated signature. The historical link-only
+policy below remains available for its original audited input; it does not
+authorize skipping fresh tests for this delta.
+
 The Arc workflow requires a verified compatible checkpoint. It stops if source
 fingerprints, patch hashes, substitution rules, or source preimages differ;
 it does not silently fall back to a full Chromium build.

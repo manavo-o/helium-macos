@@ -1,11 +1,11 @@
 {
-    "title": "Helium Sidebar",
-    "icon": "Helium Sidebar.app/Contents/Resources/app.icns",
+    "title": "Xenon",
+    "icon": "Xenon.app/Contents/Resources/app.icns",
     "background": "dmg_background.png",
 
     "icon-size": 90,
     "contents": [
-        { "x": 175, "y": 130, "type": "file", "path": "Helium Sidebar.app" },
+        { "x": 175, "y": 130, "type": "file", "path": "Xenon.app" },
         { "x": 175, "y": 370, "type": "link", "path": "/Applications" }
     ],
 

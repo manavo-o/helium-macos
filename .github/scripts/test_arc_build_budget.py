@@ -11,7 +11,7 @@ SCRIPT = Path(__file__).with_name('github_build.sh')
 
 
 class PhaseBudgetTest(unittest.TestCase):
-    def run_phase(self, elapsed, result, advance_deadline=False):
+    def run_phase(self, elapsed, result, advance_deadline=False, plan=None, stamp_result=1):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
@@ -20,6 +20,13 @@ class PhaseBudgetTest(unittest.TestCase):
         (root / 'bin').mkdir()
         shutil.copyfile(SCRIPT, root / 'github_build.sh')
         (root / 'epoch_job_start.txt').write_text('1000')
+        if plan is not None:
+            import json
+            (root / '.github/scripts').mkdir(parents=True)
+            (root / '.github/arc-checkpoint-delta.json').write_text(json.dumps({'test_plan': plan}))
+            (root / '.github/scripts/github_run_xenon_tests.py').write_text(
+                'import sys\n'
+                'sys.exit(' + str(stamp_result) + ' if "--check-stamp" in sys.argv else 0)\n')
         (root / 'devutils/shared.sh').write_text(
             '_src_dir="$_root_dir/src"\n_out_dir="$_src_dir/out/Default"\n'
             '_depot_tools_dir="$_src_dir/third_party/depot_tools"\n'
@@ -82,6 +89,42 @@ class PhaseBudgetTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue((root / 'build_finished_arm64.log').exists())
         self.assertIn('status=finished', (root / 'output').read_text())
+
+    def test_fresh_test_compilation_deadline_saves_without_browser_build(self):
+        root, result = self.run_phase(0, 124, plan='xenon-native-v1')
+        self.assertEqual(0, result.returncode)
+        targets = (root / 'timeout-args').read_text()
+        self.assertIn('browser_tests', targets)
+        self.assertIn('ui/views:arc_bubble_lifecycle_tests', targets)
+        self.assertNotIn('chrome/installer/mac', targets)
+        self.assertFalse((root / 'build_finished_arm64.log').exists())
+
+    def test_fresh_test_compiler_failure_stops_browser_build(self):
+        root, result = self.run_phase(0, 42, plan='xenon-native-v1')
+        self.assertEqual(42, result.returncode)
+        self.assertFalse((root / 'build_finished_arm64.log').exists())
+
+    def test_invalid_source_stamp_check_stops_before_compilation(self):
+        root, result = self.run_phase(0, 0, plan='xenon-native-v1', stamp_result=2)
+        self.assertEqual(2, result.returncode)
+        self.assertFalse((root / 'timeout-args').exists())
+
+    def test_matching_test_stamp_can_continue_browser_build(self):
+        root, result = self.run_phase(0, 0, plan='xenon-native-v1', stamp_result=0)
+        self.assertEqual(0, result.returncode)
+        self.assertEqual(['chrome', 'chrome/installer/mac'],
+                         (root / 'timeout-args').read_text().splitlines()[-2:])
+
+    def test_runner_success_without_passing_stamp_cannot_build_browser(self):
+        root, result = self.run_phase(0, 0, plan='xenon-native-v1', stamp_result=1)
+        self.assertEqual(1, result.returncode)
+        self.assertFalse((root / 'build_finished_arm64.log').exists())
+        self.assertNotIn('chrome/installer/mac', (root / 'timeout-args').read_text())
+
+    def test_unknown_validation_plan_cannot_bypass_tests(self):
+        root, result = self.run_phase(0, 0, plan='skip-tests')
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((root / 'timeout-args').exists())
 
 
 if __name__ == '__main__':

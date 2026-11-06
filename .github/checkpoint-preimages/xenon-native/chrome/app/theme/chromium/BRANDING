@@ -1,0 +1,10 @@
+COMPANY_FULLNAME=The Helium Authors
+COMPANY_SHORTNAME=The Helium Authors
+PRODUCT_FULLNAME=Helium Sidebar
+PRODUCT_SHORTNAME=Helium Sidebar
+PRODUCT_INSTALLER_FULLNAME=Helium Sidebar Installer
+PRODUCT_INSTALLER_SHORTNAME=Helium Sidebar Installer
+COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Helium Authors. All rights reserved.
+MAC_BUNDLE_ID=io.github.manavo.helium-sidebar
+MAC_CREATOR_CODE=Cr24
+MAC_TEAM_ID=
