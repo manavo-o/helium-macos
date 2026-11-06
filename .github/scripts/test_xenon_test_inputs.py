@@ -93,6 +93,110 @@ class TestInputRecoveryTest(unittest.TestCase):
         with mock.patch.object(subprocess, 'check_output', return_value=b"'../../third_party/@test/with space.ts'\nobj/generated.o\n"):
             restore.missing_inputs(self.source, ['browser_tests'])
 
+    def test_avatar_adaptation_matches_pinned_helium_interface_and_is_idempotent(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        item = data['adaptations'][0]
+        original = (root / '.github/checkpoint-preimages/xenon-test-fixtures/cr_profile_avatar_selector_test.ts').read_bytes()
+        self.assertEqual(item['before_sha256'], restore.digest(original))
+        path = self.source / item['path']
+        path.parent.mkdir(parents=True)
+        path.write_bytes(original)
+        records = restore.adapt_fixtures(self.source, [item])
+        result = path.read_bytes()
+        self.assertEqual(item['after_sha256'], restore.digest(result))
+        self.assertEqual(5, result.count(b'isCustomAvatar: false,'))
+        self.assertEqual(5, result.count(b'isPlaceholder: false,'))
+        # Only add the two stock-avatar flags, preserving every assertion and
+        # all selection values in the Chromium fixture.
+        self.assertEqual(original, result.replace(
+            b'        isCustomAvatar: false,\n        isPlaceholder: false,\n', b''))
+        self.assertEqual(records, restore.adapt_fixtures(self.source, [item]))
+
+    def test_all_avatar_fixtures_have_verified_preimages_and_preserve_selection(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        self.assertEqual(4, len(data['adaptations']))
+        for item in data['adaptations']:
+            original = (root / item['preimage']).read_bytes()
+            self.assertEqual(item['before_sha256'], restore.digest(original))
+            path = self.source / item['path']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(original)
+        restore.adapt_fixtures(self.source, data['adaptations'])
+        total = 0
+        for item in data['adaptations']:
+            before = (root / item['preimage']).read_text()
+            after = (self.source / item['path']).read_text()
+            self.assertEqual(item['after_sha256'], restore.digest(after.encode()))
+            self.assertEqual(before.count('selected: true'), after.count('selected: true'))
+            self.assertEqual(before.count('selected: false'), after.count('selected: false'))
+            self.assertEqual(before.count('isGaiaAvatar: true'), after.count('isGaiaAvatar: true'))
+            self.assertEqual(before.count('isGaiaAvatar:'), after.count('isCustomAvatar: false'))
+            total += after.count('isCustomAvatar: false')
+        self.assertEqual(14, total)
+        settings = (self.source / 'chrome/test/data/webui/settings/people_page_manage_profile_test.ts').read_text()
+        self.assertIn("this.methodCalled('setCustomAvatarFromFile', dataUrl)", settings)
+
+    def test_adaptation_rejects_unknown_source_without_replacing_it(self):
+        path = self.source / 'example.ts'
+        path.write_bytes(b'unexpected')
+        with self.assertRaisesRegex(ValueError, 'preimage'):
+            restore.adapt_fixtures(self.source, [dict(path='example.ts',
+                before_sha256=restore.digest(b'before'), after_sha256=restore.digest(b'after'))])
+        self.assertEqual(b'unexpected', path.read_bytes())
+
+    def test_adaptation_validates_all_results_before_any_write(self):
+        for name in ('first.ts', 'second.ts'):
+            (self.source / name).write_bytes(b'before')
+        valid = dict(path='first.ts', before_sha256=restore.digest(b'before'),
+                     after_sha256=restore.digest(b'after'),
+                     replacements=[dict(before='before', after='after', count=1)])
+        invalid = dict(valid, path='second.ts', after_sha256=restore.digest(b'wrong'))
+        with self.assertRaisesRegex(ValueError, 'postimage'):
+            restore.adapt_fixtures(self.source, [valid, invalid])
+        self.assertEqual(b'before', (self.source / 'first.ts').read_bytes())
+
+    def test_adaptation_rejects_wrong_occurrence_count(self):
+        (self.source / 'example.ts').write_bytes(b'before')
+        with self.assertRaisesRegex(ValueError, 'occurrence'):
+            restore.adapt_fixtures(self.source, [dict(path='example.ts',
+                before_sha256=restore.digest(b'before'), after_sha256=restore.digest(b'after'),
+                replacements=[dict(before='before', after='after', count=2)])])
+
+    def test_legacy_fixture_stamp_migrates_and_resumes_without_downloads(self):
+        root = self.source / 'ci'
+        source = root / 'build/src'
+        output = source / 'out/Default'
+        output.mkdir(parents=True)
+        (source / 'example.ts').write_bytes(b'before')
+        (root / 'helium-chromium').mkdir()
+        (root / 'helium-chromium/chromium_version.txt').write_text('test-version')
+        manifest = dict(chromium_version='test-version', packages=[])
+        old_signature = restore.digest((json.dumps(manifest, indent=2) + '\n').encode())
+        item = dict(path='example.ts', before_sha256=restore.digest(b'before'),
+                    after_sha256=restore.digest(b'after'),
+                    replacements=[dict(before='before', after='after', count=1)])
+        manifest['adaptations'] = [item]
+        (root / '.github/scripts').mkdir(parents=True)
+        (root / '.github/xenon-test-inputs.json').write_text(json.dumps(manifest, indent=2) + '\n')
+        stamp = output / 'xenon-test-inputs.json'
+        stamp.write_text(json.dumps(dict(signature=old_signature,
+            files={'example.ts': restore.digest(b'before')})))
+        with mock.patch.object(restore, '__file__', str(root / '.github/scripts/restore.py')), \
+             mock.patch.object(restore.urllib.request, 'urlopen') as download, \
+             mock.patch.object(restore, 'missing_inputs'):
+            restore.main()
+            self.assertEqual(b'after', (source / 'example.ts').read_bytes())
+            migrated = json.loads(stamp.read_text())
+            self.assertEqual(item['after_sha256'], migrated['files']['example.ts'])
+            restore.main()
+            download.assert_not_called()
+            self.assertEqual(migrated, json.loads(stamp.read_text()))
+            (source / 'example.ts').write_bytes(b'corrupted')
+            with self.assertRaisesRegex(ValueError, 'Retained test inputs changed'):
+                restore.main()
+
     def test_manifest_matches_current_version_and_pins_every_package(self):
         root = Path(__file__).resolve().parents[2]
         data = json.loads((root / '.github/xenon-test-inputs.json').read_text())

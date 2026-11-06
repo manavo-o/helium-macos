@@ -65,6 +65,37 @@ def install(source, package, files):
     return restored
 
 
+def adapt_fixtures(source, adaptations):
+    # Adapt only explicit, hashed test fixtures to the pinned Helium interface.
+    # Validate every preimage and result before changing any fixture.
+    pending = []
+    records = {}
+    for item in adaptations:
+        relative = safe_path(item['path'])
+        path = source / relative
+        if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+            raise ValueError('Symlink in fixture adaptation: ' + relative)
+        original = path.read_bytes()
+        if digest(original) == item['after_sha256']:
+            records[relative] = item['after_sha256']
+            continue
+        if digest(original) != item['before_sha256']:
+            raise ValueError('Fixture adaptation preimage differs: ' + relative)
+        updated = original
+        for change in item['replacements']:
+            before, after = change['before'].encode(), change['after'].encode()
+            if updated.count(before) != change['count']:
+                raise ValueError('Fixture adaptation occurrence count differs: ' + relative)
+            updated = updated.replace(before, after)
+        if digest(updated) != item['after_sha256']:
+            raise ValueError('Fixture adaptation postimage differs: ' + relative)
+        pending.append((path, updated))
+        records[relative] = item['after_sha256']
+    for path, updated in pending:
+        path.write_bytes(updated)
+    return records
+
+
 def missing_inputs(source, targets):
     output = source / 'out/Default'
     # -t inputs only reads the existing build graph; it does not compile or run
@@ -94,7 +125,12 @@ def main():
     restored = {}
     if stamp.exists():
         prior = json.loads(stamp.read_text())
-        if prior.get('signature') == signature:
+        # Accept the pre-adaptation stamp only when the package manifest is
+        # byte-identical to the original pinned policy. Verify every retained
+        # file before adapting it, then persist its new expected hash below.
+        package_manifest = {k: v for k, v in manifest.items() if k != 'adaptations'}
+        legacy_signature = digest((json.dumps(package_manifest, indent=2) + '\n').encode())
+        if prior.get('signature') in (signature, legacy_signature):
             restored = prior['files']
             if any(not (source / p).is_file() or digest((source / p).read_bytes()) != h
                    for p, h in restored.items()):
@@ -107,7 +143,8 @@ def main():
                 raise ValueError('Test-input archive hash differs: ' + package['name'])
             restored.update(install(source, package, unpack(data, package['format'])))
             print('Verified test-input package: ' + package['name'], flush=True)
-        stamp.write_text(json.dumps(dict(signature=signature, files=restored), sort_keys=True) + '\n')
+    restored.update(adapt_fixtures(source, manifest.get('adaptations', [])))
+    stamp.write_text(json.dumps(dict(signature=signature, files=restored), sort_keys=True) + '\n')
     missing_inputs(source, ['browser_tests',
                            'chrome/browser/ui/views/tabs/vertical:arc_routing_tests',
                            'ui/views:arc_bubble_lifecycle_tests'])

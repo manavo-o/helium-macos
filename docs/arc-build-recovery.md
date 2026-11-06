@@ -1,5 +1,41 @@
 # Incremental Arc-style Helium builds
 
+## Restored avatar-fixture compatibility — November 6, 2026
+
+Run [42294427007](https://github.com/manavo-o/helium-macos/actions/runs/42294427007)
+passed fixture restoration and graph verification, then failed in the WebUI
+`cr_elements` TypeScript test target. Its five TS2739 errors came from upstream
+Chromium avatar objects missing `isCustomAvatar` and `isPlaceholder`, which
+Helium's existing custom-avatar patches require on `AvatarIcon`. No browser
+regression suite ran. The failed run retained its generated and compiled outputs.
+
+The fixture restoration manifest now records explicit adaptations for four
+upstream avatar fixtures (14 avatar objects) and the corresponding settings
+mock's custom-avatar method. This changes test fixtures only. Product interfaces
+are not weakened, assertions are retained, and no test target is skipped.
+Exact upstream preimages are retained under
+`.github/checkpoint-preimages/xenon-test-fixtures/`. Each adaptation verifies the
+original file hash, replacement occurrence counts and final file hash before
+writing; all outputs are checked before any fixture changes. An already adapted
+file is accepted only by its exact postimage hash.
+
+The previous fixture stamp migrates only when its package manifest exactly
+matches the original pinned policy and every retained file still matches its
+recorded hash. The stamp then records the adapted hashes for later phases.
+Browser-source, GN and compiled-output preservation remain unchanged; these
+explicitly audited test fixtures are the exception to leaving restored files
+untouched. A targeted local type check reproduced all five original errors and
+then passed all 14 updated objects against the actual Helium interface, using
+the pinned TypeScript compiler. This was not a full WebUI/browser test build.
+61 lightweight checks passed, including 15 fixture recovery/compatibility cases.
+
+Continuation selects checkpoint `13542957750` from failed run `42294427007`,
+SHA-256 `43eede4ba1c68538b03224dc99539ec093f08d479fc1fcedbcd41fb16b3bbb69`.
+[Audit 42298748071](https://github.com/manavo-o/helium-macos/actions/runs/42298748071)
+verified its archive, 25 product-source postimages and all four original avatar
+fixtures. The resumed build preserves GN and compiled outputs, verifies the
+retained fixture stamp, applies the exact adaptations and continues fresh tests.
+
 ## Missing test-source recovery — November 6, 2026
 
 Run [42260582785](https://github.com/manavo-o/helium-macos/actions/runs/42260582785)
@@ -15,8 +51,9 @@ restores the required fixture packages from immutable Chromium revision
 33 MB font object and generation pinned in Chromium DEPS. The manifest binds
 file names and bytes; Gitiles archive request timestamps are deliberately
 excluded from the content digest. The font archive additionally retains its
-DEPS SHA-256. Existing prepared files, GN configuration and compiled outputs
-are never overwritten. The MEI binary is restored solely as a test dependency;
+DEPS SHA-256. Existing product sources, GN configuration and compiled outputs
+are never overwritten; the explicit fixture adaptations above use verified
+preimages and postimages. The MEI binary is restored solely as a test dependency;
 the inherited production dependency removals remain in effect.
 
 A read-only Ninja input-graph check rejects remaining missing source inputs
