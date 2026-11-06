@@ -128,13 +128,18 @@ def main():
         # Accept the pre-adaptation stamp only when the package manifest is
         # byte-identical to the original pinned policy. Verify every retained
         # file before adapting it, then persist its new expected hash below.
-        package_manifest = {k: v for k, v in manifest.items() if k != 'adaptations'}
+        package_manifest = {k: v for k, v in manifest.items() if k not in ('adaptations', 'previous_policy_sha256')}
         legacy_signature = digest((json.dumps(package_manifest, indent=2) + '\n').encode())
-        if prior.get('signature') in (signature, legacy_signature):
+        accepted_policies = {signature, legacy_signature}
+        if manifest.get('previous_policy_sha256'):
+            accepted_policies.add(manifest['previous_policy_sha256'])
+        if prior.get('signature') in accepted_policies:
             restored = prior['files']
             if any(not (source / p).is_file() or digest((source / p).read_bytes()) != h
                    for p, h in restored.items()):
                 raise ValueError('Retained test inputs changed; refusing reuse.')
+        else:
+            raise ValueError('Unknown retained fixture policy; refusing unchecked reuse.')
     if not restored:
         for package in manifest['packages']:
             with urllib.request.urlopen(package['url'], timeout=120) as response:

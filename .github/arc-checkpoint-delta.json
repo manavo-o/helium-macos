@@ -1,9 +1,9 @@
 {
   "base_commit": "8f0097e9e90fdb2a32d0336b88f519aff27b64c3",
-  "checkpoint_artifact_id": "13542957750",
-  "checkpoint_artifact_sha256": "43eede4ba1c68538b03224dc99539ec093f08d479fc1fcedbcd41fb16b3bbb69",
-  "checkpoint_audit_run": "42298748071",
-  "checkpoint_commit": "ca6d340671a753ae794d8bb7c061ae707a299193",
+  "checkpoint_artifact_id": "13544622723",
+  "checkpoint_artifact_sha256": "a9a382d94b20864d3003fb05eea35b7390172908a72f84069cec9825719075af",
+  "checkpoint_audit_run": "42302890386",
+  "checkpoint_commit": "5d4a25d9bd488f2f8159a8349db62860aa2aa076",
   "checkpoint_contains_delta": true,
   "domain_inputs": {
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
@@ -16,7 +16,7 @@
       "sha256": "1a0e67616a7d4177b7403c05d76c35cd417a4b77d20e7cb40cb243112ac4ceb9"
     }
   ],
-  "source_run": "42294427007",
+  "source_run": "42299500645",
   "sources": {
     "chrome/app/theme/chromium/BRANDING": {
       "after": "8481abb6f6255fe4bf9d6106bf627e89167848d3e4127bf460ba820ec1ae5d23",

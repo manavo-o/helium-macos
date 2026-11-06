@@ -116,16 +116,17 @@ class TestInputRecoveryTest(unittest.TestCase):
     def test_all_avatar_fixtures_have_verified_preimages_and_preserve_selection(self):
         root = Path(__file__).resolve().parents[2]
         data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
-        self.assertEqual(4, len(data['adaptations']))
-        for item in data['adaptations']:
+        avatars = [item for item in data['adaptations'] if '/history/' not in item['path']]
+        self.assertEqual(4, len(avatars))
+        for item in avatars:
             original = (root / item['preimage']).read_bytes()
             self.assertEqual(item['before_sha256'], restore.digest(original))
             path = self.source / item['path']
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(original)
-        restore.adapt_fixtures(self.source, data['adaptations'])
+        restore.adapt_fixtures(self.source, avatars)
         total = 0
-        for item in data['adaptations']:
+        for item in avatars:
             before = (root / item['preimage']).read_text()
             after = (self.source / item['path']).read_text()
             self.assertEqual(item['after_sha256'], restore.digest(after.encode()))
@@ -137,6 +138,26 @@ class TestInputRecoveryTest(unittest.TestCase):
         self.assertEqual(14, total)
         settings = (self.source / 'chrome/test/data/webui/settings/people_page_manage_profile_test.ts').read_text()
         self.assertIn("this.methodCalled('setCustomAvatarFromFile', dataUrl)", settings)
+
+    def test_history_fixture_checks_removed_control_and_keeps_route_assertions(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        item = next(item for item in data['adaptations'] if '/history/' in item['path'])
+        original = (root / item['preimage']).read_bytes()
+        self.assertEqual(item['before_sha256'], restore.digest(original))
+        path = self.source / item['path']
+        path.parent.mkdir(parents=True)
+        path.write_bytes(original)
+        restore.adapt_fixtures(self.source, [item])
+        result = path.read_text()
+        self.assertNotIn('sidebar.$.syncedTabs', result)
+        self.assertEqual(4, result.count("assertNull(sidebar.shadowRoot.querySelector('#syncedTabs'))"))
+        self.assertEqual(3, result.count("navigateTo('/syncedTabs' + window.location.search, app)"))
+        self.assertEqual(original.count(b'test('), result.count('test('))
+        self.assertEqual(original.count(b'assertEquals('), result.count('assertEquals('))
+        self.assertIn("'chrome://history/syncedTabs?q=' + searchTerm", result)
+        self.assertIn("'chrome://history/?q=' + searchTerm", result)
+        self.assertEqual(item['after_sha256'], restore.digest(result.encode()))
 
     def test_adaptation_rejects_unknown_source_without_replacing_it(self):
         path = self.source / 'example.ts'
@@ -177,6 +198,7 @@ class TestInputRecoveryTest(unittest.TestCase):
         item = dict(path='example.ts', before_sha256=restore.digest(b'before'),
                     after_sha256=restore.digest(b'after'),
                     replacements=[dict(before='before', after='after', count=1)])
+        manifest['previous_policy_sha256'] = restore.digest(json.dumps(dict(manifest, adaptations=[])).encode())
         manifest['adaptations'] = [item]
         (root / '.github/scripts').mkdir(parents=True)
         (root / '.github/xenon-test-inputs.json').write_text(json.dumps(manifest, indent=2) + '\n')
@@ -193,6 +215,18 @@ class TestInputRecoveryTest(unittest.TestCase):
             restore.main()
             download.assert_not_called()
             self.assertEqual(migrated, json.loads(stamp.read_text()))
+            # A specifically pinned previous adaptation policy also migrates
+            # only after all retained files match their recorded hashes.
+            (source / 'example.ts').write_bytes(b'before')
+            stamp.write_text(json.dumps(dict(signature=manifest['previous_policy_sha256'],
+                files={'example.ts': restore.digest(b'before')})))
+            restore.main()
+            self.assertEqual(migrated, json.loads(stamp.read_text()))
+            for unknown in ('unknown policy', None):
+                stamp.write_text(json.dumps(dict(migrated, signature=unknown)))
+                with self.assertRaisesRegex(ValueError, 'Unknown retained fixture policy'):
+                    restore.main()
+            stamp.write_text(json.dumps(migrated))
             (source / 'example.ts').write_bytes(b'corrupted')
             with self.assertRaisesRegex(ValueError, 'Retained test inputs changed'):
                 restore.main()

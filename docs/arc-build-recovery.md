@@ -1,5 +1,40 @@
 # Incremental Arc-style Helium builds
 
+## History fixture follows Helium's supported navigation — November 6, 2026
+
+Run [42299500645](https://github.com/manavo-o/helium-macos/actions/runs/42299500645)
+failed in the history WebUI TypeScript project. Its three TS2339 errors reference
+`sidebar.$.syncedTabs`, removed by the inherited
+`ungoogled-chromium/remove-uneeded-ui.patch`. The last displayed `dwa_service.o`
+compile was not the failing command. The earlier avatar type errors were not
+reported again.
+
+The pinned history fixture now asserts the Synced Tabs control is absent and
+uses the existing direct `/syncedTabs` route, retaining the current search query.
+It no longer awaits a selection event from an element Helium does not render.
+All existing test cases and route/search assertions remain. Its exact upstream
+preimage, replacements and output digest are recorded alongside the avatar
+adaptations; the product UI/interface and regression gate are unchanged.
+
+The original member-access errors were reproduced against the actual Helium
+sidebar interface with the pinned TypeScript compiler; adapted accesses passed.
+This is a targeted type check, not a full history runtime test. All 62 lightweight
+checks passed, including 16 fixture recovery/compatibility cases.
+
+The fixture manifest explicitly pins the immediately preceding adaptation
+policy so an already restored checkpoint can migrate without downloading the
+same archives again. Every retained file still has to match its recorded hash.
+Unrecognized stamp policies now fail closed instead of falling back to unchecked
+existing files. New fixture hashes are retained for subsequent phases.
+
+Continuation uses checkpoint `13544622723` from run `42299500645`, SHA-256
+`a9a382d94b20864d3003fb05eea35b7390172908a72f84069cec9825719075af`.
+[Audit 42302890386](https://github.com/manavo-o/helium-macos/actions/runs/42302890386)
+verified its archive and 30 source hashes: 25 product postimages, four adapted
+avatar fixtures and the original history fixture. GN and compiled output remain
+retained; the new fixture policy verifies/migrates the previous stamp before
+continuing fresh regression compilation.
+
 ## Restored avatar-fixture compatibility — November 6, 2026
 
 Run [42294427007](https://github.com/manavo-o/helium-macos/actions/runs/42294427007)

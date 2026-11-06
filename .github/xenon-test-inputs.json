@@ -124,6 +124,41 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/signin/test_profile_customization_browser_proxy.ts"
+    },
+    {
+      "path": "chrome/test/data/webui/history/history_routing_test.ts",
+      "reason": "Helium removes the Synced Tabs sidebar link; retain route/search checks through the supported deep link and assert the absent control instead of clicking it or waiting for its selection event.",
+      "before_sha256": "1b8fa89cc5ce6e905af68593c2c8848443c6e9a3cae96740ad003c5cbf9423ef",
+      "after_sha256": "601c24e23de773a221f595f40cee998718ed1fec93733c403b82efe5af853cc8",
+      "replacements": [
+        {
+          "before": "import {assertEquals, assertTrue}",
+          "after": "import {assertEquals, assertNull, assertTrue}",
+          "count": 1
+        },
+        {
+          "before": "      navigateTo('/syncedTabs', app);\n      await eventToPromise('iron-select', sidebar.$.menu);",
+          "after": "      assertNull(sidebar.shadowRoot.querySelector('#syncedTabs'));\n      navigateTo('/syncedTabs', app);\n      await microtasksFinished();",
+          "count": 1
+        },
+        {
+          "before": "      sidebar.$.syncedTabs.click();\n      await eventToPromise('iron-select', sidebar.$.menu);",
+          "after": "      assertNull(sidebar.shadowRoot.querySelector('#syncedTabs'));\n      navigateTo('/syncedTabs' + window.location.search, app);",
+          "count": 1
+        },
+        {
+          "before": "        keyDownOn(sidebar.$.syncedTabs, 0, [], ' ');\n        await eventToPromise('iron-select', sidebar.$.menu);",
+          "after": "        assertNull(sidebar.shadowRoot.querySelector('#syncedTabs'));\n        navigateTo('/syncedTabs' + window.location.search, app);",
+          "count": 1
+        },
+        {
+          "before": "          sidebar.$.syncedTabs.click();\n          await eventToPromise('iron-select', sidebar.$.menu);",
+          "after": "          assertNull(sidebar.shadowRoot.querySelector('#syncedTabs'));\n          navigateTo('/syncedTabs' + window.location.search, app);",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/history/history_routing_test.ts"
     }
-  ]
+  ],
+  "previous_policy_sha256": "e2da34c151e60a2f35f9125e004d49b6f13d6a68aaf76bae37bb811f0325ae7c"
 }
