@@ -1,8 +1,8 @@
 {
-  "artifact_id": "13526212928",
-  "artifact_sha256": "2bf101ff9300ad0cefa9f3cd3c8164e26d7517b967749288e1792327199a0666",
-  "source_commit": "95bed08ff0bedf3cc05f56be7867e8d327c7999e",
-  "source_run": "42260582785",
+  "artifact_id": "13542957750",
+  "artifact_sha256": "43eede4ba1c68538b03224dc99539ec093f08d479fc1fcedbcd41fb16b3bbb69",
+  "source_commit": "ca6d340671a753ae794d8bb7c061ae707a299193",
+  "source_run": "42294427007",
   "sources": {
     "chrome/app/theme/chromium/BRANDING": "8481abb6f6255fe4bf9d6106bf627e89167848d3e4127bf460ba820ec1ae5d23",
     "chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts": "59e81f4fdd2cedcddec10ff61ebe536f3b67062115d8c94f2c9eb333c9d989aa",
@@ -28,6 +28,10 @@
     "chrome/browser/ui/views/toolbar/toolbar_view.cc": "008024d9f1458a53ad23fde9db8109fd4cf052565653ce2f7a6787f051d4e511",
     "chrome/browser/ui/views/toolbar/toolbar_view.h": "3e9dac4f0198d94a34b5c68d37e8a85e49076cd9dd67f226fd979d211adc7573",
     "chrome/installer/mac/signing/chromium_config.py": "660fb6bfb9f69ca7b0be93b76a3ade71d2b775684dd50b4efc3969fa7c29dcc8",
+    "chrome/test/data/webui/cr_elements/cr_profile_avatar_selector_test.ts": "6d58d3cc2a2141a800cf813974b41bf4d5f93ab9d84b59cb7effda6234533dad",
+    "chrome/test/data/webui/settings/people_page_manage_profile_test.ts": "4135b44fab86b8786077cb1a61646f8157bf3d3910f1b25dc588e2abe843b37c",
+    "chrome/test/data/webui/signin/test_manage_profiles_browser_proxy.ts": "aa48455a728d1443da730164a51a8cb3be5c5f3732b6e2b879848e125aaf98e0",
+    "chrome/test/data/webui/signin/test_profile_customization_browser_proxy.ts": "95eb7143d26c4ad5c3330e0648c826478ef5b9033eaf7b55fdac545a999e2e25",
     "extensions/browser/extension_prefs.cc": "6d6e218cd9290fe24f09e60867e7731a232ea7a08e0db44ca00e949fe7bf9048"
   }
 }
