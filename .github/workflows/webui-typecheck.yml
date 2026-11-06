@@ -1,5 +1,7 @@
 name: Check retained WebUI types without browser compilation
 on:
+  push:
+    branches: [codex/webui-typecheck]
   workflow_dispatch:
 permissions:
   contents: read
