@@ -158,7 +158,31 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/history/history_routing_test.ts"
+    },
+    {
+      "path": "chrome/test/data/webui/extensions/sidebar_test.ts",
+      "reason": "Helium removes the Chrome Web Store promotion; assert its absence while retaining all supported sidebar navigation and href checks.",
+      "before_sha256": "a459be5df779f182600697577c01ca039478d55c0f3a5749bf615ad8c7e03654",
+      "after_sha256": "08bf39650734a81477b0c9e90fd8db1d3b6a987909fe898586b0b9122dafa33d",
+      "replacements": [
+        {
+          "before": "import {assertDeepEquals, assertEquals, assertFalse, assertTrue}",
+          "after": "import {assertDeepEquals, assertEquals, assertFalse}",
+          "count": 1
+        },
+        {
+          "before": "        boundTestVisible('#moreExtensions', true);",
+          "after": "        assertFalse(!!sidebar.shadowRoot.querySelector('#moreExtensions'));",
+          "count": 1
+        },
+        {
+          "before": "    assertTrue(sidebar.$.moreExtensions.querySelector('a')!\n                   .getAttribute('href')!.includes('utm_source=ext_sidebar'));\n",
+          "after": "    assertFalse(!!sidebar.shadowRoot.querySelector('#moreExtensions'));\n",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/extensions/sidebar_test.ts"
     }
   ],
-  "previous_policy_sha256": "e2da34c151e60a2f35f9125e004d49b6f13d6a68aaf76bae37bb811f0325ae7c"
+  "previous_policy_sha256": "daf8ea5c623385033376dd7ff88091cdadd4ae7e7d44c65b4fa1e0c1135ab660"
 }

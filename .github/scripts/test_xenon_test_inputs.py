@@ -116,7 +116,9 @@ class TestInputRecoveryTest(unittest.TestCase):
     def test_all_avatar_fixtures_have_verified_preimages_and_preserve_selection(self):
         root = Path(__file__).resolve().parents[2]
         data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
-        avatars = [item for item in data['adaptations'] if '/history/' not in item['path']]
+        avatars = [item for item in data['adaptations'] if any(
+            marker in item['path'] for marker in (
+                'cr_profile_avatar_selector_test.ts', '/signin/', '/settings/'))]
         self.assertEqual(4, len(avatars))
         for item in avatars:
             original = (root / item['preimage']).read_bytes()
@@ -158,6 +160,26 @@ class TestInputRecoveryTest(unittest.TestCase):
         self.assertIn("'chrome://history/syncedTabs?q=' + searchTerm", result)
         self.assertIn("'chrome://history/?q=' + searchTerm", result)
         self.assertEqual(item['after_sha256'], restore.digest(result.encode()))
+
+    def test_extensions_fixture_checks_removed_promotion_and_keeps_navigation(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        item = next(item for item in data['adaptations'] if '/extensions/' in item['path'])
+        original = (root / item['preimage']).read_bytes()
+        self.assertEqual(item['before_sha256'], restore.digest(original))
+        path = self.source / item['path']
+        path.parent.mkdir(parents=True)
+        path.write_bytes(original)
+        records = restore.adapt_fixtures(self.source, [item])
+        result = path.read_text()
+        self.assertNotIn('sidebar.$.moreExtensions', result)
+        self.assertEqual(2, result.count("assertFalse(!!sidebar.shadowRoot.querySelector('#moreExtensions'))"))
+        for marker in ('test(', 'assertEquals(', 'assertDeepEquals(', "eventToPromise('close-drawer'"):
+            self.assertEqual(original.decode().count(marker), result.count(marker))
+        for route in ('Page.SHORTCUTS', 'Page.LIST', 'Page.SITE_PERMISSIONS'):
+            self.assertIn(route, result)
+        self.assertEqual(item['after_sha256'], restore.digest(result.encode()))
+        self.assertEqual(records, restore.adapt_fixtures(self.source, [item]))
 
     def test_adaptation_rejects_unknown_source_without_replacing_it(self):
         path = self.source / 'example.ts'

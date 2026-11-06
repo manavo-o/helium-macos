@@ -1,5 +1,34 @@
 # Incremental Arc-style Helium builds
 
+## Extensions sidebar fixture compatibility — November 6, 2026
+
+Run [42304152083](https://github.com/manavo-o/helium-macos/actions/runs/42304152083/job/128189207482)
+failed while compiling the Extensions WebUI test target, with TS2339 at
+`sidebar_test.ts:94`. The upstream fixture references `sidebar.$.moreExtensions`,
+which Helium deliberately removes through `remove-uneeded-ui.patch`. This is a
+fixture/interface mismatch; the history target passed this attempt.
+
+The pinned fixture adaptation now asserts the Web Store promotion is absent in
+both layout and href tests. All test cases, supported navigation, href checks,
+and drawer-close checks remain. The preimage was verified against the complete
+cached WebUI package content digest; exact preimage, replacement counts and
+postimage hash are recorded. The prior history-fixture policy is explicitly
+accepted for migration after retained file hashes verify. Browser sources, GN
+configuration, compiled output and regression requirements are unchanged.
+
+All 63 lightweight checks passed, including 17 fixture recovery cases, plus
+shell syntax and diff whitespace checks. A targeted check with the pinned
+TypeScript compiler and actual sidebar interface reproduced TS2339 for the old
+access and passed the replacement. This does not establish full browser
+compilation or runtime success.
+
+Continuation selects the failed run's newer checkpoint `13547086489`, archive
+SHA-256 `c3d778b3706abf3fa67cca30bbd16b49bd6b5c3f95e1d8bf86a77dd8a2d071c4`.
+[Audit 42308121652](https://github.com/manavo-o/helium-macos/actions/runs/42308121652)
+checks all 25 product postimages, five previously adapted fixtures and the
+original Extensions fixture. The build preserves GN and compiled output and
+migrates the verified fixture policy before fresh regression compilation.
+
 ## History fixture follows Helium's supported navigation — November 6, 2026
 
 Run [42299500645](https://github.com/manavo-o/helium-macos/actions/runs/42299500645)
