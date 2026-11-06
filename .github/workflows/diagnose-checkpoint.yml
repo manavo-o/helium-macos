@@ -1,4 +1,4 @@
-name: Audit Arc checkpoint source (Linux only)
+name: Audit Xenon checkpoint source (Linux only)
 on:
   workflow_dispatch:
 permissions:
@@ -11,51 +11,59 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Read expected source manifest
+      - uses: actions/checkout@v4
+      - name: Read pinned checkpoint and expected source hashes
+        id: checkpoint
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/contents/.github/arc-checkpoint-delta.json?ref=$GITHUB_SHA" --jq .content | base64 --decode > manifest.json
           python3 - <<'PY'
-          import json
+          import json, os, re
           from pathlib import Path
-          data = json.loads(Path('manifest.json').read_text())
+          data = json.loads(Path('.github/xenon-checkpoint-audit.json').read_text())
+          assert re.fullmatch(r'[0-9]+', data['artifact_id'])
+          assert re.fullmatch(r'[0-9a-f]{64}', data['artifact_sha256'])
+          assert all(not p.startswith('/') and '..' not in Path(p).parts for p in data['sources'])
           Path('paths.txt').write_text(''.join('src/' + path + '\n' for path in data['sources']))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('artifact_id=' + data['artifact_id'] + '\n')
+              output.write('sha256=' + data['artifact_sha256'] + '\n')
           PY
-      - name: Download and verify successful checkpoint
+      - name: Download and verify retained checkpoint
+        env:
+          ARTIFACT_ID: ${{ steps.checkpoint.outputs.artifact_id }}
+          ARCHIVE_SHA: ${{ steps.checkpoint.outputs.sha256 }}
         run: |
-          gh api --allow-escape-sequences "repos/$GITHUB_REPOSITORY/actions/artifacts/13347726608/zip" > checkpoint.zip
-          echo 'f8d20e3d0586a9ffdaa0dcec4885cad9e6e2875cfe97f6a816c29438fc72bd15  checkpoint.zip' | sha256sum -c -
-      - name: Extract source files without restoring build outputs
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > checkpoint.zip
+          echo "$ARCHIVE_SHA  checkpoint.zip" | sha256sum -c -
+      - name: Extract only requested source files and verify every preimage
         run: |
           mkdir -p checkpoint-sources
+          # Per-file checks remain mandatory even if the extraction pipe exits early.
           set +e
           unzip -p checkpoint.zip build_src.tar.zst | tar --zstd -xf - -C checkpoint-sources -T paths.txt 2> extraction.log
           set -e
           python3 - <<'PY'
-          import hashlib
-          import json
+          import hashlib, json
           from pathlib import Path
-          manifest = json.loads(Path('manifest.json').read_text())
-          report = {}
-          for path, values in manifest['sources'].items():
+          config = json.loads(Path('.github/xenon-checkpoint-audit.json').read_text())
+          report = dict(source_run=config['source_run'], source_commit=config['source_commit'],
+                        artifact_id=config['artifact_id'], artifact_sha256=config['artifact_sha256'], sources={})
+          for path, expected in config['sources'].items():
               file = Path('checkpoint-sources/src') / path
               actual = hashlib.sha256(file.read_bytes()).hexdigest() if file.is_file() else None
-              report[path] = dict(expected=values['before'], actual=actual,
-                                  matches=actual == values['before'])
-              if actual != values['before']:
-                  print('MISMATCH', path, 'expected=' + str(values['before']), 'actual=' + str(actual))
-              if values['before'] is not None and actual is None:
-                  raise SystemExit('Expected source file was not extracted: ' + path)
+              report['sources'][path] = dict(expected=expected, actual=actual, matches=actual == expected)
           Path('audit.json').write_text(json.dumps(report, indent=2) + '\n')
-          print('Compared', len(report), 'source paths;', sum(not r['matches'] for r in report.values()), 'mismatches')
+          bad = [path for path, result in report['sources'].items() if not result['matches']]
+          if bad:
+              raise SystemExit('Checkpoint preimages differ: ' + ', '.join(bad))
+          print('Verified', len(report['sources']), 'source preimages from the retained checkpoint.')
           PY
-          rm checkpoint.zip
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, verified 2026-11-04
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: arc-checkpoint-source-audit
+          name: xenon-checkpoint-source-audit
           retention-days: 7
           path: |
             checkpoint-sources/
             audit.json
-            manifest.json
+            .github/xenon-checkpoint-audit.json
             extraction.log

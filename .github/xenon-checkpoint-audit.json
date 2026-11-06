@@ -1,0 +1,33 @@
+{
+  "artifact_id": "13511187126",
+  "artifact_sha256": "fd5474ae6308b44065d92894c2b27343a00d1e76e3943fac1e15a6db9c6660b2",
+  "source_commit": "8f0097e9e90fdb2a32d0336b88f519aff27b64c3",
+  "source_run": "42156459305",
+  "sources": {
+    "chrome/app/theme/chromium/BRANDING": "0a297b28de0b285db34751a12a407736ece278960f65f90abc29ad0614e5d4d1",
+    "chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts": "6f7c5319a75aa5945cae8a67dccf8cae751a29952d5923265441f01aa0e49b3b",
+    "chrome/browser/ui/browser.cc": "5cbe9caf9acd876d90dba893c73cac921400cf8156fe651d7cd4b33be7e984e5",
+    "chrome/browser/ui/helium/arc_command_bar.h": "7fed8b6be41567b82ea67a8bba236d542c11a0144745c78daab7830c29ff1344",
+    "chrome/browser/ui/views/bubble_anchor_util_views.cc": "013004b459bcd5176b372c26d5d89d9f18b91fbbdd67a206bd3287331b696509",
+    "chrome/browser/ui/views/frame/browser_view.cc": "51f1dc54ad9edc687fcee51bad53053c2755f63f3ae29e90f64f2f57ce82f70e",
+    "chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc": "28fe97184d45dec2e93c29fa9e205f0f8f484a35b99a862f36efd76035e0e16b",
+    "chrome/browser/ui/views/frame/multi_contents_view.cc": "9a19c25f70637c38621f7d62b9dfa634367753eebb614812df08a12946d93aa4",
+    "chrome/browser/ui/views/frame/multi_contents_view.h": "f62a7b5c915b9e5184779a647378c130aadb1d114b047f48f973232b04d8927e",
+    "chrome/browser/ui/views/frame/themed_background.cc": "d3604c0190a39a55fc73487fc6822b810c28bf7f7b39cb644f79bd8467724f6e",
+    "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": "4071f2dd89451a28b2761545296538ff0cc586f37ca6faacba479ad640e5427c",
+    "chrome/browser/ui/views/side_panel/side_panel_coordinator.cc": "95495a0a7cc746def8bad6a5c3d96915bdae357d9c837350b28303d17dd5c4fc",
+    "chrome/browser/ui/views/side_panel/side_panel_coordinator.h": "7cd155b3de9beac86712915c180c99016439bc3d5ee5e3ad8afca1bdb4ca1b97",
+    "chrome/browser/ui/views/side_panel/side_panel_coordinator_browsertest.cc": "250425779a006fe4279a9233c43897b3ffaac286defa3fd0ada96d08776d959a",
+    "chrome/browser/ui/views/tabs/common/tab_view.cc": "0e5df75338738dee8f94b0dfe10a5c6ecc1e0044900eac7ae9809ca0d7bed2b5",
+    "chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc": "02fe93999e248fcaf49a8de514130d196ec171003fac625ce71d4d00555a4a04",
+    "chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc": "ab2d8f5c47f2d251a951f155fd455f342f58438cfca30fd69a7c2758b97619e9",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": "0c99f0130848bccee383fe6fef38d6ddd87afe00905b3a9eace1989f7effa852",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": "d70614cce282ea2d4b4f2a06feb0dcfaac231334b52f00c2e5fdc2c04f78803f",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift": "096c8e973a81457dc0f947ac71660157f5abaafd53454c8fbd0c91d3cd5fefd3",
+    "chrome/browser/ui/views/toolbar/arc_chat_button.cc": "886ff97b6d6e3104d49cb3138089b95ff030c396f79d4113f11f618c5dcb18a0",
+    "chrome/browser/ui/views/toolbar/toolbar_view.cc": "c3ccb50c695e1c73f295d9bbad470df807cd73b78f5d79fb60acdb651a5034a4",
+    "chrome/browser/ui/views/toolbar/toolbar_view.h": "4306977840aa654912eae1e33394a9fb8931963b4b51bb6bc5cb24386159c895",
+    "chrome/installer/mac/signing/chromium_config.py": "6d82f25f3757de590f3d1301194cfbd9f8a2638a860300cbd6a7fd4c5886ad67",
+    "extensions/browser/extension_prefs.cc": "617351f438463171c5d6b875793bfe50d36d4cc08c0dce4b250eb438552e6414"
+  }
+}
