@@ -1,0 +1,21 @@
+{
+  "artifact_id": "13549079273",
+  "artifact_sha256": "8b6f8a4887fd0527ac414c9e07f8e291c5ba12f63a9bdfeaa3644d3732f64596",
+  "source_checkpoint_artifact_id": "13548718413",
+  "source_run": "42313401383",
+  "chromium_revision": "a21ce95c24ce3964416f09ae1862f53f319eb4d0",
+  "source_dependencies": {
+    "third_party/lit/v3_0/cr_lit_element.ts": {
+      "sha256": "7e535d950035c0f0599c67b6e45d6909f64cc98f9e37c3117a49dd0b1367ac8a",
+      "preimage": ".github/checkpoint-preimages/xenon-type-deps/third_party/lit/v3_0/cr_lit_element.ts"
+    },
+    "third_party/lit/v3_0/deduping_mixin.ts": {
+      "sha256": "6d3c69acea392b43b81c7cbd317651c4ee5aff10f314b465a290c5672b3031c1",
+      "preimage": ".github/checkpoint-preimages/xenon-type-deps/third_party/lit/v3_0/deduping_mixin.ts"
+    },
+    "third_party/lit/v3_0/lit.ts": {
+      "sha256": "f5b4bb96f96fc7c78ece57b0364a3fb4a8eb14c80dd40b4d1dbda1b36eaee5cf",
+      "preimage": ".github/checkpoint-preimages/xenon-type-deps/third_party/lit/v3_0/lit.ts"
+    }
+  }
+}

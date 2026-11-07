@@ -24,7 +24,7 @@ class WebUITypeCheckTest(unittest.TestCase):
             'python3 ../../tools/typescript/ts_library.py --gen_dir gen/chrome/test/data/webui/example --in_files test.ts',
             'python3 ../../tools/typescript/ts_library.py --gen_dir gen/ui/webui/resources --in_files product.ts',
         ])
-        with mock.patch.object(checker.subprocess, 'check_output', return_value=commands) as graph, \
+        with mock.patch.object(checker.subprocess, 'check_output', return_value=commands.encode() + b'\nclang++ invalid-\xc3-path') as graph, \
              mock.patch.object(checker.subprocess, 'run') as run, contextlib.redirect_stdout(io.StringIO()):
             checker.prepare_projects(Path('/diagnostic/src'))
         self.assertEqual(['-t', 'commands', 'browser_tests'], graph.call_args.args[0][-3:])
@@ -55,7 +55,7 @@ class WebUITypeCheckTest(unittest.TestCase):
                 self.assertTrue(data['compilerOptions']['noEmit'])
                 self.assertFalse(data['compilerOptions']['incremental'])
                 self.assertNotIn('tsBuildInfoFile', data['compilerOptions'])
-                self.assertNotIn('references', data)
+                self.assertEqual([dict(path='dependency.json')], data['references'])
                 self.assertEqual({'chrome://example/*': ['types/*']}, data['compilerOptions']['paths'])
                 self.assertEqual(['preprocessed/test.ts'], data['files'])
                 self.assertEqual(90, kwargs['timeout'])

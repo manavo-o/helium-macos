@@ -1,5 +1,6 @@
 name: Check retained WebUI types without browser compilation
 on:
+  workflow_call:
   push:
     branches: [codex/webui-typecheck]
   workflow_dispatch:
@@ -21,7 +22,29 @@ jobs:
         run: |
           python3 .github/scripts/test_webui_types.py
           python3 .github/scripts/test_xenon_test_inputs.py
+      - name: Reuse verified diagnostic input bundle when checkpoint matches
+        id: inputs
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          policy = Path('.github/webui-typecheck-inputs.json')
+          reuse = False
+          if policy.exists():
+              data = json.loads(policy.read_text())
+              checkpoint = json.loads(Path('.github/xenon-checkpoint-audit.json').read_text())
+              reuse = data['source_checkpoint_artifact_id'] == checkpoint['artifact_id']
+              if reuse:
+                  with Path('diagnostic-inputs.zip').open('wb') as output:
+                      subprocess.run(['gh', 'api', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/artifacts/' + data['artifact_id'] + '/zip'], stdout=output, check=True)
+                  subprocess.run(['sha256sum', '-c', '-'], input=(data['artifact_sha256'] + '  diagnostic-inputs.zip\n').encode(), check=True)
+                  subprocess.run(['unzip', '-o', 'diagnostic-inputs.zip'], check=True)
+                  subprocess.run(['tar', '--zstd', '-xf', 'webui-typecheck-inputs.tar.zst'], check=True)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('reuse=' + str(reuse).lower() + '\n')
+          PY
       - name: Download and verify pinned diagnostic checkpoint
+        if: steps.inputs.outputs.reuse != 'true'
         run: |
           python3 - <<'PY'
           import json, subprocess
@@ -32,6 +55,7 @@ jobs:
           subprocess.run(['sha256sum', '-c', '-'], input=(d['artifact_sha256'] + '  checkpoint.zip\n').encode(), check=True)
           PY
       - name: Extract isolated type-check inputs only
+        if: steps.inputs.outputs.reuse != 'true'
         run: |
           python3 - <<'PY'
           import subprocess, tarfile
@@ -49,9 +73,10 @@ jobs:
                   fixture = str(p).startswith('src/chrome/test/data/webui/') and p.suffix in ('.ts', '.js', '.json')
                   definition = p.name.endswith('.d.ts') or (p.name.startswith('tsconfig') and p.suffix == '.json')
                   compiler = str(p).startswith('src/third_party/typescript/linux-amd64/')
+                  lit_source = p.suffix == '.ts' and str(p).startswith('src/third_party/lit/')
                   helper = p.suffix == '.py' and str(p).startswith(('src/tools/grit/', 'src/tools/typescript/', 'src/third_party/typescript/'))
                   metadata = p.name == 'package.json' or (p.suffix == '.ninja' and str(p).startswith('src/out/Default/'))
-                  if not (generated or fixture or definition or compiler or helper or metadata):
+                  if not (generated or fixture or definition or compiler or helper or metadata or lit_source):
                       continue
                   total += entry.size
                   if total > 1500000000:
@@ -64,6 +89,23 @@ jobs:
           if zstd.wait() or unzip.wait():
               raise RuntimeError('Checkpoint decompression failed')
           print('Extracted', total, 'bytes of type-check inputs; no compiled browser output extracted.')
+          PY
+      - name: Verify pinned source dependencies for project-reference resolution
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          data = json.loads(Path('.github/webui-typecheck-inputs.json').read_text())
+          assert data['chromium_revision'] == json.loads(Path('.github/xenon-test-inputs.json').read_text())['chromium_revision']
+          for path, item in data['source_dependencies'].items():
+              content = Path(item['preimage']).read_bytes()
+              assert hashlib.sha256(content).hexdigest() == item['sha256'], path
+              target = Path('diagnostic/src') / path
+              if target.exists():
+                  assert target.read_bytes() == content, path
+              else:
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(content)
           PY
       - name: Save small diagnostic inputs for local checks
         run: tar --zstd -cf webui-typecheck-inputs.tar.zst diagnostic

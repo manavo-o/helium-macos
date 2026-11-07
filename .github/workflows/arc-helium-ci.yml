@@ -34,11 +34,17 @@ jobs:
           python3 .github/scripts/test_arc_completion.py
           python3 .github/scripts/test_xenon_tests.py
           python3 .github/scripts/test_xenon_test_inputs.py
+          python3 .github/scripts/test_webui_types.py
           bash -n .github/scripts/github_build.sh .github/scripts/github_prepare_artifacts.sh
       - id: checkpoint
         run: python3 .github/scripts/github_repair_arc_checkpoint.py --select --require-checkpoint
-  build:
+  webui-types:
     needs: select-checkpoint
+    name: Check all WebUI types before macOS compilation
+    uses: ./.github/workflows/webui-typecheck.yml
+    secrets: inherit
+  build:
+    needs: [select-checkpoint, webui-types]
     name: Build on Xcode 27
     uses: ./.github/workflows/building.yml
     secrets: inherit

@@ -79,10 +79,16 @@ def adapt_fixtures(source, adaptations):
         if digest(original) == item['after_sha256']:
             records[relative] = item['after_sha256']
             continue
-        if digest(original) != item['before_sha256']:
+        intermediate = item.get('intermediate')
+        start = 0
+        if intermediate and digest(original) == intermediate['sha256']:
+            start = intermediate['replacements_applied']
+            if not 0 < start < len(item['replacements']):
+                raise ValueError('Invalid intermediate fixture policy: ' + relative)
+        elif digest(original) != item['before_sha256']:
             raise ValueError('Fixture adaptation preimage differs: ' + relative)
         updated = original
-        for change in item['replacements']:
+        for change in item['replacements'][start:]:
             before, after = change['before'].encode(), change['after'].encode()
             if updated.count(before) != change['count']:
                 raise ValueError('Fixture adaptation occurrence count differs: ' + relative)

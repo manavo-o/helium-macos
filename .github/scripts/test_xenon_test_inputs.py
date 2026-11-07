@@ -117,8 +117,8 @@ class TestInputRecoveryTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
         avatars = [item for item in data['adaptations'] if any(
-            marker in item['path'] for marker in (
-                'cr_profile_avatar_selector_test.ts', '/signin/', '/settings/'))]
+            'isCustomAvatar: false,' in replacement['after']
+            for replacement in item['replacements'])]
         self.assertEqual(4, len(avatars))
         for item in avatars:
             original = (root / item['preimage']).read_bytes()
@@ -188,6 +188,29 @@ class TestInputRecoveryTest(unittest.TestCase):
             restore.adapt_fixtures(self.source, [dict(path='example.ts',
                 before_sha256=restore.digest(b'before'), after_sha256=restore.digest(b'after'))])
         self.assertEqual(b'unexpected', path.read_bytes())
+
+    def test_all_pinned_fixtures_and_intermediate_checkpoint_migrate_exactly(self):
+        root = Path(__file__).resolve().parents[2]
+        items = json.loads((root / '.github/xenon-test-inputs.json').read_text())['adaptations']
+        for item in items:
+            original = (root / item['preimage']).read_bytes()
+            self.assertEqual(item['before_sha256'], restore.digest(original))
+            path = self.source / item['path']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            intermediate = item.get('intermediate')
+            if intermediate:
+                # Reproduce the exact previously committed adaptation retained
+                # by the checkpoint, rather than trusting an arbitrary stamp.
+                for change in item['replacements'][:intermediate['replacements_applied']]:
+                    original = original.replace(change['before'].encode(), change['after'].encode())
+                self.assertEqual(intermediate['sha256'], restore.digest(original))
+            path.write_bytes(original)
+        records = restore.adapt_fixtures(self.source, items)
+        for item in items:
+            result = (self.source / item['path']).read_bytes()
+            self.assertEqual(item['after_sha256'], restore.digest(result))
+            self.assertTrue(result.startswith(b'// Copyright'))
+        self.assertEqual(records, restore.adapt_fixtures(self.source, items))
 
     def test_appearance_fixture_uses_supported_upload_and_preserves_theme_cases(self):
         root = Path(__file__).resolve().parents[2]
