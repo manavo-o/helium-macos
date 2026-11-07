@@ -1,5 +1,30 @@
 # Incremental Arc-style Helium builds
 
+## TestingBrowserProcess SafeBrowsing and speech recognition override resolution — November 7, 2026
+
+Run [42367074897](https://github.com/manavo-o/helium-macos/actions/runs/42367074897)
+passed checkpoint selection and WebUI type preflight, resumed from checkpoint `13560839526`,
+compiled past the previous failure in `test_render_view_host.cc`, and compiled for 2 hours 18 minutes
+(over 9 GB of compiled object outputs) until failing at `obj/chrome/test/base/chrome_unit_test_suite/chrome_unit_test_suite.o`.
+Helium disables SafeBrowsing (`safe_browsing_mode = 0`), which leaves `safe_browsing_service()` conditionally
+excluded in `BrowserProcess` under `#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)`. In `chrome/test/base/testing_browser_process.h`
+and `testing_browser_process.cc`, `safe_browsing_service()`, `SetSafeBrowsingService()`, and `sb_service_` were
+unguarded, causing Clang to fail with `error: use of undeclared identifier 'safe_browsing'`.
+Additionally, Helium's `disable-ai.patch` removed `speech_recognition_small_expert_model_installer()` from
+`BrowserProcess`, causing Clang to fail on `TestingBrowserProcess::speech_recognition_small_expert_model_installer()`
+with `error: only virtual member functions can be marked 'override'`.
+
+The fixture adaptation policy now adapts `chrome/test/base/testing_browser_process.h` and
+`chrome/test/base/testing_browser_process.cc` to guard all SafeBrowsing members with `#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)`
+and remove `override` from `speech_recognition_small_expert_model_installer()`.
+Upstream preimages are pinned under `.github/checkpoint-preimages/xenon-test-fixtures/chrome/test/base/`.
+The previous policy stamp signature `16b7e65b...` from run `42367074897` is accepted.
+
+Continuation selects checkpoint `13575794182` from run `42367074897`, SHA-256
+`f821d5264e2a111bfc94ff133b8fb90e94dec28a81a3b783fd3d782b68e2b8bd`.
+GN configuration and all compiled C++ outputs are retained.
+
+
 ## Content TestPageBroadcast noise tokens resolution — November 7, 2026
 
 Run [42335347225](https://github.com/manavo-o/helium-macos/actions/runs/42335347225)

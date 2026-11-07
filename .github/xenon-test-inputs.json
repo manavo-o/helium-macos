@@ -771,9 +771,63 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/content/test/test_page_broadcast.cc"
+    },
+    {
+      "path": "chrome/test/base/testing_browser_process.h",
+      "reason": "Guard safe_browsing members with SAFE_BROWSING_AVAILABLE and drop override from speech_recognition_small_expert_model_installer when disabled.",
+      "before_sha256": "b11ca05a1bf31f5d3df9a1425f44c6a74bd58c3f1a3114f66cf8cf7b99ee9f27",
+      "after_sha256": "11c152d139e313234334e5cb70d3ea2e137bcea5b5c17b4eadd79bc1ed16d64b",
+      "replacements": [
+        {
+          "before": "  safe_browsing::SafeBrowsingService* safe_browsing_service() override;",
+          "after": "#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)\n  safe_browsing::SafeBrowsingService* safe_browsing_service() override;\n#endif",
+          "count": 1
+        },
+        {
+          "before": "  speech::SpeechRecognitionSmallExpertModelInstaller*\n  speech_recognition_small_expert_model_installer() override;",
+          "after": "  speech::SpeechRecognitionSmallExpertModelInstaller*\n  speech_recognition_small_expert_model_installer();",
+          "count": 1
+        },
+        {
+          "before": "  void SetSafeBrowsingService(safe_browsing::SafeBrowsingService* sb_service);",
+          "after": "#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)\n  void SetSafeBrowsingService(safe_browsing::SafeBrowsingService* sb_service);\n#endif",
+          "count": 1
+        },
+        {
+          "before": "  scoped_refptr<safe_browsing::SafeBrowsingService> sb_service_;",
+          "after": "#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)\n  scoped_refptr<safe_browsing::SafeBrowsingService> sb_service_;\n#endif",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/chrome/test/base/testing_browser_process.h"
+    },
+    {
+      "path": "chrome/test/base/testing_browser_process.cc",
+      "reason": "Guard SafeBrowsingService include and definitions with SAFE_BROWSING_AVAILABLE when disabled.",
+      "before_sha256": "5f1f26ed33c54462130fbce366ef2c5e682cfd33c1daba7b4551d089c891fe04",
+      "after_sha256": "bee2198f37162e91124e7392f1a2aabf8d09b1d1568f1a0de21f79793b44cbaf",
+      "replacements": [
+        {
+          "before": "#include \"chrome/browser/safe_browsing/safe_browsing_service.h\"",
+          "after": "#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)\n#include \"chrome/browser/safe_browsing/safe_browsing_service.h\"\n#endif",
+          "count": 1
+        },
+        {
+          "before": "safe_browsing::SafeBrowsingService*\nTestingBrowserProcess::safe_browsing_service() {\n  return sb_service_.get();\n}",
+          "after": "#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)\nsafe_browsing::SafeBrowsingService*\nTestingBrowserProcess::safe_browsing_service() {\n  return sb_service_.get();\n}\n#endif",
+          "count": 1
+        },
+        {
+          "before": "void TestingBrowserProcess::SetSafeBrowsingService(\n    safe_browsing::SafeBrowsingService* sb_service) {\n  sb_service_ = sb_service;\n}",
+          "after": "#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)\nvoid TestingBrowserProcess::SetSafeBrowsingService(\n    safe_browsing::SafeBrowsingService* sb_service) {\n  sb_service_ = sb_service;\n}\n#endif",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/chrome/test/base/testing_browser_process.cc"
     }
   ],
   "previous_policy_sha256": [
+    "16b7e65bd9d7a0fc882d718c18c36953e11ae23a917b4431a27f116617a1a28a",
     "055c418a98ceb33c72b952a0022775127733a868da12685adb3cf1c04a092daa",
     "184532d1847cee5f6e91d67ba7cb52db659481a66bcd97fedeacc66cfeceb0cc",
     "2dc00d113d3e7735fcd011deaf7254d424f52afe53f1b76fd390789ed13081ea",
