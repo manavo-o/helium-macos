@@ -90,13 +90,24 @@ jobs:
         if: ${{ inputs.resume }}
         run: rm -f 'build_finished_${{ inputs.arch }}.log'
       - name: Apply verified Arc source delta
+        id: arc-delta
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
-        run: python3 .github/scripts/github_repair_arc_checkpoint.py
+        run: |
+          python3 .github/scripts/github_repair_arc_checkpoint.py
+          python3 - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          path = Path('.github/arc-checkpoint-delta.json')
+          manifest = json.loads(path.read_text()) if path.is_file() else {}
+          if manifest.get('reuse_generated_build_config') is True:
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                  output.write('reuse_config=true\n')
+          PYTHON
       - name: Verify an exact checkpoint resume without regenerating GN
         if: ${{ inputs.resume && !inputs.repair_arc_checkpoint }}
         run: python3 .github/scripts/github_repair_arc_checkpoint.py --verify-after
       - name: Regenerate native UI build configuration
-        if: ${{ inputs.resume && inputs.repair_arc_checkpoint }}
+        if: ${{ inputs.resume && inputs.repair_arc_checkpoint && steps.arc-delta.outputs.reuse_config != 'true' }}
         run: |
           set -o pipefail
           source ./devutils/shared.sh

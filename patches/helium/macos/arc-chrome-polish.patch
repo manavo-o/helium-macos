@@ -1,0 +1,242 @@
+Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -892,7 +892,7 @@
+       (layout_data_->window_state == WindowState::kNormal ||
+        layout_data_->window_state == WindowState::kMaximized)) {
+     // Frame breathing room is independent of tab density.
+-    params.Inset(gfx::Insets(8));
++    params.Inset(gfx::Insets(6));
+   }
+ #endif
+   const bool vertical_right_aligned =
+@@ -1144,6 +1144,19 @@
+                                    zen.top_chrome_ratio);
+     }
+
++    // Floating tabs overlay the page, but must clear the visible toolbar and
++    // bookmarks bar throughout their reveal animations.
++    if (zen.floating_vertical_tab_strip && zen.TopChromeVisible()) {
++      auto strip = layout.children.find(views().vertical_tab_strip_region_view);
++      if (strip != layout.children.end()) {
++        gfx::Rect& bounds = strip->second.bounds;
++        const int top =
++            std::max(bounds.y(), top_container_layout.bounds.bottom() +
++                                     zen.vertical_tab_strip_top_padding);
++        bounds.set_height(std::max(0, bounds.bottom() - top));
++        bounds.set_y(top);
++      }
++    }
+   }
+
+   if (dynamic_tab_strip) {
+Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -913,10 +913,17 @@
+         GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) * ratio);
+   }
+
+-  // Leave a native window-control/header region above sidebar content.
+-  if (browser && browser->IsZenModeEnabledForLayout()) top_padding = std::max(top_padding, 38);
+-  interior_margin_ = gfx::Insets::TLBR(top_padding, 0, padding, 0);
+-  InvalidateLayout();
++  // The pinned strip starts beside the toolbar and needs its own header.
++  // Floating strips already clear the toolbar in the browser layout.
++  if (browser && browser->IsZenModeEnabledForLayout() &&
++      browser->IsZenModeSideChromePinned()) {
++    top_padding = std::max(top_padding, 38);
++  }
++  const gfx::Insets margin = gfx::Insets::TLBR(top_padding, 0, padding, 0);
++  if (interior_margin_ != margin) {
++    interior_margin_ = margin;
++    InvalidateLayout();
++  }
+ }
+
+ void VerticalTabStripRegionView::OnCollapseStateChanged(
+Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -231,6 +231,8 @@
+       if (is_in_split) {
+         SetBorder(views::CreateEmptyBorder(gfx::Insets(
+             kSplitViewContentPadding + ContentsContainerOutline::kThickness)));
++      } else if (BUILDFLAG(IS_MAC)) {
++        SetBorder(nullptr);
+       } else {
+         // Reserve the stroke inside the container's existing outer margin.
+         SetBorder(views::CreateEmptyBorder(
+@@ -243,7 +245,7 @@
+
+     if (is_in_split) {
+       container_outline_->UpdateState(is_active, is_highlighted);
+-    } else if (browser_view_->GetIsNormalType()) {
++    } else if (!BUILDFLAG(IS_MAC) && browser_view_->GetIsNormalType()) {
+       container_outline_->UpdateState(false, kColorToolbarContentAreaSeparator);
+     } else {
+       container_outline_->SetVisible(false);
+@@ -354,7 +356,7 @@
+       upper_left_radius, upper_right_radius, lower_right_radius,
+       lower_left_radius);
+   const int inner_padding = is_in_split_ ? kSplitViewContentPadding
+-                                         : ContentsContainerOutline::kThickness;
++                                         : GetInsets().top();
+   const gfx::RoundedCornersF inner_rounded_corners(
+       upper_left_radius - inner_padding, upper_right_radius - inner_padding,
+       lower_right_radius - inner_padding, lower_left_radius - inner_padding);
+Index: src/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+===================================================================
+--- a/chrome/browser/ui/views/toolbar/arc_chat_button.cc
++++ b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+@@ -96,7 +96,7 @@
+         browser_(browser),
+         extensions_(extensions) {
+     SetCornerRadius(10);
+-    SetCustomPadding(gfx::Insets::VH(6, 12));
++    SetCustomPadding(gfx::Insets::VH(4, 8));
+     SetImageModel(views::Button::STATE_NORMAL,
+                   ui::ImageModel::FromVectorIcon(vector_icons::kChatIcon,
+                                                  ui::kColorSysPrimary, 18));
+@@ -168,7 +168,7 @@
+   }
+   void Update() {
+     SetVisible(show_button_.GetValue());
+-    SetStyle(IsOpen() ? ui::ButtonStyle::kTonal : ui::ButtonStyle::kDefault);
++    SetStyle(IsOpen() ? ui::ButtonStyle::kTonal : ui::ButtonStyle::kText);
+     auto* registry = extensions::ExtensionRegistry::Get(browser_->GetProfile());
+     const bool available =
+         IsAllowed() &&
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+@@ -458,17 +458,24 @@
+ private struct AddressSurface: View {
+     @ObservedObject var state: AddressState
+     var body: some View {
+-        HStack(spacing: 6) {
+-            Button { state.event(1) } label: {
+-                Image(systemName: "slider.horizontal.3").font(.system(size: 12))
+-            }.help("Site information and permissions").accessibilityLabel("Site information and permissions")
+-                .disabled(state.title == "Search or Enter URL…")
++        HStack(spacing: 4) {
++            if state.title != "Search or Enter URL…" {
++                Button { state.event(1) } label: {
++                    Image(systemName: "slider.horizontal.3").font(.system(size: 12))
++                        .frame(width: 24, height: 28).contentShape(Rectangle())
++                }.help("Site information and permissions")
++                    .accessibilityLabel("Site information and permissions")
++            }
+             Button { state.event(0) } label: {
+                 Text(state.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
+-                    .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
++                    .padding(.horizontal, 4).frame(height: 28).contentShape(Rectangle())
+             }.help(state.url).accessibilityLabel("Address: " + state.title)
+                 .accessibilityHint("Open the centered address editor")
+-        }.buttonStyle(.plain).frame(maxWidth: .infinity, maxHeight: .infinity)
++        }
++        .buttonStyle(.plain)
++        .frame(maxWidth: 280)
++        .frame(maxWidth: .infinity, maxHeight: .infinity)
++        .ignoresSafeArea(.container, edges: .vertical)
+     }
+ }
+ @objc(XenonAddressHost) public final class XenonAddressHost: NSObject {
+@@ -482,22 +489,46 @@
+     }
+     @objc public func invalidate() { state.event = { _ in } }
+     @objc(updateWithTitle:url:) public func update(title: String, url: String) {
+-        state.title = title; state.url = url
++        if state.title != title { state.title = title }
++        if state.url != url { state.url = url }
+     }
+ }
+
+ private struct SidebarFooter: View {
+     @ObservedObject var state: AddressState
+     var body: some View {
+-        HStack(spacing: 20) {
+-            Button { state.event(0) } label: { Image(systemName: "paintpalette") }
+-                .help("Appearance").accessibilityLabel("Appearance")
+-            Button { state.event(1) } label: { Image(systemName: "arrow.down.circle") }
+-                .help("Downloads").accessibilityLabel("Downloads")
+-            Spacer(minLength: 0)
+-            Button { state.event(2) } label: { Image(systemName: "gearshape") }
+-                .help("Settings").accessibilityLabel("Settings")
+-        }.buttonStyle(.plain).padding(.horizontal, 12).frame(maxHeight: .infinity)
++        GeometryReader { geometry in
++            HStack(spacing: 4) {
++                if geometry.size.width >= 96 {
++                    footerButton("Appearance", symbol: "paintpalette", action: 0)
++                    footerButton("Downloads", symbol: "arrow.down.circle", action: 1)
++                    footerButton("Settings", symbol: "gearshape", action: 2)
++                    Spacer(minLength: 0)
++                } else {
++                    Menu {
++                        Button("Appearance") { state.event(0) }
++                        Button("Downloads") { state.event(1) }
++                        Button("Settings") { state.event(2) }
++                    } label: {
++                        Image(systemName: "ellipsis.circle")
++                            .accessibilityLabel("Sidebar tools")
++                    }
++                    .menuStyle(.borderlessButton)
++                    .menuIndicator(.hidden)
++                    .frame(maxWidth: .infinity)
++                }
++            }
++            .buttonStyle(.plain)
++            .padding(.horizontal, 4)
++            .frame(height: geometry.size.height)
++        }
++    }
++
++    private func footerButton(_ title: String, symbol: String, action: Int) -> some View {
++        Button { state.event(action) } label: {
++            Image(systemName: symbol)
++                .frame(width: 26, height: 28).contentShape(Rectangle())
++        }.help(title).accessibilityLabel(title)
+     }
+ }
+ @objc(XenonSidebarFooterHost) public final class XenonSidebarFooterHost: NSObject {
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -560,6 +560,7 @@
+     const std::u16string text(base::TrimWhitespace(textfield_->GetText(), base::TRIM_ALL));
+     if (text.empty()) return;
+     GURL destination;
++    bool ask_chatgpt = false;
+     if (force_search) {
+       auto* service = TemplateURLServiceFactory::GetForProfile(browser_->GetProfile());
+       if (service) destination = service->GenerateSearchURLForDefaultSearchProvider(text);
+@@ -567,10 +568,22 @@
+       AutocompleteMatch match;
+       AutocompleteClassifierFactory::GetForProfile(browser_->GetProfile())->Classify(
+           text, false, true, metrics::OmniboxEventProto::INVALID_SPEC, &match, nullptr);
+-      destination = AutocompleteMatch::IsSearchType(match.type) && AskChatGPT()
+-          ? helium::ChatGPTWebsiteProvider::BuildSubmissionURL(text) : match.destination_url;
++      ask_chatgpt = AutocompleteMatch::IsSearchType(match.type) && AskChatGPT();
++      destination = ask_chatgpt
++                        ? helium::ChatGPTWebsiteProvider::BuildSubmissionURL(text)
++                        : match.destination_url;
+     }
+     if (!destination.is_valid()) return;
++    if (ask_chatgpt) {
++      // ChatGPT submits the encoded prompt once its page is ready. Keep the
++      // source tab active and let the palette restore its previous focus.
++      NavigateParams params(browser_.get(), destination,
++                            ui::PAGE_TRANSITION_TYPED);
++      params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
++      GetWidget()->Close();
++      Navigate(&params);
++      return;
++    }
+     restore_focus_ = false;
+     GetWidget()->Close();
+     NavigateTo(destination);
