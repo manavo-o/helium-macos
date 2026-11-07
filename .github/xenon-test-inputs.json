@@ -701,7 +701,35 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/settings/people_page_sync_page_interactive_test.ts"
+    },
+    {
+      "path": "components/sync/test/test_sync_service.h",
+      "reason": "Helium replaces Chromium's local sync backend with custom sync engines and removes SyncService::IsLocalSyncEnabled; drop the override specifier from the test service mock.",
+      "before_sha256": "4f8cce6ffdc0b8f2a1acc277ac482fa31ccbc0ca3a6877142966388aa59cb1cd",
+      "after_sha256": "74eaf745b3b6e5d1b341f0daa29dc801c279f22b4bc46f6d3dfe48f352ec921d",
+      "replacements": [
+        {
+          "before": "  bool IsLocalSyncEnabled() const override;",
+          "after": "  bool IsLocalSyncEnabled() const;",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/components/sync/test/test_sync_service.h"
+    },
+    {
+      "path": "components/sync/test/mock_sync_service.h",
+      "reason": "Helium replaces Chromium's local sync backend with custom sync engines and removes SyncService::IsLocalSyncEnabled; drop the override specifier from the mock sync service method.",
+      "before_sha256": "78c34b7f8bb186fca8b4f8e431b0e6230af6ea74f2c5fd0a0bc3363ad65ece60",
+      "after_sha256": "fb283db85d45be748763ae0f6d4655800b3cc35fd12471148a7c322186fac910",
+      "replacements": [
+        {
+          "before": "  MOCK_METHOD(bool, IsLocalSyncEnabled, (), (const override));",
+          "after": "  MOCK_METHOD(bool, IsLocalSyncEnabled, (), (const));",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/components/sync/test/mock_sync_service.h"
     }
   ],
-  "previous_policy_sha256": "d0c61fb9d218f504a6df93a3b781814371012fa4b298a50fac6461130dccd376"
+  "previous_policy_sha256": "2dc00d113d3e7735fcd011deaf7254d424f52afe53f1b76fd390789ed13081ea"
 }

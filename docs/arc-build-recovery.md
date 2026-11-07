@@ -1,5 +1,25 @@
 # Incremental Arc-style Helium builds
 
+## Sync test support virtual override resolution — November 6, 2026
+
+Run [42327424270](https://github.com/manavo-o/helium-macos/actions/runs/42327424270)
+passed checkpoint selection, WebUI type preflight, and compiled past 1,300 C++
+targets in `browser_tests`, then failed at object 1,301 (`obj/components/sync/test_support/test_sync_user_settings.o`).
+Helium replaces Chromium's local sync backend with custom sync engines and removes
+`virtual bool IsLocalSyncEnabled() const = 0` from `SyncService`. In `components/sync/test/test_sync_service.h`
+and `mock_sync_service.h`, `IsLocalSyncEnabled()` was still marked `override`, causing Clang
+to fail with `error: only virtual member functions can be marked 'override'`.
+
+The fixture adaptation policy now adapts `components/sync/test/test_sync_service.h` and
+`components/sync/test/mock_sync_service.h` to drop the redundant `override` specifier while
+preserving the member function declarations and implementations. Upstream preimages are pinned
+under `.github/checkpoint-preimages/xenon-test-fixtures/components/sync/test/`. The previous
+adaptation stamp signatures from both runs are accepted.
+
+Continuation selects checkpoint `13557428050` from run `42327424270`, SHA-256
+`6f3305d7307318ff0545d619ada077fbcfe07df6e34c0a0c2bcce66a023a77db`.
+GN configuration and all 1,300+ compiled C++ outputs are retained.
+
 ## Customize Chrome appearance fixture ESLint resolution — November 6, 2026
 
 Run [42315887261](https://github.com/manavo-o/helium-macos/actions/runs/42315887261)

@@ -233,6 +233,25 @@ class TestInputRecoveryTest(unittest.TestCase):
                              result.count('appearanceElement.$.' + member))
         self.assertEqual(records, restore.adapt_fixtures(self.source, [item]))
 
+    def test_sync_test_support_fixtures_remove_obsolete_virtual_override(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        sync_items = [item for item in data['adaptations'] if 'components/sync/test/' in item['path']]
+        self.assertEqual(2, len(sync_items))
+        for item in sync_items:
+            original = (root / item['preimage']).read_bytes()
+            self.assertEqual(item['before_sha256'], restore.digest(original))
+            path = self.source / item['path']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(original)
+        restore.adapt_fixtures(self.source, sync_items)
+        test_h = (self.source / 'components/sync/test/test_sync_service.h').read_text()
+        self.assertNotIn('bool IsLocalSyncEnabled() const override;', test_h)
+        self.assertIn('bool IsLocalSyncEnabled() const;', test_h)
+        mock_h = (self.source / 'components/sync/test/mock_sync_service.h').read_text()
+        self.assertNotIn('MOCK_METHOD(bool, IsLocalSyncEnabled, (), (const override));', mock_h)
+        self.assertIn('MOCK_METHOD(bool, IsLocalSyncEnabled, (), (const));', mock_h)
+
     def test_adaptation_validates_all_results_before_any_write(self):
         for name in ('first.ts', 'second.ts'):
             (self.source / name).write_bytes(b'before')

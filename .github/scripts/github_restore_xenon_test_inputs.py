@@ -137,8 +137,11 @@ def main():
         package_manifest = {k: v for k, v in manifest.items() if k not in ('adaptations', 'previous_policy_sha256')}
         legacy_signature = digest((json.dumps(package_manifest, indent=2) + '\n').encode())
         accepted_policies = {signature, legacy_signature}
-        if manifest.get('previous_policy_sha256'):
-            accepted_policies.add(manifest['previous_policy_sha256'])
+        prev = manifest.get('previous_policy_sha256')
+        if isinstance(prev, list):
+            accepted_policies.update(prev)
+        elif prev:
+            accepted_policies.add(prev)
         if prior.get('signature') in accepted_policies:
             restored = prior['files']
             if any(not (source / p).is_file() or digest((source / p).read_bytes()) != h

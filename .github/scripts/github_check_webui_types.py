@@ -19,7 +19,8 @@ def check(source, policy, compiler, report_dir, ninja="ninja"):
         'restore', Path(__file__).with_name('github_restore_xenon_test_inputs.py'))
     restore = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(restore)
-    adaptations = json.loads(policy.read_text())['adaptations']
+    adaptations = [item for item in json.loads(policy.read_text())['adaptations']
+                   if (source / item['path']).exists()]
     restore.adapt_fixtures(source, adaptations)
     gen = source / 'out/Default/gen'
     if (source / 'out/Default/build.ninja').is_file():
