@@ -201,7 +201,7 @@
       "path": "chrome/test/data/webui/side_panel/customize_chrome/appearance_test.ts",
       "reason": "Helium removes image-specific buttons and uses editThemeButton for local wallpaper upload; retain theme assertions and verify supported upload behavior with either search flag.",
       "before_sha256": "075257d97900a2f94534aa60b7bd97a11f401a788c614034a56edf8d01665456",
-      "after_sha256": "ffc92a408ab25925bce7873e432ed304a9980f4d69e2befede8369729676f3f2",
+      "after_sha256": "3c88b906dadcd2822434881c1ed986690066975fb8b6d835d186b63535ca212c",
       "replacements": [
         {
           "before": "assertNotStyle(appearanceElement.$.uploadedImageButton, 'display', 'none');",
@@ -262,9 +262,23 @@
           "before": "'searched image button opens wallpaper search when feature enabled'",
           "after": "'wallpaper editing opens upload when search feature enabled'",
           "count": 1
+        },
+        {
+          "before": "test('wallpaper editing opens upload when search feature disabled', async () =>",
+          "after": "test('wallpaper editing opens upload when search feature disabled', () =>",
+          "count": 1
+        },
+        {
+          "before": "'wallpaper editing opens upload when search feature enabled',\n        async () =>",
+          "after": "'wallpaper editing opens upload when search feature enabled',\n        () =>",
+          "count": 1
         }
       ],
-      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/side_panel/customize_chrome/appearance_test.ts"
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/side_panel/customize_chrome/appearance_test.ts",
+      "intermediate": {
+        "sha256": "ffc92a408ab25925bce7873e432ed304a9980f4d69e2befede8369729676f3f2",
+        "replacements_applied": 12
+      }
     },
     {
       "path": "chrome/test/data/webui/new_tab_page/app_test.ts",
@@ -689,5 +703,5 @@
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/settings/people_page_sync_page_interactive_test.ts"
     }
   ],
-  "previous_policy_sha256": "c1bafc49bdc6202a5be050cfa4cc9a99ee25ca91a10973120b01d554176cb2a7"
+  "previous_policy_sha256": "d0c61fb9d218f504a6df93a3b781814371012fa4b298a50fac6461130dccd376"
 }

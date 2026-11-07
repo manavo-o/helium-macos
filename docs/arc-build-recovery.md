@@ -1,5 +1,31 @@
 # Incremental Arc-style Helium builds
 
+## Customize Chrome appearance fixture ESLint resolution — November 6, 2026
+
+Run [42315887261](https://github.com/manavo-o/helium-macos/actions/runs/42315887261)
+passed the WebUI type preflight and all freshly built Xenon regression suites,
+then failed during browser compilation in the WebUI Customize Chrome lint action
+(`//chrome/test/data/webui/side_panel/customize_chrome:lint`). The adapted
+appearance fixture replaced asynchronous wallpaper-upload event handlers with
+synchronous assertions without removing `async` from the test callbacks, triggering
+two `@typescript-eslint/require-await` errors at `appearance_test.ts:531` and `546`.
+
+The pinned fixture adaptation now drops the redundant `async` keyword from both
+synchronous test cases while retaining all theme assertions, upload clicks and
+local background handler verifications. Exact upstream preimage, intermediate
+checkpoint SHA-256 (`ffc92a40...`) and final postimage hash (`3c88b906...`) are
+pinned in the fixture manifest. An intermediate policy migrates the retained
+checkpoint fixture without re-downloading dependencies, and the previous policy
+stamp signature is accepted. Product sources, GN configuration, and Xenon test
+regressions remain unchanged.
+
+Continuation selects checkpoint `13552182064` from run `42315887261`, SHA-256
+`e5c18c3cffcba158ac235abe8c44fc75a722616a548cf60a4f103bc6e6f8ab76`.
+[Audit 42319413708](https://github.com/manavo-o/helium-macos/actions/runs/42319413708)
+verified its archive and all 39 source preimages, including the intermediate
+appearance fixture. The diagnostic input bundle is updated to artifact `13550627053`
+to match the new checkpoint. GN configuration and all compiled outputs are retained.
+
 ## Complete WebUI fixture type preflight — November 6, 2026
 
 Run [42309316403](https://github.com/manavo-o/helium-macos/actions/runs/42309316403/job/128206611150)
