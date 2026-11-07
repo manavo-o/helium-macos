@@ -1,0 +1,94 @@
+Index: src/chrome/browser/ui/views/frame/browser_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -3707,6 +3707,14 @@
+     return;
+   }
+ 
++  // A navigation can reuse the Home tab without changing tab selection.
++  // Refresh the surface when that navigation commits so it cannot cover
++  // the newly loaded page.
++  if (multi_contents_view_) {
++    multi_contents_view_->SetArcHomeVisible(
++        helium::IsArcHome(navigation_handle->GetWebContents()));
++  }
++
+   if (AppUsesUnframedMode() && !window_management_subscription_id_) {
+     SetWindowManagementPermissionSubscriptionForUnframedMode(
+         navigation_handle->GetWebContents());
+Index: src/chrome/browser/ui/views/frame/multi_contents_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -279,9 +279,13 @@
+ 
+ void MultiContentsView::SetArcHomeVisible(bool visible) {
+   visible = visible && !IsInSplitView();
++  if (arc_home_view_->GetVisible() == visible) {
++    return;
++  }
+   arc_home_view_->SetVisible(visible);
+-  for (auto& container : contents_container_views_)
++  for (auto& container : contents_container_views_) {
+     container->contents_view()->SetVisible(!visible);
++  }
+   InvalidateLayout();
+ }
+ 
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -19,6 +19,7 @@
+ #include "chrome/browser/ui/browser_tabstrip.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/contents_web_view.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/interactive_test_utils.h"
+@@ -28,6 +29,7 @@
+ #include "components/search_engines/template_url_service.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/test/browser_test.h"
++#include "content/public/test/test_navigation_observer.h"
+ #include "content/public/test/url_loader_interceptor.h"
+ #include "ui/events/keycodes/keyboard_codes.h"
+ #include "ui/views/controls/textfield/textfield.h"
+@@ -250,15 +252,28 @@
+ 
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, HomeSubmissionReusesEmptySlot) {
+   chrome::AddTabAt(browser(), GURL("chrome://newtab/"), -1, true);
+-  const int count = browser()->GetTabStripModel()->count();
+-  auto* palette = OpenPalette();
+-  ASSERT_TRUE(palette);
++  auto* tabs = browser()->GetTabStripModel();
++  auto* contents = tabs->GetActiveWebContents();
++  auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
++  auto* contents_view =
++      browser_view->multi_contents_view()->GetActiveContentsView();
++  EXPECT_FALSE(contents_view->GetVisible());
++
++  const int count = tabs->count();
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  const GURL destination("about:blank?from-home");
++  content::TestNavigationObserver navigation(destination);
++  navigation.WatchWebContents(contents);
+   helium::SetArcCommandBarInputForTesting(browser(), u"about:blank?from-home");
+   Key(palette, ui::VKEY_RETURN);
+-  base::RunLoop().RunUntilIdle();
+-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
+-  EXPECT_EQ(GURL("about:blank?from-home"),
+-      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
++
++  navigation.WaitForNavigationFinished();
++  EXPECT_TRUE(navigation.last_navigation_succeeded());
++  EXPECT_EQ(count, tabs->count());
++  EXPECT_EQ(contents, tabs->GetActiveWebContents());
++  EXPECT_EQ(destination, contents->GetLastCommittedURL());
++  EXPECT_TRUE(contents_view->GetVisible());
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, FinalTabCloseReturnsHome) {

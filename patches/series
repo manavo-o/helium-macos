@@ -44,3 +44,4 @@ helium/macos/arc-host-prefix-completion.patch
 helium/macos/arc-swift-runtime-link.patch
 helium/macos/xenon-native-refinement.patch
 helium/macos/arc-chrome-polish.patch
+helium/macos/arc-home-navigation-visibility.patch
