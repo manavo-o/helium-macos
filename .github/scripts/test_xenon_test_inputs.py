@@ -209,7 +209,7 @@ class TestInputRecoveryTest(unittest.TestCase):
         for item in items:
             result = (self.source / item['path']).read_bytes()
             self.assertEqual(item['after_sha256'], restore.digest(result))
-            self.assertTrue(result.startswith(b'// Copyright'))
+            self.assertTrue(result.startswith((b'// Copyright', b'/*\n * Copyright', b'/*\r\n * Copyright')))
         self.assertEqual(records, restore.adapt_fixtures(self.source, items))
 
     def test_appearance_fixture_uses_supported_upload_and_preserves_theme_cases(self):
@@ -251,6 +251,20 @@ class TestInputRecoveryTest(unittest.TestCase):
         mock_h = (self.source / 'components/sync/test/mock_sync_service.h').read_text()
         self.assertNotIn('MOCK_METHOD(bool, IsLocalSyncEnabled, (), (const override));', mock_h)
         self.assertIn('MOCK_METHOD(bool, IsLocalSyncEnabled, (), (const));', mock_h)
+
+    def test_dummy_page_holder_passes_noise_tokens(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        item = next(item for item in data['adaptations'] if item['path'].endswith('dummy_page_holder.cc'))
+        original = (root / item['preimage']).read_bytes()
+        self.assertEqual(item['before_sha256'], restore.digest(original))
+        path = self.source / item['path']
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(original)
+        restore.adapt_fixtures(self.source, [item])
+        result = path.read_text()
+        self.assertIn('/*noise_tokens=*/{}', result)
+        self.assertEqual(item['after_sha256'], restore.digest(result.encode()))
 
     def test_adaptation_validates_all_results_before_any_write(self):
         for name in ('first.ts', 'second.ts'):

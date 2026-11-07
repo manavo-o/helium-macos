@@ -729,7 +729,25 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/components/sync/test/mock_sync_service.h"
+    },
+    {
+      "path": "third_party/blink/renderer/core/testing/dummy_page_holder.cc",
+      "reason": "Helium adds HeliumNoiseTokenMap parameter to Page::CreateOrdinary; pass empty noise tokens map in dummy testing page holder.",
+      "before_sha256": "ef71fc59c5d38cbb019c0443c018bf97bf1a43adce8db9ad5b21c266a188951e",
+      "after_sha256": "97e302ef8402f7ebed07727ff251cab271bd6bd0ce5eedd39ff166d2dcd0fb66",
+      "replacements": [
+        {
+          "before": "  page_ = Page::CreateOrdinary(*chrome_client, /*opener=*/nullptr,\n                               *agent_group_scheduler_,\n                               base::UnguessableToken::Create(),\n                               /*color_provider_colors=*/nullptr);",
+          "after": "  page_ = Page::CreateOrdinary(*chrome_client, /*opener=*/nullptr,\n                               *agent_group_scheduler_,\n                               base::UnguessableToken::Create(),\n                               /*color_provider_colors=*/nullptr,\n                               /*noise_tokens=*/{});",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/third_party/blink/renderer/core/testing/dummy_page_holder.cc"
     }
   ],
-  "previous_policy_sha256": "2dc00d113d3e7735fcd011deaf7254d424f52afe53f1b76fd390789ed13081ea"
+  "previous_policy_sha256": [
+    "184532d1847cee5f6e91d67ba7cb52db659481a66bcd97fedeacc66cfeceb0cc",
+    "2dc00d113d3e7735fcd011deaf7254d424f52afe53f1b76fd390789ed13081ea",
+    "d0c61fb9d218f504a6df93a3b781814371012fa4b298a50fac6461130dccd376"
+  ]
 }

@@ -1,5 +1,26 @@
 # Incremental Arc-style Helium builds
 
+## Blink dummy page holder noise tokens resolution — November 6, 2026
+
+Run [42332944567](https://github.com/manavo-o/helium-macos/actions/runs/42332944567)
+passed checkpoint selection, WebUI type preflight, and compiled past target 1,301 in `browser_tests`,
+then failed at `third_party/blink/renderer/core/testing/dummy_page_holder.cc:106:65`.
+Helium's noise injection feature patches `Page::CreateOrdinary` in
+`third_party/blink/renderer/core/page/page.h` to accept a 6th parameter:
+`const HeliumNoiseTokenMap& noise_tokens`.
+While production callers in Blink and Chromium were updated to pass noise tokens, the test helper
+`DummyPageHolder::DummyPageHolder` was left unpatched with 5 arguments.
+
+The fixture adaptation policy now adapts `third_party/blink/renderer/core/testing/dummy_page_holder.cc`
+to pass `/*noise_tokens=*/{}` as the 6th argument to `Page::CreateOrdinary`.
+The upstream preimage is pinned under `.github/checkpoint-preimages/xenon-test-fixtures/third_party/blink/renderer/core/testing/dummy_page_holder.cc`.
+Previous policy stamp signatures are preserved.
+
+Continuation selects checkpoint `13558648047` from run `42332944567`, SHA-256
+`7ee7e172c6d57385f2fc59f41b0207ec9c418df1200bd3d7335fbb49c31104dd`.
+GN configuration and all compiled C++ outputs are retained.
+
+
 ## Sync test support virtual override resolution — November 6, 2026
 
 Run [42327424270](https://github.com/manavo-o/helium-macos/actions/runs/42327424270)
