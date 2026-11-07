@@ -119,6 +119,21 @@ def missing_inputs(source, targets):
         raise ValueError('Unrestored build inputs (refusing compilation): ' + ', '.join(missing[:30]))
 
 
+def fetch_package_data(url, timeout=120, max_attempts=5):
+    import time
+    req = urllib.request.Request(
+        url, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+    for attempt in range(max_attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            if error.code in (500, 502, 503, 504, 429) and attempt < max_attempts - 1:
+                time.sleep(2 * (attempt + 1))
+                continue
+            raise
+
+
 def main():
     root = Path(__file__).resolve().parents[2]
     source = root / 'build/src'
@@ -151,8 +166,7 @@ def main():
             raise ValueError('Unknown retained fixture policy; refusing unchecked reuse.')
     if not restored:
         for package in manifest['packages']:
-            with urllib.request.urlopen(package['url'], timeout=120) as response:
-                data = response.read()
+            data = fetch_package_data(package['url'], timeout=120)
             if package.get('archive_sha256') and digest(data) != package['archive_sha256']:
                 raise ValueError('Test-input archive hash differs: ' + package['name'])
             restored.update(install(source, package, unpack(data, package['format'])))
