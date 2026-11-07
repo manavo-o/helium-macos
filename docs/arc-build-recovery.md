@@ -1,5 +1,49 @@
 # Incremental Arc-style Helium builds
 
+## Complete WebUI fixture type preflight — November 6, 2026
+
+Run [42309316403](https://github.com/manavo-o/helium-macos/actions/runs/42309316403/job/128206611150)
+passed the repaired Extensions test target, then failed with eight TS2339 errors
+in the Customize Chrome appearance fixture. Helium removes its uploaded/searched
+image buttons and binds the existing edit-theme button to local wallpaper upload.
+The fixture now checks that supported behavior with either wallpaper-search flag.
+
+A broader diagnostic now reads the retained Ninja graph without executing build
+actions, runs only WebUI fixture preprocessing with the saved macOS defines, and
+uses Chromium's pinned configuration generator up to its compiler boundary. It
+checks every generated WebUI TypeScript output target sequentially with no emit,
+without GN, browser compilation or linking. Project references and their module
+metadata are preserved. Exact pinned Lit source dependencies are retained for
+reference resolution and were verified against the immutable Chromium revision.
+The runner aggregates failures instead of stopping at the first project.
+
+The complete local pass exposed remaining New Tab and Settings fixture failures:
+removed controls/exports and mock fields missing from Helium's interfaces. Those
+fixtures now assert the removed UI is absent, use the supported DNT toggle and
+wallpaper interaction, and supply the required import, avatar, keyboard-settings
+and search-suggestion fields. Supported cases remain; the three obsolete Sync
+component suites become explicit no-export/no-registration tests. Their fixture
+files and build targets remain included. Product interfaces and the required Arc
+browser regressions are unchanged. All fixture preimages, replacement counts and
+postimage hashes remain pinned. An additional avatar-mock migration accepts only
+the exact earlier adapted hash and verifies the final postimage.
+
+All 92 WebUI TypeScript projects passed locally, one at a time, using the native
+compiler from the pinned prepared source. All 68 lightweight checks passed, along
+with workflow lint, shell syntax and whitespace checks. This is type checking,
+not a full WebUI runtime test or browser compilation. [GitHub preflight 42315657183](https://github.com/manavo-o/helium-macos/actions/runs/42315657183)
+also passed all 92 projects with the checkpoint's pinned Linux compiler. The same
+type preflight is now required by the Arc workflow before macOS build resources are allocated.
+
+Continuation selects checkpoint `13548718413` from run `42309316403`, SHA-256
+`ab4266078e811eaf1618f0b5a70900fab44ac0908c73868087cd1e9e624aa0cb`.
+[Audit 42312818184](https://github.com/manavo-o/helium-macos/actions/runs/42312818184)
+verified its archive and 32 source hashes, including the original appearance
+fixture and all previously adapted fixtures. GN and compiled output are retained.
+The diagnostic input bundle is separately hashed and reused only when its source
+checkpoint artifact matches the audit policy; otherwise diagnostics extract
+fresh inputs from the verified checkpoint.
+
 ## Extensions sidebar fixture compatibility — November 6, 2026
 
 Run [42304152083](https://github.com/manavo-o/helium-macos/actions/runs/42304152083/job/128189207482)
