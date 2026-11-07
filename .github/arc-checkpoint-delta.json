@@ -9,11 +9,11 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "f8d0d5991a2144b971706b973941b7fc6f6de8d924118e005f1956b4e3b80bc5",
+  "input_sha256": "10a2f411e6a4fed3a30288b176afac615d05997ee162fde1433043da9c2202f4",
   "patches": [
     {
       "path": "patches/helium/macos/arc-chrome-polish.patch",
-      "sha256": "46ae5ec4b2e8810d26af57813147b2ced3e6c7df673678fe1476c15bc0754cc8"
+      "sha256": "a89f2c9c7e00a7702b86b98c14ff3b5245a52e326db7daf24e3c35fcc8e5d420"
     }
   ],
   "reuse_generated_build_config": true,

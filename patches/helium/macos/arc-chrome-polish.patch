@@ -14,7 +14,7 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
 @@ -1144,6 +1144,19 @@
                                     zen.top_chrome_ratio);
      }
-
+ 
 +    // Floating tabs overlay the page, but must clear the visible toolbar and
 +    // bookmarks bar throughout their reveal animations.
 +    if (zen.floating_vertical_tab_strip && zen.TopChromeVisible()) {
@@ -29,7 +29,7 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
 +      }
 +    }
    }
-
+ 
    if (dynamic_tab_strip) {
 Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 ===================================================================
@@ -38,7 +38,7 @@ Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 @@ -913,10 +913,17 @@
          GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) * ratio);
    }
-
+ 
 -  // Leave a native window-control/header region above sidebar content.
 -  if (browser && browser->IsZenModeEnabledForLayout()) top_padding = std::max(top_padding, 38);
 -  interior_margin_ = gfx::Insets::TLBR(top_padding, 0, padding, 0);
@@ -55,7 +55,7 @@ Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +    InvalidateLayout();
 +  }
  }
-
+ 
  void VerticalTabStripRegionView::OnCollapseStateChanged(
 Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
 ===================================================================
@@ -71,7 +71,7 @@ Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
          // Reserve the stroke inside the container's existing outer margin.
          SetBorder(views::CreateEmptyBorder(
 @@ -243,7 +245,7 @@
-
+ 
      if (is_in_split) {
        container_outline_->UpdateState(is_active, is_highlighted);
 -    } else if (browser_view_->GetIsNormalType()) {
@@ -155,7 +155,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
 +        if state.url != url { state.url = url }
      }
  }
-
+ 
  private struct SidebarFooter: View {
      @ObservedObject var state: AddressState
      var body: some View {
