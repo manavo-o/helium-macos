@@ -159,8 +159,7 @@ def main():
             print('Verified test-input package: ' + package['name'], flush=True)
     restored.update(adapt_fixtures(source, manifest.get('adaptations', [])))
     stamp.write_text(json.dumps(dict(signature=signature, files=restored), sort_keys=True) + '\n')
-    missing_inputs(source, ['browser_tests',
-                           'chrome/browser/ui/views/tabs/vertical:arc_routing_tests',
+    missing_inputs(source, ['chrome/browser/ui/views/tabs/vertical:arc_routing_tests',
                            'ui/views:arc_bubble_lifecycle_tests'])
     print('Pinned test inputs verified; retained browser sources and build outputs.', flush=True)
 

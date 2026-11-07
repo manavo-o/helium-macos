@@ -98,7 +98,7 @@ class PhaseBudgetTest(unittest.TestCase):
         root, result = self.run_phase(0, 124, plan='xenon-native-v1')
         self.assertEqual(0, result.returncode)
         targets = (root / 'timeout-args').read_text()
-        self.assertIn('browser_tests', targets)
+        self.assertIn('chrome/browser/ui/views/tabs/vertical:arc_routing_tests', targets)
         self.assertIn('ui/views:arc_bubble_lifecycle_tests', targets)
         self.assertNotIn('chrome/installer/mac', targets)
         self.assertFalse((root / 'build_finished_arm64.log').exists())

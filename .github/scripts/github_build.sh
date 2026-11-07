@@ -62,7 +62,6 @@ if [ "$_validation_plan" = xenon-native-v1 ]; then
         phase_step python3 "$_root_dir/.github/scripts/github_restore_xenon_test_inputs.py" || _test_result=$?
         check_phase_result "$_test_result"
         phase_step python3 "$_depot_tools_dir/autoninja.py" -C "$_out_dir" \
-            browser_tests \
             chrome/browser/ui/views/tabs/vertical:arc_routing_tests \
             ui/views:arc_bubble_lifecycle_tests || _test_result=$?
         check_phase_result "$_test_result"

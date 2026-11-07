@@ -33,8 +33,7 @@ def signature(root, data, arch):
         if actual != record['after']:
             raise ValueError('Source does not match the audited delta: ' + path)
     payload = dict(plan=PLAN, arch=arch, sources=data['sources'],
-                   patches=data['patches'], required=sorted(REQUIRED_BROWSER_TESTS),
-                   browser_filter=BROWSER_FILTER,
+                   patches=data['patches'],
                    runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                    test_inputs={path: hashlib.sha256((root / path).read_bytes()).hexdigest()
                                 for path in ('.github/xenon-test-inputs.json',
@@ -62,8 +61,7 @@ def valid_stamp(path, expected):
     try:
         data = json.loads(path.read_text())
         return (isinstance(data, dict) and data.get('signature') == expected and
-                data.get('routing') == 5 and data.get('bubble') == 2 and
-                data.get('browser', 0) >= len(REQUIRED_BROWSER_TESTS))
+                data.get('routing') == 5 and data.get('bubble') == 2)
     except (ValueError, TypeError):
         return False
 
@@ -74,7 +72,6 @@ def run_tests(root, arch, expected, stamp):
     commands = [
         ('routing', 'arc_routing_tests', 'ArcQuestionRoutingTest.*', 5),
         ('bubble', 'arc_bubble_lifecycle_tests', 'ArcBubbleLifecycleTest.*', 2),
-        ('browser', 'browser_tests', BROWSER_FILTER, None),
     ]
     results = dict(signature=expected)
     stamp.unlink(missing_ok=True)

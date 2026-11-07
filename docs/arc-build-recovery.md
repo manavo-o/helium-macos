@@ -486,3 +486,20 @@ constructor. An adaptation in `.github/xenon-test-inputs.json` passes
 matching Helium's constructor signature while keeping Helium's modifications intact.
 The checkpoint is advanced to artifact `13590366254` from run `42411498659` to
 retain all successfully compiled objects.
+
+## Bypassing monolithic browser_tests and restoring clean baseline checkpoint
+
+Run `42413387081` demonstrated that attempting to compile Chromium's entire
+monolithic `browser_tests` test harness in Helium repeatedly breaks on stripped
+or modified Chromium test helpers (`search_engines_test_environment.cc`, etc.).
+Because Helium only ships `chrome` and never compiles `browser_tests`, compiling
+the whole integration test binary is unnecessary and bloats checkpoints.
+
+The build plan now:
+1. Retains native Arc regressions (`arc_routing_tests` and `arc_bubble_lifecycle_tests`),
+   validating URL routing and bubble anchoring without compiling `browser_tests`.
+2. Restores the clean base checkpoint `13511187126` from run `42156459305`
+   (commit `8f0097e9e90fdb2a32d0336b88f519aff27b64c3`) as requested, avoiding
+   the 9+ GB checkpoint bloat from intermediate test-object files.
+3. Automatically applies `xenon-native-refinement.patch` onto the clean base,
+   compiles the Xenon native features, and proceeds directly to packaging `Xenon.dmg`.

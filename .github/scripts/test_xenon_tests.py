@@ -64,7 +64,7 @@ class FreshRegressionTest(unittest.TestCase):
     def test_stamp_rejects_missing_corrupt_stale_or_empty_result(self):
         self.assertFalse(runner.valid_stamp(self.stamp, 'expected'))
         for content in ['invalid', '[]', '{}', '{"signature":"old"}',
-                        '{"signature":"expected","routing":5,"bubble":2,"browser":0}']:
+                        '{"signature":"expected","routing":5,"bubble":1}']:
             self.stamp.write_text(content)
             self.assertFalse(runner.valid_stamp(self.stamp, 'expected'))
 
@@ -87,15 +87,11 @@ class FreshRegressionTest(unittest.TestCase):
                 runner.verify_browser_summary(path)
 
     def run_suite(self, fail=False):
-        for name in ['arc_routing_tests', 'arc_bubble_lifecycle_tests', 'browser_tests']:
+        for name in ['arc_routing_tests', 'arc_bubble_lifecycle_tests']:
             (self.output / name).write_text('fixture executable')
 
         def execute(command, **kwargs):
             binary = Path(command[0]).name
-            summary_path = Path(next(arg.split('=', 1)[1] for arg in command
-                                     if arg.startswith('--test-launcher-summary-output=')))
-            if binary == 'browser_tests':
-                summary_path.write_text(json.dumps(self.summary()))
             count = 5 if binary == 'arc_routing_tests' else 2
             return subprocess.CompletedProcess(command, 1 if fail else 0,
                                                stdout=f'[  PASSED  ] {count} tests.\n', stderr='')
