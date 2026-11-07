@@ -266,6 +266,21 @@ class TestInputRecoveryTest(unittest.TestCase):
         self.assertIn('/*noise_tokens=*/{}', result)
         self.assertEqual(item['after_sha256'], restore.digest(result.encode()))
 
+    def test_test_page_broadcast_implements_noise_tokens(self):
+        root = Path(__file__).resolve().parents[2]
+        data = json.loads((root / '.github/xenon-test-inputs.json').read_text())
+        for path_suffix in ('test_page_broadcast.h', 'test_page_broadcast.cc'):
+            item = next(item for item in data['adaptations'] if item['path'].endswith(path_suffix))
+            original = (root / item['preimage']).read_bytes()
+            self.assertEqual(item['before_sha256'], restore.digest(original))
+            path = self.source / item['path']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(original)
+            restore.adapt_fixtures(self.source, [item])
+            result = path.read_text()
+            self.assertIn('UpdateHeliumNoiseTokens', result)
+            self.assertEqual(item['after_sha256'], restore.digest(result.encode()))
+
     def test_adaptation_validates_all_results_before_any_write(self):
         for name in ('first.ts', 'second.ts'):
             (self.source / name).write_bytes(b'before')

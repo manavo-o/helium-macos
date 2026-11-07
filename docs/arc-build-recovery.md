@@ -1,5 +1,27 @@
 # Incremental Arc-style Helium builds
 
+## Content TestPageBroadcast noise tokens resolution — November 7, 2026
+
+Run [42335347225](https://github.com/manavo-o/helium-macos/actions/runs/42335347225)
+passed checkpoint selection and WebUI type preflight, resumed from checkpoint `13558648047`,
+compiled past the previous failure in `dummy_page_holder.cc`, and compiled for 1 hour 22 minutes
+across hundreds of additional targets until failing at `obj/content/test/test_support/test_render_view_host.o`.
+Helium added `UpdateHeliumNoiseTokens` to the `blink::mojom::PageBroadcast` Mojo interface.
+While Blink's production renderer class `WebViewImpl` implements the method, `content::TestPageBroadcast`
+in `content/test/test_page_broadcast.h` and `content/test/test_page_broadcast.cc` did not provide an
+implementation, making `TestPageBroadcast` an abstract class and causing `std::make_unique<TestPageBroadcast>`
+to fail compilation in `test_render_view_host.cc:474`.
+
+The fixture adaptation policy now adapts `content/test/test_page_broadcast.h` and
+`content/test/test_page_broadcast.cc` to declare and implement an empty `UpdateHeliumNoiseTokens` override.
+Upstream preimages are pinned under `.github/checkpoint-preimages/xenon-test-fixtures/content/test/`.
+The previous policy stamp signature `055c418a...` from run `42335347225` is accepted.
+
+Continuation selects checkpoint `13560839526` from run `42335347225`, SHA-256
+`c532f587cf24134f316914567d2c7abef6d6a47edcdd1ae7d3c95af5f7e019d1`.
+GN configuration and all compiled C++ outputs are retained.
+
+
 ## Blink dummy page holder noise tokens resolution — November 6, 2026
 
 Run [42332944567](https://github.com/manavo-o/helium-macos/actions/runs/42332944567)

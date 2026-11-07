@@ -743,9 +743,38 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/third_party/blink/renderer/core/testing/dummy_page_holder.cc"
+    },
+    {
+      "path": "content/test/test_page_broadcast.h",
+      "reason": "Helium adds UpdateHeliumNoiseTokens to blink::mojom::PageBroadcast; declare override in test fake.",
+      "before_sha256": "6ad7a289b9ded58da91f30b04ebc53aa00ad962e5502ab6dd20b58061331705b",
+      "after_sha256": "36604bb798c059e575abf64fa0388d5eef690f5f11ae3b6b88d9edaad67efaed",
+      "replacements": [
+        {
+          "before": "  void SetSupportsDraggableRegions(bool supports_draggable_regions) override;",
+          "after": "  void SetSupportsDraggableRegions(bool supports_draggable_regions) override;\n  void UpdateHeliumNoiseTokens(\n      const base::flat_map<::blink::HeliumNoiseFeature,\n                           ::blink::HeliumNoiseToken>& tokens) override;",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/content/test/test_page_broadcast.h"
+    },
+    {
+      "path": "content/test/test_page_broadcast.cc",
+      "reason": "Helium adds UpdateHeliumNoiseTokens to blink::mojom::PageBroadcast; implement empty stub in test fake.",
+      "before_sha256": "80d086059b2e4eb295a5108995f3744d0fe3369586af91870f23e12189000cde",
+      "after_sha256": "5c7f9aad5bbb612ab507f3d1d3c42d20d22f43fdec8829928afdc436fdf15cc2",
+      "replacements": [
+        {
+          "before": "void TestPageBroadcast::SetSupportsDraggableRegions(\n    bool supports_draggable_regions) {}",
+          "after": "void TestPageBroadcast::SetSupportsDraggableRegions(\n    bool supports_draggable_regions) {}\n\nvoid TestPageBroadcast::UpdateHeliumNoiseTokens(\n    const base::flat_map<::blink::HeliumNoiseFeature,\n                         ::blink::HeliumNoiseToken>& tokens) {}",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/content/test/test_page_broadcast.cc"
     }
   ],
   "previous_policy_sha256": [
+    "055c418a98ceb33c72b952a0022775127733a868da12685adb3cf1c04a092daa",
     "184532d1847cee5f6e91d67ba7cb52db659481a66bcd97fedeacc66cfeceb0cc",
     "2dc00d113d3e7735fcd011deaf7254d424f52afe53f1b76fd390789ed13081ea",
     "d0c61fb9d218f504a6df93a3b781814371012fa4b298a50fac6461130dccd376"
