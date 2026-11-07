@@ -469,3 +469,20 @@ and preserve the saved GN configuration rather than running configuration
 again. This retains the latest compiled outputs; it does not establish the
 cause of earlier broad compiler-cache misses. The manual resume entry point
 uses the same continuation workflow and Xcode 27 runner as production CI.
+
+## Adapting TemplateURLService test fixture for Helium native bangs
+
+Run `42411498659` resumed with checkpoint `13575794182` and compiled past the
+`testing_browser_process` adaptations, but stopped when building
+`components/search_engines/test_support/template_url_service_test_util.o` due to:
+`error: no matching constructor for initialization of 'TemplateURLService'`.
+
+Helium's `add-native-bangs.patch` extends both `TemplateURLService` constructors
+with a `scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory` as
+the second parameter to load Bang manifests. The upstream Chromium test fixture
+helper `template_url_service_test_util.cc` called the original 9-argument
+constructor. An adaptation in `.github/xenon-test-inputs.json` passes
+`/*url_loader_factory=*/nullptr` to `TemplateURLService` in `CreateService()`,
+matching Helium's constructor signature while keeping Helium's modifications intact.
+The checkpoint is advanced to artifact `13590366254` from run `42411498659` to
+retain all successfully compiled objects.

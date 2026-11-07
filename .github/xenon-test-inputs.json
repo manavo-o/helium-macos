@@ -824,6 +824,25 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/chrome/test/base/testing_browser_process.cc"
+    },
+    {
+      "path": "components/search_engines/template_url_service_test_util.cc",
+      "reason": "Pass url_loader_factory nullptr parameter required by Helium native bangs constructor in test fixtures.",
+      "before_sha256": "ba0fba848476e056423b183b4e8d3f11eea6fd414cca7d422387aa1448852b8e",
+      "after_sha256": "e4d2b3ef4ee7e95a1b20eae5f5c93288d03588e45de227ad32bfce630bb2ef9d",
+      "replacements": [
+        {
+          "before": "std::unique_ptr<TemplateURLService>\nTemplateURLServiceUnitTestBase::CreateService() {\n  return std::make_unique<TemplateURLService>(\n      pref_service_, *search_engine_choice_service_,\n      *prepopulate_data_resolver_.get(), *regional_capabilities_service_,\n      *profile_metrics_service_, std::make_unique<SearchTermsData>(),\n      nullptr /* KeywordWebDataService */,\n      nullptr /* TemplateURLServiceClient */, base::RepeatingClosure());\n}",
+          "after": "std::unique_ptr<TemplateURLService>\nTemplateURLServiceUnitTestBase::CreateService() {\n  return std::make_unique<TemplateURLService>(\n      pref_service_, /*url_loader_factory=*/nullptr,\n      *search_engine_choice_service_, *prepopulate_data_resolver_.get(),\n      *regional_capabilities_service_, *profile_metrics_service_,\n      std::make_unique<SearchTermsData>(),\n      nullptr /* KeywordWebDataService */,\n      nullptr /* TemplateURLServiceClient */, base::RepeatingClosure());\n}",
+          "count": 1
+        },
+        {
+          "before": "  auto template_url_service = std::make_unique<TemplateURLService>(\n      pref_service(), search_engine_choice_service(),\n      prepopulate_data_resolver(), regional_capabilities_service(),\n      profile_metrics_service(), std::make_unique<SearchTermsData>(),\n      keyword_data_service_, nullptr /* TemplateURLServiceClient */,\n      base::RepeatingClosure());",
+          "after": "  auto template_url_service = std::make_unique<TemplateURLService>(\n      pref_service(), /*url_loader_factory=*/nullptr,\n      search_engine_choice_service(), prepopulate_data_resolver(),\n      regional_capabilities_service(), profile_metrics_service(),\n      std::make_unique<SearchTermsData>(), keyword_data_service_,\n      nullptr /* TemplateURLServiceClient */, base::RepeatingClosure());",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/components/search_engines/template_url_service_test_util.cc"
     }
   ],
   "previous_policy_sha256": [
@@ -831,6 +850,7 @@
     "055c418a98ceb33c72b952a0022775127733a868da12685adb3cf1c04a092daa",
     "184532d1847cee5f6e91d67ba7cb52db659481a66bcd97fedeacc66cfeceb0cc",
     "2dc00d113d3e7735fcd011deaf7254d424f52afe53f1b76fd390789ed13081ea",
-    "d0c61fb9d218f504a6df93a3b781814371012fa4b298a50fac6461130dccd376"
+    "d0c61fb9d218f504a6df93a3b781814371012fa4b298a50fac6461130dccd376",
+    "f305b3e47fa278de9bc5f33da36798ce351d4082794c63c1a29b1a3fdd4879b4"
   ]
 }
