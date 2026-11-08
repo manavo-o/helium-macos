@@ -1,0 +1,232 @@
+Index: src/chrome/browser/ui/browser.cc
+===================================================================
+--- a/chrome/browser/ui/browser.cc
++++ b/chrome/browser/ui/browser.cc
+@@ -625,14 +625,8 @@
+   }
+ 
+   if (GetType() == Type::TYPE_NORMAL && !profile_->IsOffTheRecord() &&
+-      !capabilities()->IsAttemptingToCloseBrowser() && !IsDeleteScheduled()) {
+-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+-        FROM_HERE, base::BindOnce([](base::WeakPtr<BrowserWindowInterface> browser) {
+-          if (!browser || browser->IsDeleteScheduled() ||
+-              browser->GetTabStripModel()->count() != 0 ||
+-              browser->capabilities()->IsAttemptingToCloseBrowser()) return;
+-          chrome::AddTabAt(browser.get(), GURL("chrome://newtab/"), -1, true);
+-        }, GetWeakPtr()));
++      !tab_strip_model_->closing_all() && !IsDeleteScheduled()) {
++    chrome::AddTabAt(this, GURL("chrome://newtab/"), -1, true);
+     return;
+   }
+ 
+
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+@@ -172,12 +172,12 @@
+     Attach(gfx::NativeView(host_.view));
+   }
+   void Update(BrowserWindowInterface* browser) {
+-    auto* contents = browser->GetTabStripModel()->GetActiveWebContents();
+-    const bool home = helium::IsArcHome(contents);
++    auto* contents = browser ? browser->GetTabStripModel()->GetActiveWebContents() : nullptr;
++    const bool home = !contents || helium::IsArcHome(contents);
+     const GURL url = contents ? contents->GetVisibleURL() : GURL();
+     [host_ updateWithTitle:home ? @"Search or Enter URL…" : base::SysUTF8ToNSString(
+         url.host().empty() ? url.spec() : url.host())
+-        url:base::SysUTF8ToNSString(url.spec())];
++        url:home ? @"" : base::SysUTF8ToNSString(url.spec())];
+   }
+  private:
+   XenonAddressHost* __strong host_;
+
+Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -87,6 +87,10 @@
+ #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/custom_corners_background.h"
++#include "content/public/browser/web_contents.h"
++#include "ui/gfx/skia_util.h"
++#include "third_party/skia/include/core/SkPath.h"
++#include "cc/paint/paint_flags.h"
+ #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/top_container_view.h"
+ #include "chrome/browser/ui/views/glic/glic_button_interface.h"
+@@ -476,10 +480,21 @@
+   }
+ 
+   if (display_mode_ == DisplayMode::kNormal) {
++#if BUILDFLAG(IS_MAC)
++    if (browser_view_->GetTabStripType() == TabStripType::kVertical) {
++      SetBackground(std::make_unique<ArcIslandToolbarBackground>(this, browser_view_));
++    } else {
++      SetBackground(std::make_unique<CustomCornersBackground>(
++          *this, *browser_view_,
++          /*primary_color=*/CustomCornersBackground::ToolbarTheme(),
++          /*corner_color=*/CustomCornersBackground::FrameTheme()));
++    }
++#else
+     SetBackground(std::make_unique<CustomCornersBackground>(
+         *this, *browser_view_,
+         /*primary_color=*/CustomCornersBackground::ToolbarTheme(),
+         /*corner_color=*/CustomCornersBackground::FrameTheme()));
++#endif
+   } else if (display_mode_ == DisplayMode::kCustomTab) {
+     custom_tab_bar_ =
+         AddChildView(std::make_unique<CustomTabBarView>(browser_view_, this));
+@@ -1479,6 +1494,7 @@
+     reload_control->SetDevToolsStatus(
+         chrome::IsDebuggerAttachedToCurrentTab(browser_));
+   }
++  SchedulePaint();
+ }
+ 
+ bool ToolbarView::UpdateSecurityState() {
+
+Index: src/chrome/browser/ui/views/frame/browser_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -4327,6 +4327,12 @@
+   // there will be consequences (since our view hierarchy will still have
+   // references to freed views).
+   UpdateUIForContents(nullptr);
++  if (toolbar_) {
++    toolbar_->Update(nullptr);
++  }
++  if (multi_contents_view_) {
++    multi_contents_view_->SetArcHomeVisible(true);
++  }
+ }
+ 
+ void BrowserView::WillCloseAllTabs(TabStripModel* tab_strip_model) {
+@@ -6273,7 +6279,7 @@
+   needs_layout |= MaybeShowInfoBar(contents);
+ 
+   needs_layout |= MaybeUpdateSplitView(contents);
+-  multi_contents_view_->SetArcHomeVisible(helium::IsArcHome(contents));
++  multi_contents_view_->SetArcHomeVisible(!contents || helium::IsArcHome(contents));
+   UpdateZenModeRevealFromCursor();
+ 
+   needs_layout |= MaybeUpdateDevtools(contents);
+
+Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -482,7 +482,8 @@
+   HorizontalLayout layout;
+   // Start with some preliminary values.
+   layout.force_top_container_to_top =
+-      layout_data_->tab_strip_type != TabStripType::kHorizontal;
++      layout_data_->tab_strip_type != TabStripType::kHorizontal &&
++      layout_data_->tab_strip_type != TabStripType::kVertical;
+ 
+   layout.is_split_view = delegate().IsActiveTabSplit();
+ 
+@@ -891,8 +892,9 @@
+   if (layout_data_->tab_strip_type == TabStripType::kVertical &&
+       (layout_data_->window_state == WindowState::kNormal ||
+        layout_data_->window_state == WindowState::kMaximized)) {
+-    // Frame breathing room is independent of tab density.
+-    params.Inset(gfx::Insets(6));
++    if (zen.floating_vertical_tab_strip) {
++      params.Inset(gfx::Insets(8));
++    }
+   }
+ #endif
+   const bool vertical_right_aligned =
+@@ -1039,6 +1041,9 @@
+                                  GetVerticalTabStripContentOverlap();
+         params.InsetHorizontal(inset_amount,
+                                /*leading=*/!vertical_right_aligned);
++#if BUILDFLAG(IS_MAC)
++        params.Inset(gfx::Insets::TLBR(8, 8, 8, 8));
++#endif
+       }
+ 
+       // Let the vertical tab strip animate out over the content.
+@@ -1302,9 +1307,13 @@
+       IsParentedTo(views().top_container, views().browser_view)) {
+     auto& top_container_layout =
+         layout.AddChild(views().top_container, gfx::Rect());
++    const bool top_needs_exclusion =
++        layout_data_->tab_strip_type == TabStripType::kVertical
++            ? zen.floating_vertical_tab_strip
++            : needs_exclusion;
+     const gfx::Rect top_container_local_bounds = CalculateTopContainerLayout(
+         top_container_layout,
+-        params.InLocalCoordinates(params.visual_client_area), needs_exclusion);
++        params.InLocalCoordinates(params.visual_client_area), top_needs_exclusion);
+     top_container_layout.bounds =
+         GetTopContainerBoundsInParent(top_container_local_bounds, params);
+     params.SetTop(top_container_layout.bounds.bottom());
+
+Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -918,6 +918,9 @@
+   if (browser && browser->IsZenModeEnabledForLayout() &&
+       browser->IsZenModeSideChromePinned()) {
+     top_padding = std::max(top_padding, 38);
++    if (has_leading_exclusion_) {
++      top_padding = std::max(top_padding, base::ClampCeil(leading_exclusion_height_) + 4);
++    }
+   }
+   const gfx::Insets margin = gfx::Insets::TLBR(top_padding, 0, padding, 0);
+   if (interior_margin_ != margin) {
+
+Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -231,8 +231,6 @@
+       if (is_in_split) {
+         SetBorder(views::CreateEmptyBorder(gfx::Insets(
+             kSplitViewContentPadding + ContentsContainerOutline::kThickness)));
+-      } else if (BUILDFLAG(IS_MAC)) {
+-        SetBorder(nullptr);
+       } else {
+         // Reserve the stroke inside the container's existing outer margin.
+         SetBorder(views::CreateEmptyBorder(
+@@ -245,7 +243,7 @@
+ 
+     if (is_in_split) {
+       container_outline_->UpdateState(is_active, is_highlighted);
+-    } else if (!BUILDFLAG(IS_MAC) && browser_view_->GetIsNormalType()) {
++    } else if (browser_view_->GetIsNormalType()) {
+       container_outline_->UpdateState(false, kColorToolbarContentAreaSeparator);
+     } else {
+       container_outline_->SetVisible(false);
+@@ -343,14 +341,22 @@
+   const int frame_radius = GetPaddedFrameRadius();
+   const int generic_radius = GetGenericFrameRadius();
+ 
+-  const int lower_left_radius =
++  int lower_left_radius =
+       round_bottom_left_window_corner_ ? frame_radius : generic_radius;
+-  const int lower_right_radius =
++  int lower_right_radius =
+       round_bottom_right_window_corner_ ? frame_radius : generic_radius;
+-  const int upper_left_radius =
++  int upper_left_radius =
+       round_top_left_window_corner_ ? frame_radius : generic_radius;
+-  const int upper_right_radius =
++  int upper_right_radius =
+       round_top_right_window_corner_ ? frame_radius : generic_radius;
++#if BUILDFLAG(IS_MAC)
++  if (browser_view_->GetTabStripType() == TabStripType::kVertical && !is_in_split_) {
++    upper_left_radius = 0;
++    upper_right_radius = 0;
++    lower_left_radius = 10;
++    lower_right_radius = 10;
++  }
++#endif
+ 
+   const gfx::RoundedCornersF container_rounded_corners(
+       upper_left_radius, upper_right_radius, lower_right_radius,
