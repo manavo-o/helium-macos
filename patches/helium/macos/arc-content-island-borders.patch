@@ -61,7 +61,7 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
  
    if (display_mode_ == DisplayMode::kNormal) {
 +#if BUILDFLAG(IS_MAC)
-+    if (browser_view_->GetTabStripType() == TabStripType::kVertical) {
++    if (browser_view_->ShouldDrawVerticalTabStrip()) {
 +      SetBackground(std::make_unique<ArcIslandToolbarBackground>(this, browser_view_));
 +    } else {
 +      SetBackground(std::make_unique<CustomCornersBackground>(
@@ -220,7 +220,7 @@ Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
 +  int upper_right_radius =
        round_top_right_window_corner_ ? frame_radius : generic_radius;
 +#if BUILDFLAG(IS_MAC)
-+  if (browser_view_->GetTabStripType() == TabStripType::kVertical && !is_in_split_) {
++  if (browser_view_->ShouldDrawVerticalTabStrip() && !is_in_split_) {
 +    upper_left_radius = 0;
 +    upper_right_radius = 0;
 +    lower_left_radius = 10;
