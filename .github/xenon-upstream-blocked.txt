@@ -1,0 +1,11 @@
+Review the upstream changes between 0c7da2ba0b61a2143adf1c6d56ccd0df6a53d0bf and 37efe2c65dccc21aaf1d8ea66fd35d1348c386a8:
+patches/helium/macos/chromium-signing.patch
+patches/helium/macos/disable-chromium-immersive-fullscreen.patch
+patches/helium/macos/helium-immersive-fullscreen.patch
+patches/helium/macos/lockdown-mode-imageio.patch
+patches/helium/macos/move-macos-settings.patch
+patches/helium/macos/native-translation-context-option.patch
+patches/helium/macos/prevent-reset-on-keychain-unavailability.patch
+patches/helium/macos/updater/sparkle2-integration.patch
+patches/ungoogled-chromium/macos/fix-disabling-safebrowsing.patch
+patches/ungoogled-chromium/macos/fix-dsymutil.patch
