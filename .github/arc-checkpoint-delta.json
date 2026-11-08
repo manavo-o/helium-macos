@@ -9,7 +9,7 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "f1363e3361602e57374c388af031769681bd44bc399af87c58db8c059f0859ee",
+  "input_sha256": "5f7a9684545e9eca0166a629b4db5074fb6b0088ad5eaf95e7af6fb1bf46471f",
   "patches": [
     {
       "path": "patches/helium/macos/arc-home-navigation-visibility.patch",
@@ -17,7 +17,7 @@
     },
     {
       "path": "patches/helium/macos/arc-content-island-borders.patch",
-      "sha256": "99aaf1661e640dacf0d0db5c88cf42584b8d02aa579d326a5fa35354cd5bed69"
+      "sha256": "1854bac07c014615e7e4d078e5adf18b8a5753b5f60eedbf9bdbfce45041fd2b"
     }
   ],
   "reuse_generated_build_config": true,
@@ -34,7 +34,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-home-visibility/chrome/browser/ui/views/frame/browser_view.cc"
     },
     "chrome/browser/ui/views/frame/contents_container_view.cc": {
-      "after": "3f81bfbab5d68d7a6be3c01b6d0fc7dfff3dae97383ca7bfa05ce63c80ee66c5",
+      "after": "6346e0145372928e5c6582d6fbfe39fe693fc024e6cdb1357e52d9b047fda835",
       "before": "e916076ff22c8905e85fda1e353577118e74b6c4ac566618c713ba3bbe6da891",
       "preimage": ".github/checkpoint-preimages/xenon-island-borders/chrome/browser/ui/views/frame/contents_container_view.cc"
     },
@@ -49,7 +49,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-home-visibility/chrome/browser/ui/views/frame/multi_contents_view.cc"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": {
-      "after": "2f3abf3f367db53101105a1e1a6cbd505a64a99ad1b8c3a046c15279dc87c30e",
+      "after": "ee3f236327ad073dd21d9d180728dca4877a3b3d91fb56cf46e2301f757ee709",
       "before": "68ab49f15d6992db053ceafaf0967cc05ef65da31a59440b7c72dc5573788a1f",
       "preimage": ".github/checkpoint-preimages/xenon-island-borders/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc"
     },
@@ -59,12 +59,12 @@
       "preimage": ".github/checkpoint-preimages/xenon-home-visibility/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": {
-      "after": "1a1e84ad38b2702325f30985709788c2088b4de9b82f002f4b5f0b698bdacecb",
+      "after": "f75f1feaa243ab474a3ab69fc344b0607c87606e61292b8a150f006719b8485e",
       "before": "5cd5627a1fb47fcaa22c32198bac7cb40c69bb1dce905fba80bae3212e9b7467",
       "preimage": ".github/checkpoint-preimages/xenon-island-borders/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm"
     },
     "chrome/browser/ui/views/toolbar/toolbar_view.cc": {
-      "after": "014c593dc943935dbd51b1922f0573243de54574763dc7b990a7eaf0ee65a66c",
+      "after": "8dac6fb2df628ba61bb40496236ea0ca9838814449bdb7ea7b4a03d3210c0374",
       "before": "008024d9f1458a53ad23fde9db8109fd4cf052565653ce2f7a6787f051d4e511",
       "preimage": ".github/checkpoint-preimages/xenon-island-borders/chrome/browser/ui/views/toolbar/toolbar_view.cc"
     }

@@ -2,7 +2,7 @@ Index: src/chrome/browser/ui/browser.cc
 ===================================================================
 --- a/chrome/browser/ui/browser.cc
 +++ b/chrome/browser/ui/browser.cc
-@@ -625,14 +625,8 @@
+@@ -625,14 +625,8 @@ void Browser::TabStripEmpty() {
    }
  
    if (GetType() == Type::TYPE_NORMAL && !profile_->IsOffTheRecord() &&
@@ -19,12 +19,20 @@ Index: src/chrome/browser/ui/browser.cc
      return;
    }
  
-
 Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 ===================================================================
 --- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 +++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
-@@ -172,12 +172,12 @@
+@@ -93,7 +93,7 @@ class NativeHomeSurface : public views::
+       if (weak) helium::ShowArcCommandBar(weak.get());
+     }];
+     SetBackground(std::make_unique<ThemedBackground>(
+-        BrowserView::GetBrowserViewForBrowser(browser), ThemedBackground::kFrameTheme));
++        BrowserView::GetBrowserViewForBrowser(browser), ThemedBackground::kToolbarTheme));
+   }
+   ~NativeHomeSurface() override { [host_ invalidate]; }
+   void OnThemeChanged() override {
+@@ -172,12 +172,12 @@ class NativeAddressDisplay : public view
      Attach(gfx::NativeView(host_.view));
    }
    void Update(BrowserWindowInterface* browser) {
@@ -40,15 +48,15 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
    }
   private:
    XenonAddressHost* __strong host_;
-
 Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -87,6 +87,10 @@
+@@ -87,6 +87,11 @@
  #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/custom_corners_background.h"
++#include "chrome/browser/ui/helium/arc_command_bar.h"
 +#include "content/public/browser/web_contents.h"
 +#include "ui/gfx/skia_util.h"
 +#include "third_party/skia/include/core/SkPath.h"
@@ -56,7 +64,67 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
  #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
  #include "chrome/browser/ui/views/frame/top_container_view.h"
  #include "chrome/browser/ui/views/glic/glic_button_interface.h"
-@@ -476,10 +480,21 @@
+@@ -199,6 +204,59 @@ DEFINE_UI_CLASS_PROPERTY_KEY(bool, kActi
+ 
+ namespace {
+ 
++#if BUILDFLAG(IS_MAC)
++class ArcIslandToolbarBackground : public views::Background {
++ public:
++  ArcIslandToolbarBackground(ToolbarView* toolbar, BrowserView* browser_view)
++      : toolbar_(toolbar), browser_view_(browser_view) {}
++
++  void Paint(gfx::Canvas* canvas, views::View* view) const override {
++    auto* tab_strip_model =
++        browser_view_ ? browser_view_->browser()->GetTabStripModel() : nullptr;
++    auto* active_contents =
++        tab_strip_model ? tab_strip_model->GetActiveWebContents() : nullptr;
++    const bool is_home = !active_contents || helium::IsArcHome(active_contents);
++
++    SkColor bg_color;
++    if (is_home) {
++      bg_color = view->GetColorProvider()->GetColor(ui::kColorSysSurface);
++    } else if (active_contents && active_contents->GetThemeColor().has_value()) {
++      bg_color = *active_contents->GetThemeColor();
++    } else {
++      bg_color = view->GetColorProvider()->GetColor(ui::kColorSysSurface);
++    }
++
++    const gfx::Rect bounds = view->GetLocalBounds();
++    cc::PaintFlags flags;
++    flags.setAntiAlias(true);
++    flags.setStyle(cc::PaintFlags::kFill_Style);
++    flags.setColor(bg_color);
++
++    const SkScalar radii[8] = {10, 10, 10, 10, 0, 0, 0, 0};
++    SkPath path;
++    path.addRoundRect(gfx::RectToSkRect(bounds), radii);
++    canvas->DrawPath(path, flags);
++
++    cc::PaintFlags stroke_flags;
++    stroke_flags.setAntiAlias(true);
++    stroke_flags.setStyle(cc::PaintFlags::kStroke_Style);
++    stroke_flags.setStrokeWidth(1.0f);
++    stroke_flags.setColor(
++        view->GetColorProvider()->GetColor(kColorToolbarContentAreaSeparator));
++
++    gfx::RectF stroke_bounds(bounds);
++    stroke_bounds.Inset(0.5f);
++    SkPath stroke_path;
++    stroke_path.addRoundRect(gfx::RectFToSkRect(stroke_bounds), radii);
++    canvas->DrawPath(stroke_path, stroke_flags);
++  }
++
++ private:
++  raw_ptr<ToolbarView> toolbar_;
++  raw_ptr<BrowserView> browser_view_;
++};
++#endif
++
+ constexpr int kPreferredCompactWidth = 350;
+ constexpr int kToolbarFlexOrderOffset = 1000;
+ constexpr int kLocationBarFlexOrder = kToolbarFlexOrderOffset + 1;
+@@ -476,10 +534,21 @@ void ToolbarView::Init() {
    }
  
    if (display_mode_ == DisplayMode::kNormal) {
@@ -78,7 +146,7 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
    } else if (display_mode_ == DisplayMode::kCustomTab) {
      custom_tab_bar_ =
          AddChildView(std::make_unique<CustomTabBarView>(browser_view_, this));
-@@ -1479,6 +1494,7 @@
+@@ -1479,6 +1548,7 @@ void ToolbarView::Update(WebContents* ta
      reload_control->SetDevToolsStatus(
          chrome::IsDebuggerAttachedToCurrentTab(browser_));
    }
@@ -86,12 +154,11 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
  }
  
  bool ToolbarView::UpdateSecurityState() {
-
 Index: src/chrome/browser/ui/views/frame/browser_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -4327,6 +4327,12 @@
+@@ -4319,6 +4319,12 @@ void BrowserView::TabStripEmpty() {
    // there will be consequences (since our view hierarchy will still have
    // references to freed views).
    UpdateUIForContents(nullptr);
@@ -104,7 +171,7 @@ Index: src/chrome/browser/ui/views/frame/browser_view.cc
  }
  
  void BrowserView::WillCloseAllTabs(TabStripModel* tab_strip_model) {
-@@ -6273,7 +6279,7 @@
+@@ -6265,7 +6271,7 @@ void BrowserView::UpdateUIForContents(We
    needs_layout |= MaybeShowInfoBar(contents);
  
    needs_layout |= MaybeUpdateSplitView(contents);
@@ -113,12 +180,11 @@ Index: src/chrome/browser/ui/views/frame/browser_view.cc
    UpdateZenModeRevealFromCursor();
  
    needs_layout |= MaybeUpdateDevtools(contents);
-
 Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-@@ -482,7 +482,8 @@
+@@ -482,7 +482,8 @@ BrowserViewTabbedLayoutImpl::CalculateHo
    HorizontalLayout layout;
    // Start with some preliminary values.
    layout.force_top_container_to_top =
@@ -128,7 +194,7 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
  
    layout.is_split_view = delegate().IsActiveTabSplit();
  
-@@ -891,8 +892,9 @@
+@@ -891,8 +892,9 @@ BrowserViewTabbedLayoutImpl::CalculatePr
    if (layout_data_->tab_strip_type == TabStripType::kVertical &&
        (layout_data_->window_state == WindowState::kNormal ||
         layout_data_->window_state == WindowState::kMaximized)) {
@@ -140,7 +206,7 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
    }
  #endif
    const bool vertical_right_aligned =
-@@ -1039,6 +1041,9 @@
+@@ -1039,6 +1041,9 @@ BrowserViewTabbedLayoutImpl::CalculatePr
                                   GetVerticalTabStripContentOverlap();
          params.InsetHorizontal(inset_amount,
                                 /*leading=*/!vertical_right_aligned);
@@ -150,7 +216,7 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
        }
  
        // Let the vertical tab strip animate out over the content.
-@@ -1302,9 +1307,13 @@
+@@ -1302,9 +1307,13 @@ BrowserViewTabbedLayoutImpl::CalculatePr
        IsParentedTo(views().top_container, views().browser_view)) {
      auto& top_container_layout =
          layout.AddChild(views().top_container, gfx::Rect());
@@ -165,27 +231,37 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
      top_container_layout.bounds =
          GetTopContainerBoundsInParent(top_container_local_bounds, params);
      params.SetTop(top_container_layout.bounds.bottom());
-
 Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -918,6 +918,9 @@
-   if (browser && browser->IsZenModeEnabledForLayout() &&
+@@ -919,6 +919,9 @@ void VerticalTabStripRegionView::UpdateI
        browser->IsZenModeSideChromePinned()) {
      top_padding = std::max(top_padding, 38);
-+    if (has_leading_exclusion_) {
-+      top_padding = std::max(top_padding, base::ClampCeil(leading_exclusion_height_) + 4);
-+    }
    }
++  if (has_leading_exclusion_) {
++    top_padding = std::max(top_padding, 38);
++  }
    const gfx::Insets margin = gfx::Insets::TLBR(top_padding, 0, padding, 0);
    if (interior_margin_ != margin) {
-
+     interior_margin_ = margin;
 Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/contents_container_view.cc
 +++ b/chrome/browser/ui/views/frame/contents_container_view.cc
-@@ -231,8 +231,6 @@
+@@ -201,6 +201,11 @@ void ContentsContainerView::UpdateBorder
+                                                    bool round_top_right,
+                                                    bool round_bottom_left,
+                                                    bool round_bottom_right) {
++#if BUILDFLAG(IS_MAC)
++  if (browser_view_->ShouldDrawVerticalTabStrip() && !is_in_split_) {
++    should_round_contents = true;
++  }
++#endif
+   const bool split_changed = is_in_split != is_in_split_;
+   const bool rounded_contents_changed =
+       should_round_contents != should_round_contents_;
+@@ -231,8 +236,6 @@ void ContentsContainerView::UpdateBorder
        if (is_in_split) {
          SetBorder(views::CreateEmptyBorder(gfx::Insets(
              kSplitViewContentPadding + ContentsContainerOutline::kThickness)));
@@ -194,7 +270,7 @@ Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
        } else {
          // Reserve the stroke inside the container's existing outer margin.
          SetBorder(views::CreateEmptyBorder(
-@@ -245,7 +243,7 @@
+@@ -245,7 +248,7 @@ void ContentsContainerView::UpdateBorder
  
      if (is_in_split) {
        container_outline_->UpdateState(is_active, is_highlighted);
@@ -203,7 +279,7 @@ Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
        container_outline_->UpdateState(false, kColorToolbarContentAreaSeparator);
      } else {
        container_outline_->SetVisible(false);
-@@ -343,14 +341,22 @@
+@@ -343,14 +346,22 @@ void ContentsContainerView::UpdateBorder
    const int frame_radius = GetPaddedFrameRadius();
    const int generic_radius = GetGenericFrameRadius();
  
