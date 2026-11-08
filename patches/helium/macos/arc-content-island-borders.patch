@@ -52,7 +52,7 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -87,6 +87,11 @@
+@@ -87,6 +87,12 @@
  #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/custom_corners_background.h"
@@ -60,11 +60,12 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +#include "content/public/browser/web_contents.h"
 +#include "ui/gfx/skia_util.h"
 +#include "third_party/skia/include/core/SkPath.h"
++#include "third_party/skia/include/core/SkRRect.h"
 +#include "cc/paint/paint_flags.h"
  #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
  #include "chrome/browser/ui/views/frame/top_container_view.h"
  #include "chrome/browser/ui/views/glic/glic_button_interface.h"
-@@ -199,6 +204,59 @@ DEFINE_UI_CLASS_PROPERTY_KEY(bool, kActi
+@@ -199,6 +205,66 @@ DEFINE_UI_CLASS_PROPERTY_KEY(bool, kActi
  
  namespace {
  
@@ -96,9 +97,12 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +    flags.setStyle(cc::PaintFlags::kFill_Style);
 +    flags.setColor(bg_color);
 +
-+    const SkScalar radii[8] = {10, 10, 10, 10, 0, 0, 0, 0};
++    const SkVector radii[4] = {
++        {10.f, 10.f}, {10.f, 10.f}, {0.f, 0.f}, {0.f, 0.f}};
++    SkRRect rrect;
++    rrect.setRectRadii(gfx::RectToSkRect(bounds), radii);
 +    SkPath path;
-+    path.addRoundRect(gfx::RectToSkRect(bounds), radii);
++    path.addRRect(rrect);
 +    canvas->DrawPath(path, flags);
 +
 +    cc::PaintFlags stroke_flags;
@@ -110,8 +114,12 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +
 +    gfx::RectF stroke_bounds(bounds);
 +    stroke_bounds.Inset(0.5f);
++    const SkVector stroke_radii[4] = {
++        {9.5f, 9.5f}, {9.5f, 9.5f}, {0.f, 0.f}, {0.f, 0.f}};
++    SkRRect stroke_rrect;
++    stroke_rrect.setRectRadii(gfx::RectFToSkRect(stroke_bounds), stroke_radii);
 +    SkPath stroke_path;
-+    stroke_path.addRoundRect(gfx::RectFToSkRect(stroke_bounds), radii);
++    stroke_path.addRRect(stroke_rrect);
 +    canvas->DrawPath(stroke_path, stroke_flags);
 +  }
 +
@@ -124,7 +132,7 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
  constexpr int kPreferredCompactWidth = 350;
  constexpr int kToolbarFlexOrderOffset = 1000;
  constexpr int kLocationBarFlexOrder = kToolbarFlexOrderOffset + 1;
-@@ -476,10 +534,21 @@ void ToolbarView::Init() {
+@@ -476,10 +542,21 @@ void ToolbarView::Init() {
    }
  
    if (display_mode_ == DisplayMode::kNormal) {
@@ -146,7 +154,7 @@ Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
    } else if (display_mode_ == DisplayMode::kCustomTab) {
      custom_tab_bar_ =
          AddChildView(std::make_unique<CustomTabBarView>(browser_view_, this));
-@@ -1479,6 +1548,7 @@ void ToolbarView::Update(WebContents* ta
+@@ -1479,6 +1556,7 @@ void ToolbarView::Update(WebContents* ta
      reload_control->SetDevToolsStatus(
          chrome::IsDebuggerAttachedToCurrentTab(browser_));
    }

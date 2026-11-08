@@ -9,7 +9,7 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "696bccfd9edea6816bf0cb7fdb5aecbf4fe7dd3d46d1b64b811fafeacd78b334",
+  "input_sha256": "3587094ae9757cf63643c6efbe09a52526399585dca9fbe549b5821c7acf632e",
   "patches": [
     {
       "path": "patches/helium/macos/arc-home-navigation-visibility.patch",
@@ -17,7 +17,7 @@
     },
     {
       "path": "patches/helium/macos/arc-content-island-borders.patch",
-      "sha256": "33335bead0c6a7cf51db5f27c14c156bfa0645e54e0a89ab3c64a66858a5da38"
+      "sha256": "24c3e00329bd0873ca1cfb99ae342c0e8d4b74a628bdb8b47a029a8978315030"
     }
   ],
   "reuse_generated_build_config": true,
@@ -64,7 +64,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-island-borders/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm"
     },
     "chrome/browser/ui/views/toolbar/toolbar_view.cc": {
-      "after": "8dac6fb2df628ba61bb40496236ea0ca9838814449bdb7ea7b4a03d3210c0374",
+      "after": "d011914fa524b4309a83364fc5124dd006a2a42e1d59647908c67f9146defe47",
       "before": "008024d9f1458a53ad23fde9db8109fd4cf052565653ce2f7a6787f051d4e511",
       "preimage": ".github/checkpoint-preimages/xenon-island-borders/chrome/browser/ui/views/toolbar/toolbar_view.cc"
     }
