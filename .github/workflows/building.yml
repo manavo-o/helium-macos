@@ -71,7 +71,7 @@ jobs:
 
   build_job_01:
     needs: retrieve-resources
-    if: ${{ !cancelled() && (!inputs.fresh_source || inputs.source_run == '') && (needs.retrieve-resources.result == 'success' || (needs.retrieve-resources.result == 'skipped' && inputs.source_run != '')) }}
+    if: ${{ !cancelled() && (!inputs.fresh_source || !inputs.repair_arc_checkpoint) && (needs.retrieve-resources.result == 'success' || (needs.retrieve-resources.result == 'skipped' && inputs.source_run != '')) }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:

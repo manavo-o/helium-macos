@@ -47,6 +47,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: ${{ (!inputs.fresh_source || inputs.source_run == '') && 1 || 0 }}
           submodules: true
           persist-credentials: false
       - uses: ./.github/actions/prepare-environment
@@ -78,12 +79,18 @@ jobs:
         with:
           name: github_build_logs_${{ inputs.arch }}
       - name: Download build from earlier run
-        if: ${{ inputs.resume && inputs.source_run != '' }}
+        if: ${{ inputs.resume && inputs.source_run != '' && !inputs.fresh_source }}
         uses: actions/download-artifact@v4
         with:
           name: github_build_artifact_${{ inputs.arch }}
           run-id: ${{ inputs.source_run }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download the pinned Xenon recovery artifact
+        if: ${{ inputs.resume && inputs.fresh_source && inputs.source_run != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          XENON_SOURCE_RUN: ${{ inputs.source_run }}
+        run: python3 .github/scripts/github_xenon_fresh_checkpoint.py download
       - name: Download build
         if: ${{ inputs.resume && inputs.source_run == '' }}
         uses: actions/download-artifact@v4
@@ -114,9 +121,9 @@ jobs:
         run: python3 .github/scripts/github_repair_arc_checkpoint.py --verify-after
       - name: Verify clean-source checkpoint from this build
         if: ${{ inputs.fresh_source && inputs.resume }}
-        run: |
-          test -z "${{ inputs.source_run }}"
-          python3 .github/scripts/github_xenon_fresh_checkpoint.py verify
+        env:
+          XENON_SOURCE_RUN: ${{ inputs.source_run }}
+        run: python3 .github/scripts/github_xenon_fresh_checkpoint.py verify
       - name: Regenerate native UI build configuration
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint && steps.arc-delta.outputs.reuse_config != 'true' }}
         run: |
@@ -143,7 +150,7 @@ jobs:
         id: arc-palette
         continue-on-error: true
         timeout-minutes: 5
-        if: ${{ inputs.resume }}
+        if: ${{ inputs.resume && !inputs.fresh_source }}
         working-directory: build/src
         run: timeout -k 15s 180s python3 ../../.github/scripts/github_check_arc_swift_link.py
       - name: Select regression validation policy

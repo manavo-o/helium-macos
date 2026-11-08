@@ -109,5 +109,11 @@ if [ "$_error_code" -eq 124 ] || {
 fi
 [ "$_error_code" -ne 0 ] && exit "$_error_code"
 
+if [ "${XENON_FRESH_SOURCE:-}" = true ]; then
+    _link_result=0
+    phase_step python3 "$_root_dir/.github/scripts/github_check_arc_swift_link.py" || _link_result=$?
+    check_phase_result "$_link_result"
+fi
+
 echo $(date +%s) | tee "$_root_dir/build_finished_$_target_cpu.log"
 echo "status=finished" >> $GITHUB_OUTPUT
