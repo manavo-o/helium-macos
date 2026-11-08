@@ -2,7 +2,7 @@ diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift b/chrome/
 --- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
 +++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
 @@ -373,13 +373,22 @@
-
+ 
  private struct AppearanceSurface: View {
      @ObservedObject var state: AppearanceState
 -    private let presets: [[Color]] = [
