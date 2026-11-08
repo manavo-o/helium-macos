@@ -2,17 +2,17 @@
 +++ b/chrome/browser/mac/sparkle_glue.mm
 @@ -7,6 +7,8 @@
  // found in the header of the corresponding patch.
-
+ 
  #include "chrome/browser/mac/sparkle_glue.h"
 +
 +#import <AppKit/AppKit.h>
-
+ 
  #include "base/apple/foundation_util.h"
  #include "base/command_line.h"
 @@ -107,23 +109,6 @@
    [self updateStatus:VersionUpdater::UPDATING error_string:nil];
  }
-
+ 
 -- (BOOL)updater:(SPUUpdater *)updater
 -          shouldPostponeRelaunchForUpdate:(SUAppcastItem *)item
 -          untilInvokingBlock:(void (^)(void))installHandler {
@@ -32,11 +32,11 @@
 -
  - (BOOL)shouldAccessUpdateService {
    helium::TryAcquireProfilePtr();
-
+ 
 @@ -163,8 +148,15 @@
      return @"";
    }
-
+ 
 -  return base::SysUTF8ToNSString(
 -    helium::GetBrowserUpdateURL(*profile_->GetPrefs()).spec());
 +  NSString* feed = base::SysUTF8ToNSString(
@@ -49,11 +49,11 @@
 +  }
 +  return feed;
  }
-
+ 
  - (void)updater:(SPUUpdater*)updater failedToDownloadUpdate:(NSError*)error {
 @@ -207,6 +199,56 @@
    }
-
+ 
    return self;
 +}
 +
@@ -106,7 +106,7 @@
 +    reply(SPUUserUpdateChoiceSkip);
 +  }
  }
-
+ 
  - (void)showDownloadDidReceiveExpectedContentLength:(uint64_t)expectedContentLength {
 @@ -307,7 +349,7 @@
        // Launch a new update check, even if one was already completed, because
@@ -120,7 +120,7 @@
 @@ -372,14 +414,14 @@
      return;
    }
-
+ 
 -  if (updater) {
 +  static BOOL started = NO;
 +  if (updater && !started) {
