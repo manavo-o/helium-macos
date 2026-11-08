@@ -1,0 +1,76 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+@@ -373,13 +373,22 @@
+
+ private struct AppearanceSurface: View {
+     @ObservedObject var state: AppearanceState
+-    private let presets: [[Color]] = [
+-        [Color(red: 0.48, green: 0.66, blue: 0.61), Color(red: 0.78, green: 0.88, blue: 0.79)],
+-        [Color(red: 0.94, green: 0.56, blue: 0.43), Color(red: 0.98, green: 0.77, blue: 0.61)],
+-        [Color(red: 0.49, green: 0.56, blue: 0.79), Color(red: 0.74, green: 0.65, blue: 0.85)],
+-        [Color(red: 0.33, green: 0.37, blue: 0.42)],
+-        [Color(red: 0.85, green: 0.85, blue: 0.88)],
+-        [Color(red: 0.82, green: 0.76, blue: 0.65), Color(red: 0.93, green: 0.89, blue: 0.81)]]
++
++    private static let presets: [(name: String, colors: [Color])] = [
++        ("Prism", [rgb(0x55418a), rgb(0xb697ff), rgb(0xb7eeff)]),
++        ("Ion", [rgb(0x277294), rgb(0x7addf1)]),
++        ("Aurora", [rgb(0x327b71), rgb(0xace3c6)]),
++        ("Ember", [rgb(0x9a4e60), rgb(0xf6b48f)]),
++        ("Orbit", [rgb(0x454b63)]),
++        ("Frost", [rgb(0xb4bed3), rgb(0xe4edf8)])
++    ]
++
++    private static func rgb(_ hex: UInt32) -> Color {
++        Color(red: Double(hex >> 16 & 255) / 255,
++              green: Double(hex >> 8 & 255) / 255,
++              blue: Double(hex & 255) / 255)
++    }
++
+     var body: some View {
+         ScrollView {
+         VStack(alignment: .leading, spacing: 20) {
+@@ -392,22 +401,32 @@
+             Picker("Appearance", selection: $state.scheme) {
+                 Text("System").tag(0); Text("Light").tag(1); Text("Dark").tag(2)
+             }.pickerStyle(.segmented).onChange(of: state.scheme) { state.event("scheme", String($0)) }
+-            HStack(spacing: 12) {
+-                ForEach(presets.indices, id: \.self) { i in
+-                    Button { state.colors = presets[i]; state.saveColors() } label: {
+-                        Circle().fill(LinearGradient(colors: presets[i], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 30, height: 30)
+-                    }.buttonStyle(.plain).accessibilityLabel(["Mint", "Coral", "Lavender", "Graphite", "Pearl", "Sand"][i])
++            HStack(spacing: 8) {
++                ForEach(Self.presets.indices, id: \.self) { index in
++                    let preset = Self.presets[index]
++                    Button { state.colors = preset.colors } label: {
++                        VStack(spacing: 4) {
++                            Circle()
++                                .fill(LinearGradient(colors: preset.colors,
++                                    startPoint: .topLeading, endPoint: .bottomTrailing))
++                                .frame(width: 30, height: 30)
++                            Text(preset.name).font(.caption)
++                        }
++                        .frame(maxWidth: .infinity)
++                    }
++                    .buttonStyle(.plain)
++                    .accessibilityLabel(preset.name)
+                 }
+-                Spacer()
+-                Button { if state.colors.count < 3 { state.colors.append(state.colors.last ?? .gray); state.saveColors() } } label: { Image(systemName: "plus") }
+-                    .disabled(state.colors.count == 3).help("Add gradient color")
+-                Button { if state.colors.count > 1 { state.colors.removeLast(); state.saveColors() } } label: { Image(systemName: "minus") }
+-                    .disabled(state.colors.count == 1).help("Remove gradient color")
+             }
+             HStack {
+                 ForEach(state.colors.indices, id: \.self) { i in
+                     ColorPicker("Color \(i + 1)", selection: $state.colors[i], supportsOpacity: false)
+                 }
++                Spacer()
++                Button { if state.colors.count < 3 { state.colors.append(state.colors.last ?? .gray); state.saveColors() } } label: { Image(systemName: "plus") }
++                    .disabled(state.colors.count == 3).help("Add gradient color")
++                Button { if state.colors.count > 1 { state.colors.removeLast(); state.saveColors() } } label: { Image(systemName: "minus") }
++                    .disabled(state.colors.count == 1).help("Remove gradient color")
+             }.onChange(of: state.colors) { _ in state.saveColors() }
+             VStack(alignment: .leading) {
+                 Text("Color intensity")

@@ -21,6 +21,9 @@ on:
         required: false
         type: string
         default: ''
+      fresh_source:
+        type: boolean
+        default: false
       repair_arc_checkpoint:
         required: false
         type: boolean
@@ -46,6 +49,18 @@ jobs:
           source ./devutils/shared.sh
           prepare_sources | tee -a github_actions_retrieve_resources.log
           rm -rf build/download_cache
+      - name: Confirm fresh test inputs match the pinned Chromium
+        if: ${{ inputs.fresh_source }}
+        run: |
+          python3 - <<'PYINPUT'
+          import json
+          from pathlib import Path
+
+          expected = json.loads(Path(".github/xenon-test-inputs.json").read_text())
+          actual = Path("helium-chromium/chromium_version.txt").read_text().strip()
+          if expected["chromium_version"] != actual:
+              raise SystemExit(f"Audit WebUI and regression fixtures for Chromium {actual} before building.")
+          PYINPUT
       - name: Archive resources
         run: ./github_pack_resources.sh | tee -a github_actions_retrieve_resources.log
       - name: Upload resources
@@ -56,12 +71,13 @@ jobs:
 
   build_job_01:
     needs: retrieve-resources
-    if: ${{ !cancelled() && (needs.retrieve-resources.result == 'success' || (needs.retrieve-resources.result == 'skipped' && inputs.source_run != '')) }}
+    if: ${{ !cancelled() && (!inputs.fresh_source || inputs.source_run == '') && (needs.retrieve-resources.result == 'success' || (needs.retrieve-resources.result == 'skipped' && inputs.source_run != '')) }}
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: ${{ inputs.source_run != '' }}
       source_run: ${{ inputs.source_run }}
       repair_arc_checkpoint: ${{ inputs.repair_arc_checkpoint }}
@@ -74,6 +90,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_03:
@@ -84,6 +101,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_04:
@@ -94,6 +112,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_05:
@@ -104,6 +123,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_06:
@@ -114,6 +134,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_07:
@@ -124,6 +145,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_08:
@@ -134,6 +156,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_09:
@@ -144,6 +167,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   build_job_10:
@@ -154,6 +178,7 @@ jobs:
     with:
       arch: ${{ inputs.arch }}
       os: ${{ inputs.os }}
+      fresh_source: ${{ inputs.fresh_source }}
       resume: true
 
   verify-completion:

@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: arc-helium-ci
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   select-checkpoint:
@@ -35,21 +35,27 @@ jobs:
           python3 .github/scripts/test_xenon_tests.py
           python3 .github/scripts/test_xenon_test_inputs.py
           python3 .github/scripts/test_webui_types.py
+          python3 .github/scripts/test_xenon_update_metadata.py
           bash -n .github/scripts/github_build.sh .github/scripts/github_prepare_artifacts.sh
       - id: checkpoint
-        run: python3 .github/scripts/github_repair_arc_checkpoint.py --select --require-checkpoint
+        run: python3 .github/scripts/github_repair_arc_checkpoint.py --select
   webui-types:
     needs: select-checkpoint
+    if: needs.select-checkpoint.outputs.source_run != ''
     name: Check all WebUI types before macOS compilation
     uses: ./.github/workflows/webui-typecheck.yml
     secrets: inherit
   build:
     needs: [select-checkpoint, webui-types]
+    if: ${{ !cancelled() && needs.select-checkpoint.result == 'success' &&
+      (needs.webui-types.result == 'success' || (needs.webui-types.result == 'skipped' &&
+      needs.select-checkpoint.outputs.source_run == '')) }}
     name: Build on Xcode 27
     uses: ./.github/workflows/building.yml
     secrets: inherit
     with:
       arch: arm64
       os: xcode-27
+      fresh_source: ${{ needs.select-checkpoint.outputs.source_run == '' }}
       source_run: ${{ needs.select-checkpoint.outputs.source_run }}
       repair_arc_checkpoint: ${{ needs.select-checkpoint.outputs.repair_arc_checkpoint == 'true' }}

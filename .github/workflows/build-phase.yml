@@ -25,6 +25,9 @@ on:
         required: false
         type: boolean
         default: false
+      fresh_source:
+        type: boolean
+        default: false
       repair_arc_checkpoint:
         required: false
         type: boolean
@@ -66,6 +69,9 @@ jobs:
           ARC_MACOS_TEAM_ID: ${{ vars.ARC_MACOS_TEAM_ID }}
           PROD_MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
           PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64: ${{ secrets.PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64 }}
+      - name: Record clean-source checkpoint inputs
+        if: ${{ inputs.fresh_source && !inputs.resume }}
+        run: python3 .github/scripts/github_xenon_fresh_checkpoint.py record
       - name: Get previous logs
         if: ${{ inputs.resume && inputs.source_run == '' }}
         uses: actions/download-artifact@v4
@@ -104,8 +110,13 @@ jobs:
                   output.write('reuse_config=true\n')
           PYTHON
       - name: Verify an exact checkpoint resume without regenerating GN
-        if: ${{ inputs.resume && !inputs.repair_arc_checkpoint }}
+        if: ${{ inputs.resume && !inputs.repair_arc_checkpoint && !inputs.fresh_source }}
         run: python3 .github/scripts/github_repair_arc_checkpoint.py --verify-after
+      - name: Verify clean-source checkpoint from this build
+        if: ${{ inputs.fresh_source && inputs.resume }}
+        run: |
+          test -z "${{ inputs.source_run }}"
+          python3 .github/scripts/github_xenon_fresh_checkpoint.py verify
       - name: Regenerate native UI build configuration
         if: ${{ inputs.resume && inputs.repair_arc_checkpoint && steps.arc-delta.outputs.reuse_config != 'true' }}
         run: |
@@ -156,6 +167,7 @@ jobs:
       - uses: ./.github/actions/do-build
         id: build
         with:
+          fresh_source: ${{ inputs.fresh_source }}
           preflight_failed: ${{ steps.arc-palette.outcome == 'failure' || steps.arc-tests.outcome == 'failure' }}
           arch: ${{ inputs.arch }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

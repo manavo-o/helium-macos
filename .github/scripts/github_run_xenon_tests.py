@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -112,7 +113,15 @@ def main():
     parser.add_argument('--check-stamp', action='store_true')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
-    data = json.loads((root / '.github/arc-checkpoint-delta.json').read_text())
+    if os.environ.get("XENON_FRESH_SOURCE") == "true":
+        audit = root / "build/src/out/Default/xenon-fresh-checkpoint.json"
+        # The build phase has already verified this manifest against its checkout.
+        sources = json.loads(audit.read_text())["sources"]
+        data = dict(test_plan=PLAN, sources={
+            name: {"after": digest} for name, digest in sources.items()
+        }, patches=[])
+    else:
+        data = json.loads((root / '.github/arc-checkpoint-delta.json').read_text())
     try:
         expected = signature(root, data, args.arch)
     except ValueError as error:

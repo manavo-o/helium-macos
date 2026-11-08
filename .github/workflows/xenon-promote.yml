@@ -1,0 +1,50 @@
+name: Promote a verified Xenon build
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Xenon build run ID
+        required: true
+        type: string
+      source_sha:
+        description: Full commit SHA to approve
+        required: true
+        type: string
+      channel:
+        description: Destination feed
+        type: choice
+        options: [test, personal]
+        default: test
+      replacement_verified:
+        description: Enable in-app replacement (personal feed only after target Mac testing)
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: xenon-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.repository == 'manavo-o/helium-macos'
+    runs-on: macos-15
+    environment: xenon-release
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arc-helium
+          persist-credentials: false
+      - name: Verify and promote the chosen build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          XENON_UPDATE_PRIVATE_KEY: ${{ secrets.XENON_UPDATE_PRIVATE_KEY }}
+          RUN_ID: ${{ inputs.run_id }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          CHANNEL: ${{ inputs.channel }}
+          REPLACEMENT_VERIFIED: ${{ inputs.replacement_verified }}
+        run: bash .github/scripts/github_promote_xenon.sh

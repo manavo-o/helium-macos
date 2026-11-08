@@ -14,6 +14,7 @@ rebel/macos/sparkle-integration.patch
 helium/macos/updater/fixup-sparkle-glue.patch
 helium/macos/updater/sparkle2-integration.patch
 helium/macos/updater/disable-default-updater.patch
+helium/macos/updater/xenon-update-consent.patch
 
 helium/macos/applescript-tab-select-command.patch
 helium/macos/open-shortcuts-settings-action.patch
@@ -46,3 +47,4 @@ helium/macos/xenon-native-refinement.patch
 helium/macos/arc-chrome-polish.patch
 helium/macos/arc-home-navigation-visibility.patch
 helium/macos/arc-content-island-borders.patch
+helium/macos/xenon-theme-presets.patch

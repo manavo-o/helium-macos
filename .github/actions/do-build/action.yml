@@ -1,6 +1,9 @@
 name: Build Helium
 description: Compile, checkpoint, and package Helium within the phase deadline.
 inputs:
+  fresh_source:
+    description: Build and test a clean Xenon source tree
+    default: "false"
   preflight_failed:
     description: Save the checkpoint without compiling when preflight checks fail
     required: false
@@ -56,6 +59,7 @@ runs:
         ./github_build.sh '${{ inputs.arch }}' 2>&1 | tee -a github_actions_build_${{ inputs.arch }}.log
       shell: bash
       env:
+        XENON_FRESH_SOURCE: ${{ inputs.fresh_source }}
         ARC_PREFLIGHT_FAILED: ${{ inputs.preflight_failed }}
 
     - name: Show sccache stats after build
