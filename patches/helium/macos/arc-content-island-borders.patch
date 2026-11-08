@@ -158,7 +158,7 @@ Index: src/chrome/browser/ui/views/frame/browser_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -4319,6 +4319,12 @@ void BrowserView::TabStripEmpty() {
+@@ -4327,6 +4327,12 @@ void BrowserView::TabStripEmpty() {
    // there will be consequences (since our view hierarchy will still have
    // references to freed views).
    UpdateUIForContents(nullptr);
@@ -171,7 +171,7 @@ Index: src/chrome/browser/ui/views/frame/browser_view.cc
  }
  
  void BrowserView::WillCloseAllTabs(TabStripModel* tab_strip_model) {
-@@ -6265,7 +6271,7 @@ void BrowserView::UpdateUIForContents(We
+@@ -6273,7 +6279,7 @@ void BrowserView::UpdateUIForContents(We
    needs_layout |= MaybeShowInfoBar(contents);
  
    needs_layout |= MaybeUpdateSplitView(contents);
