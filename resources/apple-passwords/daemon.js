@@ -21,6 +21,11 @@ let cachedCapabilities = null;
 
 // Ensure directories exist
 fs.mkdirSync(PROFILE_DIR, { recursive: true });
+try {
+  fs.rmSync(path.join(PROFILE_DIR, 'SingletonLock'), { force: true });
+  fs.rmSync(path.join(PROFILE_DIR, 'SingletonSocket'), { force: true });
+  fs.rmSync(path.join(PROFILE_DIR, 'SingletonCookie'), { force: true });
+} catch (e) {}
 const hostsDir = path.join(PROFILE_DIR, 'NativeMessagingHosts');
 fs.mkdirSync(hostsDir, { recursive: true });
 fs.copyFileSync(

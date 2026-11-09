@@ -9,7 +9,7 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "7438798eaea2ccfdaba8772dfd7a82bb3a7b211d4b0c7a3ceea2fab3a3756979",
+  "input_sha256": "02f52d2f435f193113b4f4f7cab42088994017ce31d442577ba1a04e0613959d",
   "patches": [
     {
       "path": "patches/helium/macos/arc-home-navigation-visibility.patch",
