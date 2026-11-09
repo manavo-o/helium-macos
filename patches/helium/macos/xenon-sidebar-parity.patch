@@ -21,7 +21,7 @@ index bca4a9f4a5770f9cc24eb5af8402fb199bc341f5..e0b1612794df389df86264693a3de151
 @@ -1150,12 +1150,7 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        }
      }
-
+ 
 -    constexpr int kPageToolbarGap = 2;
 -    const int page_toolbar_gap =
 -        mac_vertical_layout && !top_container_layout.bounds.IsEmpty()
@@ -29,12 +29,12 @@ index bca4a9f4a5770f9cc24eb5af8402fb199bc341f5..e0b1612794df389df86264693a3de151
 -            : 0;
 -    params.SetTop(top_container_layout.bounds.bottom() + page_toolbar_gap);
 +    params.SetTop(top_container_layout.bounds.bottom());
-
+ 
      if (zen.enabled) {
        AdjustTopContainerForZenMode(top_container_layout, params,
 @@ -1243,7 +1238,7 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
      }
-
+ 
      if (side_panel_reveal_amount < 1.0) {
 -      if (mac_vertical_layout && !clip_content_for_animation) {
 +      if (mac_vertical_layout) {
@@ -46,7 +46,7 @@ index e7214da63aabf6f3b6c209ae65aaaf80ba8667c7..db16b7308f137a564c681d2707765694
 --- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
 +++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
 @@ -559,32 +559,36 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
-
+ 
  #if BUILDFLAG(IS_MAC)
  IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
 -                       FloatingTabsKeepHeightWhenContentPanelToggles) {
@@ -99,7 +99,7 @@ index e7214da63aabf6f3b6c209ae65aaaf80ba8667c7..db16b7308f137a564c681d2707765694
 +  }
  }
  #endif  // BUILDFLAG(IS_MAC)
-
+ 
 diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 index b58d072860a6d49fe6cf5ab6d85666a128e17cae..541c4e9ebcfcbcd1e0e8578b1e5ca33e4155bb3b 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
@@ -179,7 +179,7 @@ index 90e0d33259383332e36fa51900617c375edee2e5..1ccf7e40f4f7c128a89a3ea78ee1fbfd
 @@ -513,50 +513,66 @@ private struct AddressSurface: View {
      }
  }
-
+ 
 +private final class SidebarControlsState: ObservableObject {
 +    @Published var pinned = false
 +    @Published var profileName = ""
@@ -191,7 +191,7 @@ index 90e0d33259383332e36fa51900617c375edee2e5..1ccf7e40f4f7c128a89a3ea78ee1fbfd
  private struct SidebarHeader: View {
 -    let state: AddressState
 +    @ObservedObject var state: SidebarControlsState
-
+ 
      var body: some View {
          GeometryReader { geometry in
 -            if geometry.size.width >= 112 {
@@ -219,7 +219,7 @@ index 90e0d33259383332e36fa51900617c375edee2e5..1ccf7e40f4f7c128a89a3ea78ee1fbfd
          }
          .buttonStyle(.plain)
      }
-
+ 
 -    private var pinButton: some View {
 -        Button { state.event(3) } label: {
 -            Image(systemName: "pin").frame(width: 22, height: 24)
@@ -233,7 +233,7 @@ index 90e0d33259383332e36fa51900617c375edee2e5..1ccf7e40f4f7c128a89a3ea78ee1fbfd
 +        }.help(title).accessibilityLabel(title)
      }
  }
-
+ 
  private struct SidebarFooter: View {
 -    @ObservedObject var state: AddressState
 +    let state: SidebarControlsState
@@ -278,13 +278,13 @@ index 90e0d33259383332e36fa51900617c375edee2e5..1ccf7e40f4f7c128a89a3ea78ee1fbfd
 +
      @objc public func invalidate() { state.event = { _ in } }
  }
-
+ 
 diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 index 60a5cd21fc8142a0376708e00e4da14b023bfb1e..b5d967f76a2189b95455ecde3fb80abdfaf0d475 100644
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -210,7 +210,7 @@ class ArcIslandToolbarBackground : public views::Background {
-
+ 
    void Paint(gfx::Canvas* canvas, views::View* view) const override {
      const SkVector radii[4] = {
 -        {10.f, 10.f}, {10.f, 10.f}, {10.f, 10.f}, {10.f, 10.f}};
@@ -293,7 +293,7 @@ index 60a5cd21fc8142a0376708e00e4da14b023bfb1e..b5d967f76a2189b95455ecde3fb80abd
      bounds.setRectRadii(gfx::RectToSkRect(view->GetLocalBounds()), radii);
      SkPathBuilder clip;
 @@ -2424,16 +2424,17 @@ void ToolbarView::UpdateVerticalTabsCollapseButton() {
-
+ 
    auto* controller =
        tabs::VerticalTabStripStateController::From(browser_view_->browser());
 -  if (IsVerticalLayout()) {
