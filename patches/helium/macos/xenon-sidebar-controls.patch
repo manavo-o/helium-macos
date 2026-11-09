@@ -1,0 +1,230 @@
+diff --git a/chrome/browser/ui/views/frame/contents_container_view.cc b/chrome/browser/ui/views/frame/contents_container_view.cc
+index 890e970..9155fab 100644
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -363,8 +363,8 @@ void ContentsContainerView::UpdateBorderRoundedCorners() {
+       round_top_right_window_corner_ ? frame_radius : generic_radius;
+ #if BUILDFLAG(IS_MAC)
+   if (browser_view_->ShouldDrawVerticalTabStrip() && !is_in_split_) {
+-    upper_left_radius = 0;
+-    upper_right_radius = 0;
++    upper_left_radius = 10;
++    upper_right_radius = 10;
+     lower_left_radius = 10;
+     lower_right_radius = 10;
+   }
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index 9017ff6..bca4a9f 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -483,9 +483,11 @@ BrowserViewTabbedLayoutImpl::CalculateHorizontalLayout(
+   // Keep the macOS vertical layout on the same toolbar path with or without
+   // a content-height panel. The floating strip clears that toolbar.
+   layout.force_top_container_to_top =
+-      layout_data_->tab_strip_type != TabStripType::kHorizontal &&
+-      (BUILDFLAG(IS_MAC) ||
+-       layout_data_->tab_strip_type != TabStripType::kVertical);
++      layout_data_->tab_strip_type != TabStripType::kHorizontal;
++#if !BUILDFLAG(IS_MAC)
++  layout.force_top_container_to_top &=
++      layout_data_->tab_strip_type != TabStripType::kVertical;
++#endif
+ 
+   layout.is_split_view = delegate().IsActiveTabSplit();
+ 
+@@ -1148,7 +1150,12 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+       }
+     }
+ 
+-    params.SetTop(top_container_layout.bounds.bottom());
++    constexpr int kPageToolbarGap = 2;
++    const int page_toolbar_gap =
++        mac_vertical_layout && !top_container_layout.bounds.IsEmpty()
++            ? kPageToolbarGap
++            : 0;
++    params.SetTop(top_container_layout.bounds.bottom() + page_toolbar_gap);
+ 
+     if (zen.enabled) {
+       AdjustTopContainerForZenMode(top_container_layout, params,
+@@ -1236,6 +1243,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     }
+ 
+     if (side_panel_reveal_amount < 1.0) {
++      if (mac_vertical_layout && !clip_content_for_animation) {
++        // Start from the page bounds before the panel takes any width.
++        unclipped_contents_region = params.visual_client_area;
++      }
+       clip_content_for_animation = true;
+       side_panel_is_animating = true;
+     }
+@@ -1451,8 +1462,12 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+                                 params.visual_client_area.height()));
+ 
+   // Maybe expand and clip the web contents to avoid issues during animation.
+-  if (features::UseSidePanelFlyoverAnimation()) {
+-    if (clip_content_for_animation) {
++  {
++    const bool clip_page =
++        clip_content_for_animation &&
++        (features::UseSidePanelFlyoverAnimation() ||
++         (mac_vertical_layout && side_panel_is_animating));
++    if (clip_page) {
+       // Vertical span is whatever it is, minus any shadow overlay insets.
+       unclipped_contents_region.set_y(contents_layout.bounds.y());
+       unclipped_contents_region.set_height(contents_layout.bounds.height());
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index 9fdb6a5..6f220c9 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -144,6 +144,9 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+   const int region_horizontal_padding =
+       GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
+ 
++  content_area_view_->AddChildView(
++      helium::CreateArcSidebarHeader(browser_view->browser()));
++
+   bottom_button_container_ = content_area_view_->AddChildView(
+       std::make_unique<VerticalTabStripBottomContainer>(
+           state_controller_, root_action_item, browser_view->browser(),
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
+index c64942a..77748a6 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
+@@ -34,6 +34,7 @@ class ArcNativeCommandBar {
+ std::unique_ptr<ArcNativeCommandBar> CreateArcNativeCommandBar(ArcNativeEvent event);
+ void ShowArcAppearance(BrowserWindowInterface* browser);
+ std::unique_ptr<views::View> CreateArcHomeSurface(BrowserWindowInterface* browser);
++std::unique_ptr<views::View> CreateArcSidebarHeader(BrowserWindowInterface* browser);
+ std::unique_ptr<views::View> CreateArcSidebarFooter(BrowserWindowInterface* browser);
+ std::unique_ptr<views::View> CreateArcAddressDisplay(BrowserWindowInterface* browser);
+ void UpdateArcAddressDisplay(views::View* view, BrowserWindowInterface* browser);
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+index 9843d09..b58d072 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+@@ -110,21 +110,31 @@ void AddedToWidget() override {
+  private:
+   XenonHomeHost* __strong host_;
+ };
+-class NativeSidebarFooter : public views::NativeViewHost {
++class NativeSidebarControls : public views::NativeViewHost {
+  public:
+-  explicit NativeSidebarFooter(BrowserWindowInterface* browser) {
++  NativeSidebarControls(BrowserWindowInterface* browser, bool header) {
+     auto weak = browser->GetWeakPtr();
+-    host_ = [[XenonSidebarFooterHost alloc] initWithEvent:^(NSInteger action) {
++    host_ = [[XenonSidebarFooterHost alloc] initWithHeader:header
++        event:^(NSInteger action) {
+       if (!weak) return;
+       if (action == 0) { helium::ShowArcAppearance(weak.get()); return; }
+-      NavigateParams navigation(weak.get(), GURL(action == 1 ?
+-          "chrome://downloads/" : "chrome://settings/"), ui::PAGE_TRANSITION_LINK);
++      if (action == 3) {
++        auto* view = BrowserView::GetBrowserViewForBrowser(weak.get());
++        if (view && !view->IsZenModeSideChromePinned()) {
++          view->ToggleZenModeSideChrome();
++        }
++        return;
++      }
++      const char* url = action == 1 ? "chrome://downloads/"
++                        : action == 4 ? "chrome://bookmarks/"
++                                      : "chrome://settings/";
++      NavigateParams navigation(weak.get(), GURL(url), ui::PAGE_TRANSITION_LINK);
+       navigation.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+       Navigate(&navigation);
+     }];
+-    SetPreferredSize(gfx::Size(160, 36));
++    SetPreferredSize(header ? gfx::Size(0, 30) : gfx::Size(160, 36));
+   }
+-  ~NativeSidebarFooter() override { [host_ invalidate]; }
++  ~NativeSidebarControls() override { [host_ invalidate]; }
+   void OnThemeChanged() override {
+     views::NativeViewHost::OnThemeChanged();
+     if (GetColorProvider()) host_.view.appearance = [NSAppearance appearanceNamed:
+@@ -205,8 +215,12 @@ - (void)dealloc {
+ std::unique_ptr<views::View> CreateArcHomeSurface(BrowserWindowInterface* browser) {
+   return std::make_unique<NativeHomeSurface>(browser);
+ }
++std::unique_ptr<views::View> CreateArcSidebarHeader(
++    BrowserWindowInterface* browser) {
++  return std::make_unique<NativeSidebarControls>(browser, /*header=*/true);
++}
+ std::unique_ptr<views::View> CreateArcSidebarFooter(BrowserWindowInterface* browser) {
+-  return std::make_unique<NativeSidebarFooter>(browser);
++  return std::make_unique<NativeSidebarControls>(browser, /*header=*/false);
+ }
+ std::unique_ptr<views::View> CreateArcAddressDisplay(BrowserWindowInterface* browser) {
+   return std::make_unique<NativeAddressDisplay>(browser);
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+index 89688c8..90e0d33 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+@@ -513,6 +513,38 @@ private struct AddressSurface: View {
+     }
+ }
+ 
++private struct SidebarHeader: View {
++    let state: AddressState
++
++    var body: some View {
++        GeometryReader { geometry in
++            if geometry.size.width >= 112 {
++                HStack(spacing: 8) {
++                    Text("Tabs").font(.subheadline.weight(.semibold))
++                        .accessibilityAddTraits(.isHeader)
++                    Spacer(minLength: 4)
++                    Button { state.event(4) } label: {
++                        Image(systemName: "book")
++                    }.help("Bookmarks").accessibilityLabel("Bookmarks")
++                    pinButton
++                }
++                .padding(.horizontal, 10)
++                .frame(height: geometry.size.height)
++            } else {
++                pinButton.frame(maxWidth: .infinity, maxHeight: .infinity)
++            }
++        }
++        .buttonStyle(.plain)
++    }
++
++    private var pinButton: some View {
++        Button { state.event(3) } label: {
++            Image(systemName: "pin").frame(width: 22, height: 24)
++                .contentShape(Rectangle())
++        }.help("Keep sidebar open").accessibilityLabel("Keep sidebar open")
++    }
++}
++
+ private struct SidebarFooter: View {
+     @ObservedObject var state: AddressState
+     var body: some View {
+@@ -553,10 +585,14 @@ private struct SidebarFooter: View {
+ @objc(XenonSidebarFooterHost) public final class XenonSidebarFooterHost: NSObject {
+     private let state: AddressState
+     @objc public let view: NSView
+-    @objc(initWithEvent:) public init(event: @escaping (Int) -> Void) {
++    @objc(initWithHeader:event:) public init(header: Bool, event: @escaping (Int) -> Void) {
+         let state = AddressState(event: event)
+         self.state = state
+-        view = ClearHostingView(rootView: SidebarFooter(state: state))
++        if header {
++            view = ClearHostingView(rootView: SidebarHeader(state: state))
++        } else {
++            view = ClearHostingView(rootView: SidebarFooter(state: state))
++        }
+         super.init()
+     }
+     @objc public func invalidate() { state.event = { _ in } }
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index 6dc7d54..60a5cd2 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -210,7 +210,7 @@ class ArcIslandToolbarBackground : public views::Background {
+ 
+   void Paint(gfx::Canvas* canvas, views::View* view) const override {
+     const SkVector radii[4] = {
+-        {10.f, 10.f}, {10.f, 10.f}, {0.f, 0.f}, {0.f, 0.f}};
++        {10.f, 10.f}, {10.f, 10.f}, {10.f, 10.f}, {10.f, 10.f}};
+     SkRRect bounds;
+     bounds.setRectRadii(gfx::RectToSkRect(view->GetLocalBounds()), radii);
+     SkPathBuilder clip;
