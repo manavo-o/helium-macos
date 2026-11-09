@@ -21,7 +21,7 @@ gh api "repos/$repo/actions/runs/$RUN_ID" | jq -e --arg sha "$SOURCE_SHA" '
   .head_sha == $sha and .status == "completed" and .conclusion == "success" and
   .head_repository.full_name == "manavo-o/helium-macos" and
   (.path == ".github/workflows/arc-helium-ci.yml" or .path == ".github/workflows/build.yml") and
-  (.head_branch == "arc-helium" or (.head_branch | startswith("codex/helium-")))
+  (.head_branch == "arc-helium" or (.head_branch | startswith("codex/helium-")) or (.head_branch == "codex/xenon-updates"))
 ' >/dev/null
 artifact=$(gh api --paginate "repos/$repo/actions/runs/$RUN_ID/artifacts" |
   jq -es '[.[].artifacts[] | select(.expired == false and
