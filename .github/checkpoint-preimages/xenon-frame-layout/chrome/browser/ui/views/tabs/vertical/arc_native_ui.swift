@@ -458,17 +458,24 @@ private final class AddressState: ObservableObject {
 private struct AddressSurface: View {
     @ObservedObject var state: AddressState
     var body: some View {
-        HStack(spacing: 6) {
-            Button { state.event(1) } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 12))
-            }.help("Site information and permissions").accessibilityLabel("Site information and permissions")
-                .disabled(state.title == "Search or Enter URL…")
+        HStack(spacing: 4) {
+            if state.title != "Search or Enter URL…" {
+                Button { state.event(1) } label: {
+                    Image(systemName: "slider.horizontal.3").font(.system(size: 12))
+                        .frame(width: 24, height: 28).contentShape(Rectangle())
+                }.help("Site information and permissions")
+                    .accessibilityLabel("Site information and permissions")
+            }
             Button { state.event(0) } label: {
                 Text(state.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+                    .padding(.horizontal, 4).frame(height: 28).contentShape(Rectangle())
             }.help(state.url).accessibilityLabel("Address: " + state.title)
                 .accessibilityHint("Open the centered address editor")
-        }.buttonStyle(.plain).frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: 280)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(.container, edges: .vertical)
     }
 }
 @objc(XenonAddressHost) public final class XenonAddressHost: NSObject {
@@ -482,22 +489,46 @@ private struct AddressSurface: View {
     }
     @objc public func invalidate() { state.event = { _ in } }
     @objc(updateWithTitle:url:) public func update(title: String, url: String) {
-        state.title = title; state.url = url
+        if state.title != title { state.title = title }
+        if state.url != url { state.url = url }
     }
 }
 
 private struct SidebarFooter: View {
     @ObservedObject var state: AddressState
     var body: some View {
-        HStack(spacing: 20) {
-            Button { state.event(0) } label: { Image(systemName: "paintpalette") }
-                .help("Appearance").accessibilityLabel("Appearance")
-            Button { state.event(1) } label: { Image(systemName: "arrow.down.circle") }
-                .help("Downloads").accessibilityLabel("Downloads")
-            Spacer(minLength: 0)
-            Button { state.event(2) } label: { Image(systemName: "gearshape") }
-                .help("Settings").accessibilityLabel("Settings")
-        }.buttonStyle(.plain).padding(.horizontal, 12).frame(maxHeight: .infinity)
+        GeometryReader { geometry in
+            HStack(spacing: 4) {
+                if geometry.size.width >= 96 {
+                    footerButton("Appearance", symbol: "paintpalette", action: 0)
+                    footerButton("Downloads", symbol: "arrow.down.circle", action: 1)
+                    footerButton("Settings", symbol: "gearshape", action: 2)
+                    Spacer(minLength: 0)
+                } else {
+                    Menu {
+                        Button("Appearance") { state.event(0) }
+                        Button("Downloads") { state.event(1) }
+                        Button("Settings") { state.event(2) }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .accessibilityLabel("Sidebar tools")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 4)
+            .frame(height: geometry.size.height)
+        }
+    }
+
+    private func footerButton(_ title: String, symbol: String, action: Int) -> some View {
+        Button { state.event(action) } label: {
+            Image(systemName: symbol)
+                .frame(width: 26, height: 28).contentShape(Rectangle())
+        }.help(title).accessibilityLabel(title)
     }
 }
 @objc(XenonSidebarFooterHost) public final class XenonSidebarFooterHost: NSObject {

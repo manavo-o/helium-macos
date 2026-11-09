@@ -59,8 +59,8 @@
       "preimage": ".github/checkpoint-preimages/xenon-frame-layout/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift": {
-      "after": "22829d4e0da385bf79c462bc1123f7b26af4e09c2cb42a6fe45995a26ebb99ce",
-      "before": "e49bf9d550e77e8cce351c9e23b248f53bd6ba576119acf8d31a3acb462a4cc1",
+      "after": "4c32b2776b3e74174a3b413d9dca4392ca10e064e2cd21d27d4b7ca5ebb633d8",
+      "before": "57d19b9f440eff1222934d83af102e83805134e6df08c2adaf09897d5e2e54a6",
       "preimage": ".github/checkpoint-preimages/xenon-frame-layout/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift"
     },
     "chrome/browser/ui/views/toolbar/toolbar_view.cc": {
