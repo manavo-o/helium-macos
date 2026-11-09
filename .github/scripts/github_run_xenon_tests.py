@@ -15,7 +15,8 @@ REQUIRED_BROWSER_TESTS = {
     'ArcCommandBarBrowserTest.EditAddressReplacesOriginalTab',
     'ArcCommandBarBrowserTest.HomeSubmissionReusesEmptySlot',
     'ArcCommandBarBrowserTest.FinalTabCloseReturnsHome',
-    'ArcCommandBarBrowserTest.HomeRevealsSidebarWithoutChangingPreference',
+    'ArcCommandBarBrowserTest.HomeHonorsHiddenSidebarPreference',
+    'ArcCommandBarBrowserTest.PaletteStaysCentered',
     'ArcCommandBarBrowserTest.CommandEnterSearchesRawQuestionAfterSelectionMoves',
     'SidePanelCoordinatorLoadingContentTest.ToggleCancelsPendingEntryBeforeFirstPanelIsVisible',
 }

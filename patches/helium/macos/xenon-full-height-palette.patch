@@ -1,0 +1,640 @@
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index d10a40512657ee3a3063be1b0cae92515700f37e..005dcc87137b57402bb03bc944d634293b181b81 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1732,7 +1732,6 @@ float BrowserView::GetSideChromeRevealRatio() const {
+   if (!ShouldDrawVerticalTabStrip()) {
+     return 0.f;
+   }
+-  if (helium::IsArcHome(browser_->GetTabStripModel()->GetActiveWebContents())) return 1.f;
+   return zen_side_chrome_animation_.GetCurrentValue();
+ }
+ 
+@@ -1858,7 +1857,11 @@ void BrowserView::OnZenModeSideChromePinnedPrefChanged() {
+   if (IsZenModeSideChromePinned()) {
+     zen_side_chrome_animation_.Reset(1);
+   } else {
++#if BUILDFLAG(IS_MAC)
++    UpdateZenModeReveal(GetTopChromeRevealRatio() > 0.0f, false);
++#else
+     UpdateZenModeRevealFromCursor();
++#endif
+   }
+ 
+   if (vertical_tab_strip_region_view_) {
+@@ -2032,14 +2035,18 @@ void BrowserView::UpdateZenModeRevealFromCursor() {
+   const bool in_top_chrome = IsPointInZenTopChromeBounds(cursor);
+   const bool reveal_top = in_top_trigger || in_top_chrome;
+ 
+-  // Top bar takes precedence: don't reveal side chrome when the cursor
+-  // is in the top trigger zone or over the revealed top chrome.
++  // The top trigger cannot dismiss a rail the pointer is already inside.
+   const bool in_side_trigger = IsPointInZenSideTrigger(cursor);
+   const bool in_side_chrome = IsPointInZenSideChromeBounds(cursor);
+   const bool moving_out_through_side_gap =
+       previous_cursor && IsLeavingZenSideGap(*previous_cursor, cursor);
+-  const bool reveal_side = !reveal_top && !moving_out_through_side_gap &&
+-                           (in_side_trigger || in_side_chrome);
++  const bool over_mac_rail = BUILDFLAG(IS_MAC) && in_side_chrome &&
++                             zen_side_chrome_animation_.IsShowing();
++  const bool reveal_side = !moving_out_through_side_gap &&
++                           (over_mac_rail ||
++                            (!reveal_top &&
++                             (in_side_trigger ||
++                              (!BUILDFLAG(IS_MAC) && in_side_chrome))));
+ 
+   // Defer the collapse briefly so quick excursions don't cause the
+   // chrome to snap closed.
+@@ -2062,8 +2069,7 @@ void BrowserView::UpdateZenModeReveal(bool reveal_top, bool reveal_side) {
+   }
+ 
+   // Pinned VTS stays visible regardless of cursor position.
+-  if (IsZenModeSideChromePinned() || helium::IsArcHome(
+-          browser_->GetTabStripModel()->GetActiveWebContents())) {
++  if (IsZenModeSideChromePinned()) {
+     reveal_side = true;
+   }
+ 
+@@ -6956,6 +6962,9 @@ void BrowserView::AnimationProgressed(const gfx::Animation* animation) {
+   if (animation == &zen_top_chrome_animation_ ||
+       animation == &zen_side_chrome_animation_) {
+     const bool top_chrome_animation = animation == &zen_top_chrome_animation_;
++    if (!top_chrome_animation) {
++      UpdateZenCollapseButtonVisibility();
++    }
+     if (top_chrome_animation && vertical_tab_strip_region_view_) {
+       vertical_tab_strip_region_view_->UpdateInteriorMargin();
+     }
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index d8c3ac88990d4d83a80f3a3d8ee4fa002718e3d1..ad87ab6f8bc2f9d417c9b8aaa99e8123844ec2a4 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -898,6 +898,7 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+       mac_vertical_layout &&
+       (layout_data_->window_state == WindowState::kNormal ||
+        layout_data_->window_state == WindowState::kMaximized);
++  const gfx::Rect rail_client_area = params.visual_client_area;
+   constexpr int kPageFrameInset = 8;
+   if (inset_page_frame && zen.floating_vertical_tab_strip) {
+     params.Inset(gfx::Insets(kPageFrameInset));
+@@ -999,32 +1000,31 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+         last_vertical_tab_strip_width_ = vertical_tab_strip_width;
+       }
+ 
++      const gfx::Rect& rail_area =
++          mac_vertical_layout ? rail_client_area : params.visual_client_area;
++      const int side_padding =
++          mac_vertical_layout ? 0 : zen.vertical_tab_strip_padding;
+       const int vertical_tab_strip_x =
+           vertical_right_aligned
+-              ? params.visual_client_area.right() -
+-                    zen.vertical_tab_strip_padding - vertical_tab_strip_width
+-              : params.visual_client_area.x() +
+-                    zen.vertical_tab_strip_padding;
++              ? rail_area.right() - side_padding - vertical_tab_strip_width
++              : rail_area.x() + side_padding;
+ 
+       int top_offset = vertical_tab_strip_animation.top_offset;
+       if (zen.enabled) {
+         top_offset = 0;
+       }
+ 
+-      const int bottom_padding =
+-          mac_vertical_layout ? 0 : zen.vertical_tab_strip_padding;
+-      const int vertical_tab_strip_height =
+-          std::max(0, params.visual_client_area.height() - top_offset -
+-                          zen.vertical_tab_strip_top_padding - bottom_padding);
++      const int top_padding =
++          mac_vertical_layout ? 0 : zen.vertical_tab_strip_top_padding;
++      const int vertical_tab_strip_height = std::max(
++          0, rail_area.height() - top_offset - top_padding - side_padding);
+       vertical_tab_strip_bounds = {
+-          vertical_tab_strip_x,
+-          params.visual_client_area.y() + top_offset +
+-              zen.vertical_tab_strip_top_padding,
++          vertical_tab_strip_x, rail_area.y() + top_offset + top_padding,
+           vertical_tab_strip_width, vertical_tab_strip_height};
+       if (zen.floating_vertical_tab_strip) {
+         vertical_tab_strip_bounds = SlideBoundsFromSide(
+-            vertical_tab_strip_bounds, params.visual_client_area,
+-            zen.side_chrome_ratio, vertical_right_aligned);
++            vertical_tab_strip_bounds, rail_area, zen.side_chrome_ratio,
++            vertical_right_aligned);
+       }
+ 
+       if (layout_data_->window_state == WindowState::kFullscreenWithToolbar &&
+@@ -1094,7 +1094,14 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+         layout.AddChild(views().top_container, gfx::Rect());
+ 
+     // Calculate the params for laying out the top container.
+-    const BrowserLayoutParams& parent_params = params;
++    BrowserLayoutParams parent_params = params;
++    if (mac_vertical_layout && zen.floating_vertical_tab_strip &&
++        zen.side_chrome_ratio > 0.0f) {
++      // Only the toolbar yields to the overlay. The website keeps its width.
++      gfx::Rect covered = vertical_tab_strip_bounds;
++      covered.Intersect(parent_params.visual_client_area);
++      parent_params.InsetHorizontal(covered.width(), !vertical_right_aligned);
++    }
+     auto top_container_params =
+         parent_params.InLocalCoordinates(parent_params.visual_client_area);
+ 
+@@ -1160,15 +1167,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+ 
+     // Floating tabs overlay the page, but must clear the visible toolbar and
+     // bookmarks bar throughout their reveal animations.
+-    if (zen.floating_vertical_tab_strip && zen.TopChromeVisible()) {
++    if (!mac_vertical_layout && zen.floating_vertical_tab_strip &&
++        zen.TopChromeVisible()) {
+       auto strip = layout.children.find(views().vertical_tab_strip_region_view);
+       if (strip != layout.children.end()) {
+         gfx::Rect& bounds = strip->second.bounds;
+-        const int toolbar_gap =
+-            mac_vertical_layout ? 0 : zen.vertical_tab_strip_top_padding;
+-        const int top =
+-            std::max(bounds.y(), top_container_layout.bounds.bottom() +
+-                                     toolbar_gap);
++        const int top = std::max(bounds.y(), top_container_layout.bounds.bottom() +
++                                                zen.vertical_tab_strip_top_padding);
+         bounds.set_height(std::max(0, bounds.bottom() - top));
+         bounds.set_y(top);
+       }
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+index db16b7308f137a564c681d2707765694df66aeac..cc1d5518576d7e5d8a6cb1d99690c7c6fdbed445 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+@@ -13,6 +13,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/run_loop.h"
+ #include "base/scoped_multi_source_observation.h"
++#include "base/test/run_until.h"
+ #include "base/test/scoped_feature_list.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -29,6 +30,7 @@
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/view_ids.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/contents_container_view.h"
+ #include "chrome/browser/ui/views/frame/contents_web_view.h"
+@@ -42,6 +44,7 @@
+ #include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+ #include "chrome/common/pref_names.h"
++#include "chrome/test/base/interactive_test_utils.h"
+ #include "chrome/test/interaction/interactive_browser_test.h"
+ #include "components/bookmarks/common/bookmark_bar_visibility_state.h"
+ #include "components/bookmarks/common/bookmark_pref_names.h"
+@@ -564,22 +567,48 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
+       ->SetVerticalTabsEnabled(true);
+   auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+   ASSERT_TRUE(browser_view->IsZenModeEnabledForLayout());
+-  // Home keeps the floating sidebar revealed without depending on the cursor.
+-  chrome::AddTabAt(browser(), GURL("chrome://newtab/"), -1, true);
++  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
+   auto* strip = browser_view->vertical_tab_strip_region_view_for_testing();
+   ASSERT_TRUE(strip);
+ 
++  int pinned_top = 0;
++  int pinned_bottom = 0;
++  const auto window = browser_view->GetBoundsInScreen();
++  auto* toolbar_toggle =
++      browser_view->GetViewByID(VIEW_ID_COLLAPSE_VERTICAL_TABS_BUTTON);
++  ASSERT_TRUE(toolbar_toggle);
+   for (bool pinned : {true, false}) {
+     SCOPED_TRACE(pinned);
+     if (browser_view->IsZenModeSideChromePinned() != pinned) {
+       browser_view->ToggleZenModeSideChrome();
+     }
+-    base::RunLoop().RunUntilIdle();
+-    RunScheduledLayouts();
+     ASSERT_EQ(pinned, browser_view->IsZenModeSideChromePinned());
++    if (!pinned) {
++      ASSERT_TRUE(base::test::RunUntil(
++          [&] { return browser_view->GetSideChromeRevealRatio() == 0.0f; }));
++      RunScheduledLayouts();
++      EXPECT_TRUE(toolbar_toggle->GetVisible());
++      const auto viewport = browser_view->multi_contents_view()->bounds();
++      ASSERT_TRUE(ui_test_utils::SendMouseMoveSync(
++          gfx::Point(window.x() + 1, window.CenterPoint().y()),
++          browser_view->GetWidget()->GetNativeWindow()));
++      ASSERT_TRUE(base::test::RunUntil(
++          [&] { return browser_view->GetSideChromeRevealRatio() == 1.0f; }));
++      RunScheduledLayouts();
++      EXPECT_EQ(viewport, browser_view->multi_contents_view()->bounds());
++    }
++    RunScheduledLayouts();
+     ASSERT_TRUE(strip->GetVisible());
++    EXPECT_FALSE(toolbar_toggle->GetVisible());
+     const int top = strip->bounds().y();
+     const int bottom = strip->bounds().bottom();
++    if (pinned) {
++      pinned_top = top;
++      pinned_bottom = bottom;
++    } else {
++      EXPECT_EQ(pinned_top, top);
++      EXPECT_EQ(pinned_bottom, bottom);
++    }
+ 
+     auto check_edges = [&] {
+       EXPECT_TRUE(strip->GetVisible());
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index 8b3e9423af2da84f8530dcc855d0801412b8276d..deaf5f7bcef0e7545a4c19a7a59124ea7001faa7 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -37,6 +37,7 @@
+ #include "chrome/browser/ui/view_ids.h"
+ #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
+ #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
++#include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/custom_corners_background.h"
+ #include "chrome/browser/ui/views/frame/frame_separator.h"
+@@ -85,6 +86,8 @@
+ #include "ui/views/view.h"
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
++#include "ui/views/widget/widget.h"
++#include "ui/views/window/non_client_view.h"
+ 
+ namespace {
+ constexpr int kResizeAreaWidth = 5;
+@@ -95,7 +98,6 @@ constexpr int kBottomContainerGap = 2;
+ constexpr int kDefaultWidthSnapDistance = 6;
+ constexpr int kXenonSidebarToggleId = 0x58454e;
+ constexpr int kXenonSidebarToggleSize = 28;
+-constexpr int kXenonTrafficLightsClearance = 84;
+ constexpr int kXenonSidebarHeaderHeight = 38;
+ 
+ // Shadow is used in expand-on-hover mode. Shadow radius and opacity are dynamic
+@@ -431,21 +433,36 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+ 
+   available.Inset(interior_margin_);
+ 
+-  const bool floating = floating_style_ == FloatingStyle::kDetached;
+   const bool show_sidebar_toggle = browser_view()->IsZenModeEnabledForLayout();
+-  const bool has_traffic_lights = !floating && has_leading_exclusion_;
++  int caption_width = 0;
++  int caption_height = 0;
++#if BUILDFLAG(IS_MAC)
++  const auto* widget = browser_view()->GetWidget();
++  if (widget && widget->non_client_view() &&
++      widget->non_client_view()->frame_view()) {
++    const auto* frame = static_cast<const BrowserFrameView*>(
++        widget->non_client_view()->frame_view());
++    const auto params = frame->GetBrowserLayoutParams();
++    const auto& exclusion = state_controller_->IsTabStripRightAligned()
++                                ? params.trailing_exclusion
++                                : params.leading_exclusion;
++    if (exclusion.content.width() > 0) {
++      caption_width = base::ClampCeil(exclusion.ContentWithPadding().width());
++      caption_height = base::ClampCeil(exclusion.ContentWithPadding().height());
++    }
++  }
++#endif
+   const bool beside_traffic_lights =
+-      has_traffic_lights &&
+-      available.width() >= kXenonTrafficLightsClearance +
+-                               kXenonSidebarToggleSize;
++      caption_width > 0 &&
++      available.width() >= caption_width + kXenonSidebarToggleSize;
+   const int toggle_x = beside_traffic_lights
+-                           ? kXenonTrafficLightsClearance
++                           ? caption_width
+                            : std::clamp((available.width() -
+                                          kXenonSidebarToggleSize) / 2,
+                                         0, 8);
+-  const int toggle_y =
+-      has_traffic_lights && !beside_traffic_lights ? kXenonSidebarHeaderHeight
+-                                                 : 4;
++  const int toggle_y = caption_width > 0 && !beside_traffic_lights
++                           ? std::max(kXenonSidebarHeaderHeight, caption_height)
++                           : 4;
+   layout.child_layouts.push_back(
+       {.child_view =
+            const_cast<views::View*>(GetViewByID(kXenonSidebarToggleId)),
+@@ -482,6 +499,12 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+ }
+ 
+ void VerticalTabStripRegionView::Layout(PassKey) {
++  auto* toggle = static_cast<ToolbarButton*>(GetViewByID(kXenonSidebarToggleId));
++  const std::u16string label = browser_view()->IsZenModeSideChromePinned()
++                                   ? u"Hide Sidebar"
++                                   : u"Keep Sidebar Open";
++  toggle->SetTooltipText(label);
++  toggle->GetViewAccessibility().SetName(label);
+   LayoutSuperclass<BaseTabStripRegionView>(this);
+ 
+   // When animating the organizer panel in, as soon as it is visible, focus it.
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+index db662e238d865a10b2069deec6ab5c751bdf4143..49843f960750b7eccf092cd97c80fbc19eeb1c10 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -7,6 +7,7 @@
+ #include <atomic>
+ 
+ #include "base/run_loop.h"
++#include "base/test/run_until.h"
+ #include "chrome/browser/ui/helium/arc_appearance_prefs.h"
+ #include "components/prefs/pref_service.h"
+ #include "base/task/single_thread_task_runner.h"
+@@ -33,6 +34,7 @@
+ #include "content/public/test/url_loader_interceptor.h"
+ #include "ui/events/keycodes/keyboard_codes.h"
+ #include "ui/views/controls/textfield/textfield.h"
++#include "ui/views/focus/focus_manager.h"
+ #include "ui/views/view_utils.h"
+ #include "ui/views/widget/widget.h"
+ 
+@@ -55,13 +57,13 @@ class ArcCommandBarBrowserTest : public InProcessBrowserTest {
+   void SetUpCommandLine(base::CommandLine* command_line) override {
+     command_line->AppendSwitch("disable-default-apps");
+   }
+-  views::Widget* OpenPalette() {
+-    EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_NEW_TAB));
++  views::Widget* OpenPalette(int command = IDC_NEW_TAB) {
++    EXPECT_TRUE(chrome::ExecuteCommand(browser(), command));
+     auto* parent =
+         BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+     for (views::Widget* widget :
+          views::Widget::GetAllOwnedWidgets(parent->GetNativeView())) {
+-      if (widget->GetName() == "ArcCommandBar") {
++      if (widget->GetName() == "ArcCommandBar" && !widget->IsClosed()) {
+         return widget;
+       }
+     }
+@@ -91,8 +93,7 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
+   auto* view = BrowserView::GetBrowserViewForBrowser(browser());
+   view->ToggleZenModeSideChrome();
+   ASSERT_FALSE(view->IsZenModeSideChromePinned());
+-  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_FOCUS_LOCATION));
+-  EXPECT_TRUE(OpenPalette());
++  EXPECT_TRUE(OpenPalette(IDC_FOCUS_LOCATION));
+   EXPECT_FALSE(view->IsZenModeSideChromePinned());
+ }
+ 
+@@ -235,17 +236,19 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, CommandEnterSearchesRawQuestion
+ 
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, EditAddressReplacesOriginalTab) {
+   const int count = browser()->GetTabStripModel()->count();
++  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
+   auto* original = browser()->GetTabStripModel()->GetActiveWebContents();
+-  ASSERT_TRUE(helium::ShowArcCommandBar(browser(), true));
+-  auto* parent = BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+-  views::Widget* palette = nullptr;
+-  for (views::Widget* widget : views::Widget::GetAllOwnedWidgets(parent->GetNativeView()))
+-    if (widget->GetName() == "ArcCommandBar" && !widget->IsClosed()) palette = widget;
++  auto* palette = OpenPalette(IDC_FOCUS_LOCATION);
+   ASSERT_TRUE(palette);
++  auto* input = FindInput(palette->GetContentsView());
++  ASSERT_TRUE(input);
++  EXPECT_EQ(u"about:blank", input->GetText());
++  Key(palette, ui::VKEY_A);
++  EXPECT_EQ(u"a", input->GetText());
+   helium::SetArcCommandBarInputForTesting(browser(), u"about:blank?xenon-edit");
+   Key(palette, ui::VKEY_RETURN);
+   base::RunLoop().RunUntilIdle();
+-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
++  EXPECT_EQ(count + 1, browser()->GetTabStripModel()->count());
+   EXPECT_EQ(original, browser()->GetTabStripModel()->GetActiveWebContents());
+   EXPECT_EQ(GURL("about:blank?xenon-edit"), original->GetVisibleURL());
+ }
+@@ -285,13 +288,42 @@ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, FinalTabCloseReturnsHome) {
+   EXPECT_TRUE(helium::IsArcHome(tabs->GetActiveWebContents()));
+ }
+ 
+-IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, HomeRevealsSidebarWithoutChangingPreference) {
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, PaletteStaysCentered) {
++  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
++  base::RunLoop().RunUntilIdle();
++  auto* view = BrowserView::GetBrowserViewForBrowser(browser());
++  auto* contents = view->multi_contents_view()->GetActiveContentsView();
++  ASSERT_TRUE(contents);
++  contents->RequestFocus();
++  auto* focus_manager = view->GetFocusManager();
++  auto* prior_focus = focus_manager->GetFocusedView();
++  ASSERT_TRUE(prior_focus);
++  auto* palette = OpenPalette();
++  ASSERT_TRUE(palette);
++  const auto initial = palette->GetWindowBoundsInScreen();
++  view->ToggleZenModeSideChrome();
++  EXPECT_EQ(initial.origin(), palette->GetWindowBoundsInScreen().origin());
++  helium::SetArcCommandBarInputForTesting(browser(), u"history");
++  EXPECT_EQ(initial.origin(), palette->GetWindowBoundsInScreen().origin());
++  auto bounds = view->GetWidget()->GetWindowBoundsInScreen();
++  bounds.set_width(bounds.width() - 100);
++  view->GetWidget()->SetBounds(bounds);
++  base::RunLoop().RunUntilIdle();
++  EXPECT_NEAR(view->GetBoundsInScreen().CenterPoint().x(),
++              palette->GetWindowBoundsInScreen().CenterPoint().x(), 1);
++  Key(palette, ui::VKEY_ESCAPE);
++  EXPECT_TRUE(base::test::RunUntil(
++      [&] { return focus_manager->GetFocusedView() == prior_focus; }));
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, HomeHonorsHiddenSidebarPreference) {
+   auto* view = BrowserView::GetBrowserViewForBrowser(browser());
+   if (view->IsZenModeSideChromePinned()) view->ToggleZenModeSideChrome();
+   chrome::AddTabAt(browser(), GURL("chrome://newtab/"), -1, true);
+   base::RunLoop().RunUntilIdle();
+   EXPECT_FALSE(view->IsZenModeSideChromePinned());
+-  EXPECT_EQ(1.0f, view->GetSideChromeRevealRatio());
++  ASSERT_TRUE(base::test::RunUntil(
++      [&] { return view->GetSideChromeRevealRatio() == 0.0f; }));
+ }
+ 
+ }  // namespace
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+index fd62829beb4de9ea5b91b643bc5c9ca7fdf67254..c4be900aab7cafa42ad444d39707b9fcea26df83 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -83,8 +83,42 @@
+ 
+ namespace {
+ 
+-constexpr int kBarWidth = 760;
+-constexpr int kRowHeight = 46;
++constexpr int kBarWidth = 640;
++constexpr int kRowHeight = 40;
++constexpr int kRowSpacing = 4;
++constexpr int kInputAreaHeight = 79;
++constexpr int kBarMargin = 16;
++constexpr int kMaxVisibleRows = 5;
++
++struct CommandBarGeometry {
++  int width;
++  int visible_rows;
++  gfx::Point origin;
++
++  gfx::Rect Bounds(int result_count) const {
++    return gfx::Rect(origin, gfx::Size(
++        width, kInputAreaHeight +
++                   std::min(result_count, visible_rows) *
++                       (kRowHeight + kRowSpacing)));
++  }
++};
++
++std::optional<CommandBarGeometry> GetCommandBarGeometry(
++    const gfx::Rect& window) {
++  if (window.width() < 160 || window.height() < 180) {
++    return std::nullopt;
++  }
++  const int width = std::min(kBarWidth, window.width() - 2 * kBarMargin);
++  const int rows = std::clamp((window.height() - 180) /
++                                 (kRowHeight + kRowSpacing),
++                             1, kMaxVisibleRows);
++  const int max_height = kInputAreaHeight + rows * (kRowHeight + kRowSpacing);
++  const int top = std::clamp(window.height() * 3 / 10, kBarMargin,
++                             window.height() - max_height - kBarMargin);
++  return CommandBarGeometry{
++      width, rows,
++      gfx::Point(window.CenterPoint().x() - width / 2, window.y() + top)};
++}
+ constexpr int kCornerRadius = 12;
+ constexpr int kMaxResults = 12;
+ constexpr int kArcToggleSidebar = -1;
+@@ -160,9 +194,10 @@ class ArcCommandBarView : public views::View,
+                           public AutocompleteController::Observer {
+   METADATA_HEADER(ArcCommandBarView, views::View)
+  public:
+-  ArcCommandBarView(BrowserWindowInterface* browser, int width, int visible_rows, bool edit_current)
++  ArcCommandBarView(BrowserWindowInterface* browser,
++                    CommandBarGeometry geometry, bool edit_current)
+       : browser_(browser->GetWeakPtr()), edit_current_(edit_current),
+-        width_(width), visible_rows_(visible_rows) {
++        geometry_(geometry) {
+     SetLayoutManager(std::make_unique<views::BoxLayout>(
+         views::BoxLayout::Orientation::kVertical));
+     // The input model remains a Chromium Textfield for the existing routing
+@@ -220,15 +255,26 @@ class ArcCommandBarView : public views::View,
+     if (widget != parent_widget_ || !browser_) return;
+     auto* view = BrowserView::GetBrowserViewForBrowser(browser_.get());
+     if (!view || !GetWidget()) return;
+-    const auto page = view->GetBoundsInScreen();
+-    if (page.width() < 160 || page.height() < 180) { GetWidget()->Close(); return; }
+-    width_ = std::min(kBarWidth, page.width() - 48);
+-    visible_rows_ = std::clamp((page.height() - 180) / (kRowHeight + 4), 1, 5);
+-    const auto size = GetPreferredSize();
+-    native_host_->SetPreferredSize(size);
+-    GetWidget()->SetBounds(gfx::Rect(page.CenterPoint().x() - size.width() / 2,
+-        page.y() + std::clamp(page.height() * 3 / 10, 16,
+-            std::max(16, page.height() - size.height() - 16)), size.width(), size.height()));
++    auto geometry = GetCommandBarGeometry(view->GetBoundsInScreen());
++    if (!geometry) {
++      GetWidget()->Close();
++      return;
++    }
++    geometry_ = *geometry;
++    UpdateBounds();
++  }
++  void UpdateBounds() {
++    if (!GetWidget()) {
++      return;
++    }
++    const auto bounds = geometry_.Bounds(static_cast<int>(results_.size()));
++    native_host_->SetPreferredSize(bounds.size());
++    if (GetWidget()->GetWindowBoundsInScreen() != bounds) {
++      GetWidget()->SetBounds(bounds);
++    }
++  }
++  gfx::Rect InitialBounds() const {
++    return geometry_.Bounds(static_cast<int>(results_.size()));
+   }
+   bool editing_current() const { return edit_current_; }
+   void FocusInput() { native_->Focus(); }
+@@ -237,8 +283,7 @@ class ArcCommandBarView : public views::View,
+   }
+   void SetInputForTesting(const std::u16string& text) { native_->SetText(text); }
+   gfx::Size CalculatePreferredSize(const views::SizeBounds&) const override {
+-    return gfx::Size(width_, 20 + 56 + 1 + 8 +
+-        std::min(static_cast<int>(results_.size()), visible_rows_) * (kRowHeight + 4));
++    return InitialBounds().size();
+   }
+ 
+   void ContentsChanged(views::Textfield*, const std::u16string& text) override {
+@@ -468,10 +513,7 @@ class ArcCommandBarView : public views::View,
+     if (results_.size() > kMaxResults) results_.resize(kMaxResults);
+     selected_ = std::min(selected_, std::max(0, static_cast<int>(results_.size()) - 1));
+     UpdateAppearance();
+-    if (GetWidget()) {
+-      const auto size = GetPreferredSize();
+-      if (GetWidget()->GetWindowBoundsInScreen().size() != size) GetWidget()->SetSize(size);
+-    }
++    UpdateBounds();
+   }
+   void UpdateAppearance() {
+     if (native_ && GetColorProvider()) {
+@@ -593,8 +635,7 @@ class ArcCommandBarView : public views::View,
+   base::WeakPtr<BrowserWindowInterface> browser_;
+   const bool edit_current_;
+   base::WeakPtr<content::WebContents> edit_target_;
+-  int width_;
+-  int visible_rows_;
++  CommandBarGeometry geometry_;
+   raw_ptr<views::Widget> parent_widget_ = nullptr;
+   SkColor surface_ = SK_ColorTRANSPARENT;
+   raw_ptr<views::Textfield> textfield_ = nullptr;
+@@ -647,13 +688,13 @@ bool ShowArcCommandBar(BrowserWindowInterface* browser, bool edit_current) {
+       widget->Close();
+     }
+   }
+-  const auto page = view->GetBoundsInScreen();
+-  if (page.width() < 160 || page.height() < 180) return false;
+-  const int width = std::min(kBarWidth, page.width() - 48);
+-  const int rows = std::clamp((page.height() - 180) / (kRowHeight + 4), 1, 5);
+-  auto contents = std::make_unique<ArcCommandBarView>(browser, width, rows, edit_current);
++  auto geometry = GetCommandBarGeometry(view->GetBoundsInScreen());
++  if (!geometry) {
++    return false;
++  }
++  auto contents =
++      std::make_unique<ArcCommandBarView>(browser, *geometry, edit_current);
+   auto* bar = contents.get();
+-  const auto size = contents->GetPreferredSize();
+   views::Widget::InitParams params(views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+                                   views::Widget::InitParams::TYPE_POPUP);
+   params.parent = parent->GetNativeView();
+@@ -662,9 +703,7 @@ bool ShowArcCommandBar(BrowserWindowInterface* browser, bool edit_current) {
+   params.rounded_corners = gfx::RoundedCornersF(kCornerRadius);
+   params.activatable = views::Widget::InitParams::Activatable::kYes;
+   params.name = "ArcCommandBar";
+-  params.bounds = gfx::Rect(page.CenterPoint().x() - size.width() / 2,
+-      page.y() + std::clamp(page.height() * 3 / 10, 16,
+-          std::max(16, page.height() - size.height() - 16)), size.width(), size.height());
++  params.bounds = bar->InitialBounds();
+   auto* widget = new views::Widget();
+   widget->Init(std::move(params));
+   widget->SetContentsView(std::move(contents));
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+index a8443c8ae159055cee8fea003949a522c19d7b9b..d49a0851712ebfc24a18eb1b4a9ea369b6f75f41 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+@@ -171,7 +171,7 @@ private struct CommandSurface: View {
+                                         EmptyView()
+                                     }
+                                 }
+-                                .padding(.horizontal, 10).frame(height: 46)
++                                .padding(.horizontal, 10).frame(height: 40)
+                                 .foregroundColor(Color(nsColor: selected ? state.onAccent : state.foreground))
+                                 .background(selected ? Color(nsColor: state.accent).opacity(0.88) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                                 .contentShape(Rectangle())
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index cf911c47cceb8d3f351e9b66f78bb7177a959f62..733011be10d2063c4e5557e5438f56779ec08bf5 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -2428,8 +2428,11 @@ void ToolbarView::UpdateVerticalTabsCollapseButton() {
+       tabs::VerticalTabStripStateController::From(browser_view_->browser());
+ #if BUILDFLAG(IS_MAC)
+   if (IsVerticalLayout() && browser_view_->IsZenModeEnabledForLayout()) {
+-    const bool sidebar_owns_toggle = browser_view_->IsZenModeSideChromePinned();
+-    vertical_tabs_collapse_button_->SetVisible(!sidebar_owns_toggle);
++    const bool sidebar_owns_toggle =
++        browser_view_->IsZenModeSideChromePinned() ||
++        browser_view_->GetSideChromeRevealRatio() > 0.0f;
++    const bool show_toggle = !sidebar_owns_toggle;
++    vertical_tabs_collapse_button_->SetVisible(show_toggle);
+     vertical_tabs_collapse_button_->SetVectorIcon(views::kSidebarLeftIcon);
+     const std::u16string name = u"Show sidebar (⌘S)";
+     vertical_tabs_collapse_button_->SetTooltipText(name);
