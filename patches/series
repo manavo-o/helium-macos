@@ -51,3 +51,4 @@ helium/macos/xenon-theme-presets.patch
 helium/macos/xenon-arc-frame-layout.patch
 helium/macos/xenon-sidebar-controls.patch
 helium/macos/xenon-sidebar-parity.patch
+helium/macos/xenon-embedded-sidebar.patch

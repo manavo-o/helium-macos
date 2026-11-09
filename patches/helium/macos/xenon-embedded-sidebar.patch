@@ -1,0 +1,535 @@
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index e0b1612794df389df86264693a3de1514586f954..d8c3ac88990d4d83a80f3a3d8ee4fa002718e3d1 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -1011,10 +1011,11 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+         top_offset = 0;
+       }
+ 
++      const int bottom_padding =
++          mac_vertical_layout ? 0 : zen.vertical_tab_strip_padding;
+       const int vertical_tab_strip_height =
+           std::max(0, params.visual_client_area.height() - top_offset -
+-                          zen.vertical_tab_strip_top_padding -
+-                          zen.vertical_tab_strip_padding);
++                          zen.vertical_tab_strip_top_padding - bottom_padding);
+       vertical_tab_strip_bounds = {
+           vertical_tab_strip_x,
+           params.visual_client_area.y() + top_offset +
+@@ -1163,9 +1164,11 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+       auto strip = layout.children.find(views().vertical_tab_strip_region_view);
+       if (strip != layout.children.end()) {
+         gfx::Rect& bounds = strip->second.bounds;
++        const int toolbar_gap =
++            mac_vertical_layout ? 0 : zen.vertical_tab_strip_top_padding;
+         const int top =
+             std::max(bounds.y(), top_container_layout.bounds.bottom() +
+-                                     zen.vertical_tab_strip_top_padding);
++                                     toolbar_gap);
+         bounds.set_height(std::max(0, bounds.bottom() - top));
+         bounds.set_y(top);
+       }
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index 6f220c93151d6d5f345f7ed8cbfbabfbd6def1bd..8b3e9423af2da84f8530dcc855d0801412b8276d 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -2,7 +2,6 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ 
+ #include <algorithm>
+@@ -56,6 +55,7 @@
+ #include "chrome/browser/ui/views/tabs/shared/drop_arrow.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
++#include "chrome/browser/ui/views/toolbar/toolbar_button.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/grit/generated_resources.h"
+@@ -81,6 +81,7 @@
+ #include "ui/views/layout/flex_layout_view.h"
+ #include "ui/views/layout/layout_types.h"
+ #include "ui/views/layout/proposed_layout.h"
++#include "ui/views/vector_icons.h"
+ #include "ui/views/view.h"
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
+@@ -92,6 +93,10 @@ constexpr int kKeyboardResizeWidth = 50;
+ constexpr int kSnapDistance = 15;
+ constexpr int kBottomContainerGap = 2;
+ constexpr int kDefaultWidthSnapDistance = 6;
++constexpr int kXenonSidebarToggleId = 0x58454e;
++constexpr int kXenonSidebarToggleSize = 28;
++constexpr int kXenonTrafficLightsClearance = 84;
++constexpr int kXenonSidebarHeaderHeight = 38;
+ 
+ // Shadow is used in expand-on-hover mode. Shadow radius and opacity are dynamic
+ // and set by the layout.
+@@ -144,8 +149,14 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+   const int region_horizontal_padding =
+       GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
+ 
+-  content_area_view_->AddChildView(
+-      helium::CreateArcSidebarHeader(browser_view->browser()));
++  auto* sidebar_toggle = AddChildView(std::make_unique<ToolbarButton>(
++      base::BindRepeating(&BrowserView::ToggleZenModeSideChrome,
++                          base::Unretained(browser_view))));
++  sidebar_toggle->SetID(kXenonSidebarToggleId);
++  sidebar_toggle->SetVectorIcon(views::kSidebarLeftIcon);
++  sidebar_toggle->SetTooltipText(u"Toggle sidebar (⌘S)");
++  sidebar_toggle->GetViewAccessibility().SetName(u"Toggle sidebar");
++  sidebar_toggle->SetVisible(false);
+ 
+   bottom_button_container_ = content_area_view_->AddChildView(
+       std::make_unique<VerticalTabStripBottomContainer>(
+@@ -162,8 +173,6 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+       gfx::Insets::TLBR(kBottomContainerGap, region_horizontal_padding, 0,
+                         region_horizontal_padding));
+ 
+-  content_area_view_->AddChildView(helium::CreateArcSidebarFooter(browser_view->browser()));
+-
+   gemini_button_ =
+       content_area_view_->AddChildView(std::make_unique<views::View>());
+ 
+@@ -422,6 +431,33 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+ 
+   available.Inset(interior_margin_);
+ 
++  const bool floating = floating_style_ == FloatingStyle::kDetached;
++  const bool show_sidebar_toggle = browser_view()->IsZenModeEnabledForLayout();
++  const bool has_traffic_lights = !floating && has_leading_exclusion_;
++  const bool beside_traffic_lights =
++      has_traffic_lights &&
++      available.width() >= kXenonTrafficLightsClearance +
++                               kXenonSidebarToggleSize;
++  const int toggle_x = beside_traffic_lights
++                           ? kXenonTrafficLightsClearance
++                           : std::clamp((available.width() -
++                                         kXenonSidebarToggleSize) / 2,
++                                        0, 8);
++  const int toggle_y =
++      has_traffic_lights && !beside_traffic_lights ? kXenonSidebarHeaderHeight
++                                                 : 4;
++  layout.child_layouts.push_back(
++      {.child_view =
++           const_cast<views::View*>(GetViewByID(kXenonSidebarToggleId)),
++       .visible = show_sidebar_toggle,
++       .bounds = gfx::Rect(toggle_x, toggle_y, kXenonSidebarToggleSize,
++                           kXenonSidebarToggleSize)});
++  if (show_sidebar_toggle) {
++    available.Inset(gfx::Insets::TLBR(
++        std::max(0, toggle_y + kXenonSidebarToggleSize + 4 - available.y()),
++        0, 0, 0));
++  }
++
+   // Just so that there's never a zero-size tabstrip.
+   available.set_height(std::max(1, available.height()));
+ 
+@@ -916,14 +952,8 @@ void VerticalTabStripRegionView::UpdateInteriorMargin() {
+         GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) * ratio);
+   }
+ 
+-  // The pinned strip starts beside the toolbar and needs its own header.
+-  // Floating strips already clear the toolbar in the browser layout.
+-  if (browser && browser->IsZenModeEnabledForLayout() &&
+-      browser->IsZenModeSideChromePinned()) {
+-    top_padding = std::max(top_padding, 38);
+-  }
+-  if (has_leading_exclusion_) {
+-    top_padding = std::max(top_padding, 38);
++  if (has_leading_exclusion_ && floating_style_ != FloatingStyle::kDetached) {
++    top_padding = std::max(top_padding, kXenonSidebarHeaderHeight);
+   }
+   const gfx::Insets margin = gfx::Insets::TLBR(top_padding, 0, padding, 0);
+   if (interior_margin_ != margin) {
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
+index 77748a6a9fc8c445353e2c03ebbf7d576ccdb655..aee3d939d834a38418cced5960003db6cf12755f 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
+@@ -34,8 +34,6 @@ class ArcNativeCommandBar {
+ std::unique_ptr<ArcNativeCommandBar> CreateArcNativeCommandBar(ArcNativeEvent event);
+ void ShowArcAppearance(BrowserWindowInterface* browser);
+ std::unique_ptr<views::View> CreateArcHomeSurface(BrowserWindowInterface* browser);
+-std::unique_ptr<views::View> CreateArcSidebarHeader(BrowserWindowInterface* browser);
+-std::unique_ptr<views::View> CreateArcSidebarFooter(BrowserWindowInterface* browser);
+ std::unique_ptr<views::View> CreateArcAddressDisplay(BrowserWindowInterface* browser);
+ void UpdateArcAddressDisplay(views::View* view, BrowserWindowInterface* browser);
+ }  // namespace helium
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+index 541c4e9ebcfcbcd1e0e8578b1e5ca33e4155bb3b..2c752dad3fa75a5a0b320f72752b94a92c0d0774 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+@@ -10,7 +10,6 @@
+ #include "ui/views/controls/native/native_view_host.h"
+ #include "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h"
+ #include "chrome/browser/ui/views/tabs/vertical/arc_native_swift.h"
+-#include "base/functional/bind.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/sys_string_conversions.h"
+ #include "chrome/browser/browser_process.h"
+@@ -22,7 +21,6 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/browser/ui/helium/arc_appearance_prefs.h"
+-#include "components/prefs/pref_change_registrar.h"
+ #include "components/prefs/pref_service.h"
+ #include "ui/gfx/image/image_skia_util_mac.h"
+ #include "ui/views/widget/widget.h"
+@@ -112,64 +110,6 @@ void AddedToWidget() override {
+  private:
+   XenonHomeHost* __strong host_;
+ };
+-class NativeSidebarControls : public views::NativeViewHost {
+- public:
+-  NativeSidebarControls(BrowserWindowInterface* browser, bool header) {
+-    auto weak = browser->GetWeakPtr();
+-    host_ = [[XenonSidebarFooterHost alloc] initWithHeader:header
+-        event:^(NSInteger action) {
+-      if (!weak) return;
+-      if (action == 0) { helium::ShowArcAppearance(weak.get()); return; }
+-      if (action == 3 || action == 5) {
+-        auto* view = BrowserView::GetBrowserViewForBrowser(weak.get());
+-        if (view && view->IsZenModeSideChromePinned() == (action == 5)) {
+-          view->ToggleZenModeSideChrome();
+-        }
+-        return;
+-      }
+-      if (action == 6 && helium::ShowArcCommandBar(weak.get())) {
+-        return;
+-      }
+-      const char* url = action == 1 ? "chrome://downloads/"
+-                        : action == 4 ? "chrome://bookmarks/"
+-                        : action == 6 ? "chrome://newtab/"
+-                                      : "chrome://settings/";
+-      NavigateParams navigation(weak.get(), GURL(url), ui::PAGE_TRANSITION_LINK);
+-      navigation.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+-      Navigate(&navigation);
+-    }];
+-    SetPreferredSize(header ? gfx::Size(0, 30) : gfx::Size(160, 36));
+-    if (header) {
+-      prefs_.Init(browser->GetProfile()->GetPrefs());
+-      const auto update = base::BindRepeating(
+-          &NativeSidebarControls::UpdateHeader, base::Unretained(this));
+-      prefs_.Add(prefs::kHeliumZenModeSidebarPinned, update);
+-      prefs_.Add(prefs::kProfileName, update);
+-      UpdateHeader();
+-    }
+-  }
+-  ~NativeSidebarControls() override { [host_ invalidate]; }
+-  void OnThemeChanged() override {
+-    views::NativeViewHost::OnThemeChanged();
+-    if (GetColorProvider()) host_.view.appearance = [NSAppearance appearanceNamed:
+-        color_utils::IsDark(GetColorProvider()->GetColor(ui::kColorSysSurface))
+-            ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+-  }
+-  void AddedToWidget() override {
+-    views::NativeViewHost::AddedToWidget();
+-    Attach(gfx::NativeView(host_.view));
+-  }
+- private:
+-  void UpdateHeader() {
+-    const PrefService* prefs = prefs_.prefs();
+-    [host_ updatePinned:prefs->GetBoolean(prefs::kHeliumZenModeSidebarPinned)
+-            profileName:base::SysUTF8ToNSString(
+-                            prefs->GetString(prefs::kProfileName))];
+-  }
+-
+-  XenonSidebarFooterHost* __strong host_;
+-  PrefChangeRegistrar prefs_;
+-};
+ class NativeAddressDisplay : public views::NativeViewHost {
+  public:
+   explicit NativeAddressDisplay(BrowserWindowInterface* browser) {
+@@ -237,13 +177,6 @@ - (void)dealloc {
+ std::unique_ptr<views::View> CreateArcHomeSurface(BrowserWindowInterface* browser) {
+   return std::make_unique<NativeHomeSurface>(browser);
+ }
+-std::unique_ptr<views::View> CreateArcSidebarHeader(
+-    BrowserWindowInterface* browser) {
+-  return std::make_unique<NativeSidebarControls>(browser, /*header=*/true);
+-}
+-std::unique_ptr<views::View> CreateArcSidebarFooter(BrowserWindowInterface* browser) {
+-  return std::make_unique<NativeSidebarControls>(browser, /*header=*/false);
+-}
+ std::unique_ptr<views::View> CreateArcAddressDisplay(BrowserWindowInterface* browser) {
+   return std::make_unique<NativeAddressDisplay>(browser);
+ }
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+index 1ccf7e40f4f7c128a89a3ea78ee1fbfdb2d3421a..a8443c8ae159055cee8fea003949a522c19d7b9b 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift
+@@ -513,112 +513,6 @@ private struct AddressSurface: View {
+     }
+ }
+ 
+-private final class SidebarControlsState: ObservableObject {
+-    @Published var pinned = false
+-    @Published var profileName = ""
+-    var event: (Int) -> Void
+-
+-    init(event: @escaping (Int) -> Void) { self.event = event }
+-}
+-
+-private struct SidebarHeader: View {
+-    @ObservedObject var state: SidebarControlsState
+-
+-    var body: some View {
+-        GeometryReader { geometry in
+-            if geometry.size.width >= 128 {
+-                HStack(spacing: 8) {
+-                    if state.pinned { sidebarButton }
+-                    Text(state.profileName.isEmpty ? "Tabs" : state.profileName)
+-                        .font(.subheadline.weight(.semibold))
+-                        .lineLimit(1)
+-                        .accessibilityAddTraits(.isHeader)
+-                    Spacer(minLength: 4)
+-                    Button { state.event(4) } label: {
+-                        Image(systemName: "book")
+-                    }.help("Bookmarks").accessibilityLabel("Bookmarks")
+-                    if !state.pinned { sidebarButton }
+-                }
+-                .padding(.horizontal, 10)
+-                .frame(height: geometry.size.height)
+-            } else {
+-                sidebarButton.frame(maxWidth: .infinity, maxHeight: .infinity)
+-            }
+-        }
+-        .buttonStyle(.plain)
+-    }
+-
+-    private var sidebarButton: some View {
+-        let title = state.pinned ? "Hide sidebar" : "Keep sidebar open"
+-        return Button { state.event(state.pinned ? 5 : 3) } label: {
+-            Image(systemName: state.pinned ? "sidebar.left" : "pin")
+-                .frame(width: 24, height: 24)
+-                .contentShape(Rectangle())
+-        }.help(title).accessibilityLabel(title)
+-    }
+-}
+-
+-private struct SidebarFooter: View {
+-    let state: SidebarControlsState
+-    var body: some View {
+-        GeometryReader { geometry in
+-            HStack(spacing: 4) {
+-                if geometry.size.width >= 128 {
+-                    footerButton("Appearance", symbol: "paintpalette", action: 0)
+-                    footerButton("Downloads", symbol: "arrow.down.circle", action: 1)
+-                    footerButton("Settings", symbol: "gearshape", action: 2)
+-                    Spacer(minLength: 0)
+-                    footerButton("New Tab", symbol: "plus", action: 6)
+-                } else {
+-                    Menu {
+-                        Button("New Tab") { state.event(6) }
+-                        Button("Bookmarks") { state.event(4) }
+-                        Button("Appearance") { state.event(0) }
+-                        Button("Downloads") { state.event(1) }
+-                        Button("Settings") { state.event(2) }
+-                    } label: {
+-                        Image(systemName: "ellipsis.circle")
+-                            .accessibilityLabel("Sidebar tools")
+-                    }
+-                    .menuStyle(.borderlessButton)
+-                    .menuIndicator(.hidden)
+-                    .frame(maxWidth: .infinity)
+-                }
+-            }
+-            .buttonStyle(.plain)
+-            .padding(.horizontal, 4)
+-            .frame(height: geometry.size.height)
+-        }
+-    }
+-
+-    private func footerButton(_ title: String, symbol: String, action: Int) -> some View {
+-        Button { state.event(action) } label: {
+-            Image(systemName: symbol)
+-                .frame(width: 26, height: 28).contentShape(Rectangle())
+-        }.help(title).accessibilityLabel(title)
+-    }
+-}
+-@objc(XenonSidebarFooterHost) public final class XenonSidebarFooterHost: NSObject {
+-    private let state: SidebarControlsState
+-    @objc public let view: NSView
+-    @objc(initWithHeader:event:) public init(header: Bool, event: @escaping (Int) -> Void) {
+-        let state = SidebarControlsState(event: event)
+-        self.state = state
+-        if header {
+-            view = ClearHostingView(rootView: SidebarHeader(state: state))
+-        } else {
+-            view = ClearHostingView(rootView: SidebarFooter(state: state))
+-        }
+-        super.init()
+-    }
+-    @objc(updatePinned:profileName:) public func update(pinned: Bool, profileName: String) {
+-        if state.pinned != pinned { state.pinned = pinned }
+-        if state.profileName != profileName { state.profileName = profileName }
+-    }
+-
+-    @objc public func invalidate() { state.event = { _ in } }
+-}
+-
+ private struct HomeSurface: View {
+     @ObservedObject var state: AddressState
+     var body: some View {
+diff --git a/chrome/browser/ui/views/toolbar/arc_chat_button.cc b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+index 239eb1d5fb0df12f2dfef938bf96a57125701319..804f17e8a7c4cef11e693052c1b7717d4cf9c50c 100644
+--- a/chrome/browser/ui/views/toolbar/arc_chat_button.cc
++++ b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+@@ -95,6 +95,7 @@ class ArcChatButton : public views::MdTextButton,
+                      u"Chat"),
+         browser_(browser),
+         extensions_(extensions) {
++    SetStyle(ui::ButtonStyle::kText);
+     SetCornerRadius(10);
+     SetCustomPadding(gfx::Insets::VH(4, 8));
+     SetImageModel(views::Button::STATE_NORMAL,
+@@ -163,46 +164,46 @@ class ArcChatButton : public views::MdTextButton,
+   }
+   bool IsOpen() const {
+     auto* panel = SidePanelCoordinator::From(browser_);
+-    return launch_pending_ || (panel && panel->IsEntryShowingOrLoading(SidePanelEntryKey(
++    return (launch_pending_ && !cancel_on_show_) ||
++           (panel && panel->IsEntryShowingOrLoading(SidePanelEntryKey(
+                         SidePanelEntryId::kExtension, kChatExtensionId)));
+   }
+   void Update() {
+     SetVisible(show_button_.GetValue());
+-    SetStyle(IsOpen() ? ui::ButtonStyle::kTonal : ui::ButtonStyle::kText);
++    const bool open = IsOpen();
+     auto* registry = extensions::ExtensionRegistry::Get(browser_->GetProfile());
+     const bool available =
+         IsAllowed() &&
+         registry->enabled_extensions().Contains(kChatExtensionId);
+-    const std::u16string name = IsOpen() ? u"Close Chat"
++    const std::u16string name = open ? u"Close Chat"
+         : available ? u"Open Chat" : u"Set up the ChatGPT extension in this profile";
+     SetTooltipText(name);
+     GetViewAccessibility().SetName(name);
+-    if (IsOpen()) GetViewAccessibility().SetIsExpanded();
++    if (open) GetViewAccessibility().SetIsExpanded();
+     else GetViewAccessibility().SetIsCollapsed();
+   }
+   void Activate() {
+-    if (IsAllowed() && IsOpen()) {
++    const bool allowed = IsAllowed();
++    auto* coordinator = SidePanelCoordinator::From(browser_);
++    const SidePanelEntryKey key(SidePanelEntryId::kExtension, kChatExtensionId);
++    if (allowed && coordinator && coordinator->IsEntryShowingOrLoading(key)) {
+       launch_pending_ = false;
+       launch_timeout_.Stop();
+-      auto* coordinator = SidePanelCoordinator::From(browser_);
+-      if (!coordinator || !coordinator->IsEntryShowingOrLoading(
+-          SidePanelEntryKey(SidePanelEntryId::kExtension, kChatExtensionId))) {
+-        // The extension's action callback has not requested its entry yet.
+-        // Cancel its eventual presentation without dispatching the action twice.
+-        cancel_on_show_ = true;
+-        Update();
+-        return;
+-      }
+       cancel_on_show_ = false;
+       restore_focus_ = true;
+-      SidePanelUI::From(browser_)->Toggle(
+-          SidePanelEntryKey(SidePanelEntryId::kExtension, kChatExtensionId),
+-          SidePanelOpenTrigger::kToolbarButton);
++      coordinator->Toggle(key, SidePanelOpenTrigger::kToolbarButton);
++      Update();
++      return;
++    }
++    if (allowed && launch_pending_) {
++      // A quick second click cancels presentation; a third lets the same
++      // in-flight extension action finish opening the panel.
++      cancel_on_show_ = !cancel_on_show_;
+       Update();
+       return;
+     }
+     auto* model = extensions_ ? extensions_->GetToolbarViewModel() : nullptr;
+-    if (IsAllowed() && model && model->GetActionModelForId(kChatExtensionId)) {
++    if (allowed && model && model->GetActionModelForId(kChatExtensionId)) {
+       restore_focus_ = true;
+       cancel_on_show_ = false;
+       launch_pending_ = true;
+@@ -212,12 +213,15 @@ class ArcChatButton : public views::MdTextButton,
+             button->launch_pending_ = false;
+             button->Update();
+           }, weak_factory_.GetWeakPtr()));
+-      Update();
+       // Same user-action dispatch as the extension's toolbar icon. Chromium
+       // selects the active (focused split-pane) tab and checks permissions.
++      auto weak = weak_factory_.GetWeakPtr();
+       model->ExecuteUserAction(
+           kChatExtensionId,
+           ToolbarActionViewModel::InvocationSource::kToolbarButton);
++      if (weak) {
++        weak->Update();
++      }
+       return;
+     }
+     const std::u16string message =
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index b5d967f76a2189b95455ecde3fb80abdfaf0d475..cf911c47cceb8d3f351e9b66f78bb7177a959f62 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -148,6 +148,7 @@
+ #include "components/strings/grit/components_strings.h"
+ #include "components/vector_icons/vector_icons.h"
+ #include "content/public/browser/render_view_host.h"
++#include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/web_contents.h"
+ #include "third_party/skia/include/core/SkPath.h"
+ #include "third_party/skia/include/core/SkPathBuilder.h"
+@@ -1495,8 +1496,9 @@ void ToolbarView::Update(WebContents* tab) {
+   if (location_bar_) {
+     location_bar_->Update(tab);
+     if (location_bar_view_ && display_mode_ == DisplayMode::kNormal) {
+-      auto* active = browser_->GetTabStripModel()->GetActiveWebContents();
+-      (void)active;
++      OnShowBackButtonChanged();
++      OnShowForwardButtonChanged();
++      OnShowReloadButtonChanged();
+       // Retain the real location bar as the security/permission bubble anchor,
+       // but use one native compact display for ordinary address interaction.
+       location_bar_view_->SetVisible(false);
+@@ -2707,8 +2709,13 @@ void ToolbarView::LoadImages() {
+ }
+ 
+ void ToolbarView::OnShowForwardButtonChanged() {
+-  SetForwardButtonVisibility(show_forward_button_.GetValue());
+-  InvalidateLayout();
++  auto* tab = browser_->GetTabStripModel()->GetActiveWebContents();
++  const bool visible = show_forward_button_.GetValue() &&
++                       (!helium::IsArcHome(tab) ||
++                        tab->GetController().CanGoForward());
++  if (!forward_ || forward_->GetVisible() != visible) {
++    SetForwardButtonVisibility(visible);
++  }
+ }
+ 
+ void ToolbarView::OnShowHomeButtonChanged() {
+@@ -2718,13 +2725,20 @@ void ToolbarView::OnShowHomeButtonChanged() {
+ }
+ 
+ void ToolbarView::OnShowBackButtonChanged() {
+-  back_->SetVisible(show_back_button_.GetValue());
+-  InvalidateLayout();
++  if (back_) {
++    auto* tab = browser_->GetTabStripModel()->GetActiveWebContents();
++    back_->SetVisible(show_back_button_.GetValue() &&
++                      (!helium::IsArcHome(tab) ||
++                       tab->GetController().CanGoBack()));
++  }
+ }
+ 
+ void ToolbarView::OnShowReloadButtonChanged() {
+-  reload_->SetVisible(show_reload_button_.GetValue());
+-  InvalidateLayout();
++  if (reload_) {
++    auto* tab = browser_->GetTabStripModel()->GetActiveWebContents();
++    reload_->SetVisible(show_reload_button_.GetValue() &&
++                        !helium::IsArcHome(tab));
++  }
+ }
+ 
+ void ToolbarView::OnShowAvatarButtonChanged() {
