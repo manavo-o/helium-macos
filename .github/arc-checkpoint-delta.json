@@ -1,57 +1,71 @@
 {
-  "base_commit": "f92f306adbe308f772010d3c1fc0e18f7548266e",
-  "checkpoint_artifact_id": "13704698069",
-  "checkpoint_artifact_sha256": "5385b773b7c76e95bd1c2ceef464b4ab7c910097fe148af271de58122e2847a9",
-  "checkpoint_commit": "f92f306adbe308f772010d3c1fc0e18f7548266e",
+  "base_commit": "31948c490c8b69c9ebf4c80d6801eb380a04e802",
+  "checkpoint_artifact_id": "13710061732",
+  "checkpoint_artifact_sha256": "a2898a25f1ea1dac403bd4a8136e48e9dc378f775e64824150606b4ae731be9f",
+  "checkpoint_commit": "31948c490c8b69c9ebf4c80d6801eb380a04e802",
   "checkpoint_contains_delta": false,
   "domain_inputs": {
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "025796856d285833ed6c66f161fb7d63e9e41fc61bfadbdc771ef75b58256b4c",
+  "input_sha256": "4d375d469cb8acd521919708af8a27cae9d3f43b5951163546aa86ee57a9908e",
   "patches": [
     {
-      "path": "patches/helium/macos/xenon-sidebar-controls.patch",
-      "sha256": "1ee79db8020b15f932bb9da466b157268934e430acc545cff670ccd7c83aeb7c"
+      "path": "patches/helium/macos/xenon-sidebar-parity.patch",
+      "sha256": "59af558417c8d97cf1a0fb03925c25a527196a54912a05b35eb3c6303a395118"
+    },
+    {
+      "path": "patches/helium/macos/xenon-embedded-sidebar.patch",
+      "sha256": "83a79d12b4eb7a356ce6710d6712d7b42efba3b8cadcc545a9929d18d684cfb0"
     }
   ],
   "reuse_generated_build_config": true,
-  "source_run": "42682133241",
+  "source_run": "42690091704",
   "sources": {
     "chrome/browser/ui/views/frame/contents_container_view.cc": {
-      "after": "758449cb9806a0c9285db9c8f3a44483fc8367318e774b7397a8f5593d3a56e9",
-      "before": "c4e4a5782029ee4c25de9d143a854cd8aab65fe96ef699118188f29f2540ab7d",
-      "preimage": ".github/checkpoint-preimages/xenon-sidebar-controls/chrome/browser/ui/views/frame/contents_container_view.cc"
+      "after": "29770eaf8c8bd164c9e8459c90f0b23d0d7173823b5164758f0646550a91565b",
+      "before": "758449cb9806a0c9285db9c8f3a44483fc8367318e774b7397a8f5593d3a56e9",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/frame/contents_container_view.cc"
     },
     "chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc": {
-      "after": "8224029d3d1658e2e4caedcbbe0234af7dbf12caf0a96508366946276729265b",
-      "before": "ff77dc209f45279ee47eba9a76b7b841b8b690374cb3ca8c064cdfe449964d87",
-      "preimage": ".github/checkpoint-preimages/xenon-sidebar-controls/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc"
+      "after": "c62b9d5cdb06328b05d63fe906e23656d273df900a21f94c7459de98b7523c4b",
+      "before": "8224029d3d1658e2e4caedcbbe0234af7dbf12caf0a96508366946276729265b",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc"
+    },
+    "chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc": {
+      "after": "872c5a65a75a9db5e14896b5c3bb24095b9324e735545f77595348eb67170575",
+      "before": "da72dab1d98804a0505f927b3f0729de28397b614bb5259b545d83d35b263727",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": {
-      "after": "56fa8e60c958ba148bac6714261f0a6b52eb6822b8c887b02716f3bff5ac0666",
-      "before": "ee3f236327ad073dd21d9d180728dca4877a3b3d91fb56cf46e2301f757ee709",
-      "preimage": ".github/checkpoint-preimages/xenon-sidebar-controls/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc"
+      "after": "e0579199c27bf597a591706063d24ac14050c415d541800750de3786d4945cbe",
+      "before": "56fa8e60c958ba148bac6714261f0a6b52eb6822b8c887b02716f3bff5ac0666",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": {
-      "after": "85490fb943925d80b5b46a122753841b22eec5012142bc02fdd7ffa3aa765670",
-      "before": "0ba46cbed9bf03dc2723e9ac30a3f907bd6ef0fb66e5e3b08ad4abb8ae37e495",
-      "preimage": ".github/checkpoint-preimages/xenon-sidebar-controls/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h"
+      "after": "89fd791428263390a4e49fa5ff532c99b9d6283fe6c306900b39e51076c87f2c",
+      "before": "85490fb943925d80b5b46a122753841b22eec5012142bc02fdd7ffa3aa765670",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": {
-      "after": "a36126ea03d7947751d731145a193ff71e0efa9c994c966730172fd5fbfd3e05",
-      "before": "2b8b4d229a4071dd975ed1b0a70ff96d1ab5e48161ec94fd87faeed8cd61ec92",
-      "preimage": ".github/checkpoint-preimages/xenon-sidebar-controls/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm"
+      "after": "d3a8e23a97d46286475b84e76bc7d1978f7296b82d022e1e80d10ece3c3771cb",
+      "before": "a36126ea03d7947751d731145a193ff71e0efa9c994c966730172fd5fbfd3e05",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift": {
-      "after": "7807fa6973df95862b080f92330bafbab382ac6098f74c8fe828de2d821e4036",
-      "before": "4c32b2776b3e74174a3b413d9dca4392ca10e064e2cd21d27d4b7ca5ebb633d8",
-      "preimage": ".github/checkpoint-preimages/xenon-sidebar-controls/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift"
+      "after": "5f856ba87043263d09ea4b3d76a0518b5a547ba5e12b5e74b60cb50c90aef669",
+      "before": "7807fa6973df95862b080f92330bafbab382ac6098f74c8fe828de2d821e4036",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/tabs/vertical/arc_native_ui.swift"
+    },
+    "chrome/browser/ui/views/toolbar/arc_chat_button.cc": {
+      "after": "5d1a2a7e0d72958965d327a04dd74616f94c6a91fbe6377b599454de6ff3fb50",
+      "before": "fbe52278a8d749581654e94e12252f4776d2b02118ba8565a4704c47b77d0f8f",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/toolbar/arc_chat_button.cc"
     },
     "chrome/browser/ui/views/toolbar/toolbar_view.cc": {
-      "after": "898c82bb3b8f7d4bffb173e678dbeef17a39256cf1b7bbd3736889a62900a565",
-      "before": "589c19577248922399b02ee3a27d317d47f477dc56022e4a11ffb1167fedf154",
-      "preimage": ".github/checkpoint-preimages/xenon-sidebar-controls/chrome/browser/ui/views/toolbar/toolbar_view.cc"
+      "after": "470afcebc063ab80371270a0f3925b8fb09fe603d5010a822a0324c7fd6258c3",
+      "before": "898c82bb3b8f7d4bffb173e678dbeef17a39256cf1b7bbd3736889a62900a565",
+      "preimage": ".github/checkpoint-preimages/xenon-embedded-sidebar/chrome/browser/ui/views/toolbar/toolbar_view.cc"
     }
   },
   "test_plan": "xenon-native-v1"
