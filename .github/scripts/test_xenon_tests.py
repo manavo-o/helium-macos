@@ -87,11 +87,15 @@ class FreshRegressionTest(unittest.TestCase):
                 runner.verify_browser_summary(path)
 
     def run_suite(self, fail=False):
-        for name in ['arc_routing_tests', 'arc_bubble_lifecycle_tests']:
+        for name in ['browser_tests', 'arc_routing_tests', 'arc_bubble_lifecycle_tests']:
             (self.output / name).write_text('fixture executable')
 
         def execute(command, **kwargs):
             binary = Path(command[0]).name
+            if binary == 'browser_tests':
+                summary = next(arg.split('=', 1)[1] for arg in command
+                               if arg.startswith('--test-launcher-summary-output='))
+                Path(summary).write_text(json.dumps(self.summary()))
             count = 5 if binary == 'arc_routing_tests' else 2
             return subprocess.CompletedProcess(command, 1 if fail else 0,
                                                stdout=f'[  PASSED  ] {count} tests.\n', stderr='')

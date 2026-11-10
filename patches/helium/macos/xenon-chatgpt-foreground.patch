@@ -1,0 +1,139 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -596,13 +596,15 @@
+           : WindowOpenDisposition::NEW_FOREGROUND_TAB;
+     }
+     Navigate(&params);
++    if (params.navigated_or_inserted_contents) {
++      params.navigated_or_inserted_contents->Focus();
++    }
+   }
+   void Submit(bool force_search) {
+     if (!browser_) return;
+     const std::u16string text(base::TrimWhitespace(textfield_->GetText(), base::TRIM_ALL));
+     if (text.empty()) return;
+     GURL destination;
+-    bool ask_chatgpt = false;
+     if (force_search) {
+       auto* service = TemplateURLServiceFactory::GetForProfile(browser_->GetProfile());
+       if (service) destination = service->GenerateSearchURLForDefaultSearchProvider(text);
+@@ -610,22 +612,13 @@
+       AutocompleteMatch match;
+       AutocompleteClassifierFactory::GetForProfile(browser_->GetProfile())->Classify(
+           text, false, true, metrics::OmniboxEventProto::INVALID_SPEC, &match, nullptr);
+-      ask_chatgpt = AutocompleteMatch::IsSearchType(match.type) && AskChatGPT();
++      const bool ask_chatgpt =
++          AutocompleteMatch::IsSearchType(match.type) && AskChatGPT();
+       destination = ask_chatgpt
+                         ? helium::ChatGPTWebsiteProvider::BuildSubmissionURL(text)
+                         : match.destination_url;
+     }
+     if (!destination.is_valid()) return;
+-    if (ask_chatgpt) {
+-      // ChatGPT submits the encoded prompt once its page is ready. Keep the
+-      // source tab active and let the palette restore its previous focus.
+-      NavigateParams params(browser_.get(), destination,
+-                            ui::PAGE_TRANSITION_TYPED);
+-      params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+-      GetWidget()->Close();
+-      Navigate(&params);
+-      return;
+-    }
+     restore_focus_ = false;
+     GetWidget()->Close();
+     NavigateTo(destination);
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/contents_web_view.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
++#include "chrome/common/pref_names.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/interactive_test_utils.h"
+ #include "chrome/test/base/search_test_utils.h"
+@@ -72,6 +73,60 @@
+   void Key(views::Widget* widget, ui::KeyboardCode key, bool command = false) {
+     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
+         widget->GetNativeWindow(), key, false, false, false, command));
++  }
++
++  void ExpectChatGPTNavigation(const GURL& source_url,
++                               int command,
++                               bool reuse_tab) {
++    auto* profile = browser()->GetProfile();
++    profile->GetPrefs()->SetBoolean(prefs::kHeliumArcQuestionRouting, true);
++    profile->GetPrefs()->SetBoolean(helium::kArcOnlineSuggestions, false);
++    search_test_utils::WaitForTemplateURLServiceToLoad(
++        TemplateURLServiceFactory::GetForProfile(profile));
++
++    chrome::AddTabAt(browser(), source_url, -1, true);
++    auto* tabs = browser()->GetTabStripModel();
++    auto* original = tabs->GetActiveWebContents();
++    const int count = tabs->count();
++    const GURL destination(
++        "https://chatgpt.com/?q=why%20caf%C3%A9%20%2B%20tea%20%26%20cake%3F"
++        "&hints=search&ref=ext");
++    std::atomic<int> requests{0};
++    content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
++        [&](content::URLLoaderInterceptor::RequestParams* params) {
++          if (params->url_request.url.host() != "chatgpt.com") {
++            return false;
++          }
++          if (params->url_request.url == destination) {
++            ++requests;
++          }
++          content::URLLoaderInterceptor::WriteResponse(
++              "HTTP/1.1 200 OK\nContent-Type: text/html\n\n",
++              "<title>ChatGPT navigation test</title>", params->client.get());
++          return true;
++        }));
++
++    auto* palette = OpenPalette(command);
++    ASSERT_TRUE(palette);
++    helium::SetArcCommandBarInputForTesting(browser(),
++                                            u"why café + tea & cake?");
++    Key(palette, ui::VKEY_RETURN);
++    ASSERT_TRUE(base::test::RunUntil([&] {
++      return tabs->GetActiveWebContents()->GetLastCommittedURL() == destination;
++    }));
++
++    EXPECT_EQ(1, requests.load());
++    EXPECT_EQ(count + (reuse_tab ? 0 : 1), tabs->count());
++    auto* active = tabs->GetActiveWebContents();
++    EXPECT_EQ(reuse_tab, active == original);
++    EXPECT_EQ(content::Visibility::VISIBLE, active->GetVisibility());
++
++    auto* view = BrowserView::GetBrowserViewForBrowser(browser());
++    EXPECT_TRUE(view->multi_contents_view()->GetActiveContentsView()->GetVisible());
++    for (auto* widget : views::Widget::GetAllOwnedWidgets(
++             view->GetWidget()->GetNativeView())) {
++      EXPECT_FALSE(widget->GetName() == "ArcCommandBar" && !widget->IsClosed());
++    }
+   }
+ };
+ 
+@@ -326,4 +381,19 @@
+       [&] { return view->GetSideChromeRevealRatio() == 0.0f; }));
+ }
+ 
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, ChatGPTReusesHomeTab) {
++  ExpectChatGPTNavigation(GURL("chrome://newtab/"), IDC_NEW_TAB,
++                          /*reuse_tab=*/true);
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, ChatGPTOpensForegroundTab) {
++  ExpectChatGPTNavigation(GURL("about:blank"), IDC_NEW_TAB,
++                          /*reuse_tab=*/false);
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, ChatGPTEditsCurrentTab) {
++  ExpectChatGPTNavigation(GURL("about:blank"), IDC_FOCUS_LOCATION,
++                          /*reuse_tab=*/true);
++}
++
+ }  // namespace

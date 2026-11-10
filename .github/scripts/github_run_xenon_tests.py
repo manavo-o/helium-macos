@@ -12,6 +12,9 @@ import tempfile
 
 PLAN = 'xenon-native-v1'
 REQUIRED_BROWSER_TESTS = {
+    'ArcCommandBarBrowserTest.ChatGPTReusesHomeTab',
+    'ArcCommandBarBrowserTest.ChatGPTOpensForegroundTab',
+    'ArcCommandBarBrowserTest.ChatGPTEditsCurrentTab',
     'ArcCommandBarBrowserTest.EditAddressReplacesOriginalTab',
     'ArcCommandBarBrowserTest.HomeSubmissionReusesEmptySlot',
     'ArcCommandBarBrowserTest.FinalTabCloseReturnsHome',
@@ -63,7 +66,8 @@ def valid_stamp(path, expected):
     try:
         data = json.loads(path.read_text())
         return (isinstance(data, dict) and data.get('signature') == expected and
-                data.get('routing') == 5 and data.get('bubble') == 2)
+                data.get('routing') == 5 and data.get('bubble') == 2 and
+                data.get('browser', 0) >= len(REQUIRED_BROWSER_TESTS))
     except (ValueError, TypeError):
         return False
 
@@ -72,6 +76,7 @@ def run_tests(root, arch, expected, stamp):
     output = root / 'build/src/out/Default'
     log = root / ('github_actions_xenon_tests_' + arch + '.log')
     commands = [
+        ('browser', 'browser_tests', BROWSER_FILTER, None),
         ('routing', 'arc_routing_tests', 'ArcQuestionRoutingTest.*', 5),
         ('bubble', 'arc_bubble_lifecycle_tests', 'ArcBubbleLifecycleTest.*', 2),
     ]
