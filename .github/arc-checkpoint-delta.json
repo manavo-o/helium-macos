@@ -1,87 +1,77 @@
 {
-  "base_commit": "a994c17b853bbad61b94eff1eb9a47f8f18bed64",
-  "checkpoint_artifact_id": "13720108259",
-  "checkpoint_artifact_sha256": "57972360195a38d3078bd989ebdd8e56ab876c8b11533666f2c94adc33f39254",
-  "checkpoint_commit": "a994c17b853bbad61b94eff1eb9a47f8f18bed64",
+  "base_commit": "ad37772855d0ff37e9397f0b9cbe9b83ef5a9549",
+  "checkpoint_artifact_id": "13728345154",
+  "checkpoint_artifact_sha256": "a5e81aabfa4a4fa36b55fbb5530b4a47cf7a38cc9c0165682f9c0358e4041538",
+  "checkpoint_commit": "ad37772855d0ff37e9397f0b9cbe9b83ef5a9549",
   "checkpoint_contains_delta": false,
   "domain_inputs": {
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "9b6dcff41741abc49b70cf2a8a823d6dc3833121f836bb6260485c6af13c2df6",
+  "input_sha256": "9502090616190d5d46dc42443c69e42067875b77a3aba2b3cff5f739aa8e25d3",
   "patches": [
     {
-      "path": "patches/helium/macos/xenon-chat-stable-rail.patch",
-      "sha256": "e35c3ecb9450dd8943b43a510ce1382ed837fecaaebe6f226ad2db0597a68adc"
+      "path": "patches/helium/macos/xenon-sidebar-motion-and-chat-loading.patch",
+      "sha256": "10088b77887ce34c7034b00df729363b6c922ea60cb571f31c868fcfd48eedcc"
     }
   ],
   "reuse_generated_build_config": true,
-  "source_run": "42709798168",
+  "source_run": "42730918642",
   "sources": {
-    "chrome/browser/ui/views/animations/side_panel_animations.cc": {
-      "after": "8847c80967a922d0ce6711cda552090a4b83753a9ab0f464b58eb6d17a3bf4ce",
-      "before": "b89e514d4be457b077560407200add4c74b29391964729cd5b91bf138322a11f",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/animations/side_panel_animations.cc"
-    },
     "chrome/browser/ui/views/frame/browser_frame_view_mac.mm": {
-      "after": "7eecce12cdca731424d41e73348fcc595da0cdaee761d234892d12c7a3877fda",
-      "before": "99912894a07b69374f45ac09bdcfc653b31e4b636d8e81428daf26d7cf8e60aa",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/frame/browser_frame_view_mac.mm"
+      "after": "306788ace811dbd6c8dbdec1ec1cf01eb006c67d029682b369bd6252afdf2feb",
+      "before": "7eecce12cdca731424d41e73348fcc595da0cdaee761d234892d12c7a3877fda",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/frame/browser_frame_view_mac.mm"
     },
     "chrome/browser/ui/views/frame/browser_view.cc": {
-      "after": "177196454dbeda54174e6d7dd4429e2ac67b380e3ea957d7508deef793369ab8",
-      "before": "d65cc478a1aba0ac99b4eb32d5c18fb69f93ca758731cdab6b04c6e82265b618",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/frame/browser_view.cc"
+      "after": "cfb9bc91b96df4bb098e620ca6f6d8f804feed23c374b03bbaf7ac1e9281fc89",
+      "before": "177196454dbeda54174e6d7dd4429e2ac67b380e3ea957d7508deef793369ab8",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/frame/browser_view.cc"
+    },
+    "chrome/browser/ui/views/frame/browser_view.h": {
+      "after": "fe41e4f54749ddcb260a48476b390d3e56cb49e0d9c44e7381ca7c34397c88e1",
+      "before": "e93415661d11b6a067ce2a3d8091495222680e56385da04bf667adf9b1df43cb",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/frame/browser_view.h"
+    },
+    "chrome/browser/ui/views/frame/contents_container_view.cc": {
+      "after": "70cca013ac3e5de61b94227de4a1bdda6aaa4dc8326d565461d2832d80169c30",
+      "before": "29770eaf8c8bd164c9e8459c90f0b23d0d7173823b5164758f0646550a91565b",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/frame/contents_container_view.cc"
     },
     "chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc": {
-      "after": "f97de613bbc90020d4f0508631f6b89055703ea24e2ff5a90ad66f999c549521",
-      "before": "c3e1d373516ea7482ac1fe8311b3c40ae7e63979ac7c6d2aa306cee08085fbbe",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc"
+      "after": "463f88b64b1008fa22b933cdb661f98edd444d329ab1200c6ac5b73898c9e529",
+      "before": "f97de613bbc90020d4f0508631f6b89055703ea24e2ff5a90ad66f999c549521",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc"
     },
     "chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc": {
-      "after": "f69d1216bd66e08d928f2faaad9bb1620bae29b1badbb2bf8197464393e20581",
-      "before": "e8438b9d9ff6b9436fdf11b75f67408fec488c23a3836cd38ba4a7bb6ea7e977",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc"
+      "after": "021ea8a9a2cb53d1be08dd18a1efe13e7cbfb747dc09d4e4a87068a924b1328a",
+      "before": "f69d1216bd66e08d928f2faaad9bb1620bae29b1badbb2bf8197464393e20581",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": {
-      "after": "31f735af0d84801c1ad41dfba423ceaa39b8a7a04e2293ff66292204b7f755fb",
-      "before": "401a6618abf4a778e3ccd10e16df3200c6f736ff8793a3167d3109c7317f81a0",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc"
-    },
-    "chrome/browser/ui/views/helium/fullscreen_window_controls_mac.h": {
-      "after": "e724b3b59be93b3c677fea0670394d22ad20bd954f5e7e32afe14a7771da91d1",
-      "before": "69276820f3d6bfa60f840c4ffce7d0020c9df68dc7c42e909701f5d8a5a2f8da",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.h"
-    },
-    "chrome/browser/ui/views/helium/fullscreen_window_controls_mac.mm": {
-      "after": "c87bb9d4ea7e238cf9df1157bee31a95384bb3f0b70d97a50dbc5925b3e30a7f",
-      "before": "1beb2181d3a8165c4ea190262a6d8ea8c5893bc2d47ba135947255f5c9c759a7",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.mm"
+      "after": "51566aa187d6f1aedd985d9e5c6b526cd7b5eec4b0ac49057d107ccddf6248fb",
+      "before": "31f735af0d84801c1ad41dfba423ceaa39b8a7a04e2293ff66292204b7f755fb",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc"
     },
     "chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc": {
-      "after": "9a3680664e3b2d2740f6626422759a06478bd2f9dcb21e725d2660b8d0b9c845",
-      "before": "86b051fc753a43bee9d30478c8c9fb0a22eed433dfb21babd7c23b7e466e711f",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc"
-    },
-    "chrome/browser/ui/views/side_panel/side_panel.cc": {
-      "after": "abdc58d035ef10b20435ebff034dfb0b9c4a1f8ccdbcda548a1b13c5a95a1b6f",
-      "before": "46774451e70affcdda3bd1cd20f83bb828d410ebabed76d525d770bd716ac0a7",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/side_panel/side_panel.cc"
+      "after": "07df3973a5b971860d68e3f7c62c64d02b9cfecaaee5c35e45293a018475e9c0",
+      "before": "9a3680664e3b2d2740f6626422759a06478bd2f9dcb21e725d2660b8d0b9c845",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc"
     },
     "chrome/browser/ui/views/side_panel/side_panel_coordinator.cc": {
-      "after": "47050c117496d2ca5281e5e2c199434981386e0088c68e95cee5bc9fc32f548f",
-      "before": "d4c18b0b97cf26d270dfd29b3779ea1eda327506cc02d01574af867df7977b5e",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc"
+      "after": "a7ee9fc6323acc64d25ff3128ae06fc448242630391b579dbe0bee1ec461a979",
+      "before": "47050c117496d2ca5281e5e2c199434981386e0088c68e95cee5bc9fc32f548f",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc"
+    },
+    "chrome/browser/ui/views/side_panel/side_panel_coordinator.h": {
+      "after": "1d85c2eafcc34a6f75d501982e24daee145d7e144998760894c79836a50ab0df",
+      "before": "91ea37e6b6bbef5a8607ce6b058d3f847e425ac62462a8cc73630d77577e1568",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
     },
     "chrome/browser/ui/views/toolbar/arc_chat_button.cc": {
-      "after": "54eb07b0e4be0e15ae36e0870c69a9809d25b7ef4d268c1dfe3f88c1a69add73",
-      "before": "5d1a2a7e0d72958965d327a04dd74616f94c6a91fbe6377b599454de6ff3fb50",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/toolbar/arc_chat_button.cc"
-    },
-    "chrome/browser/ui/views/toolbar/toolbar_view.cc": {
-      "after": "89d6a0b45273ea445d45860adaeed1577d7c2a6ff33710fb5c588d0593c7d987",
-      "before": "856a0ab42ec695fac6d29ae2f341a5c98970ee2c4a8d1b1268b262edab8516ff",
-      "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/toolbar/toolbar_view.cc"
+      "after": "f1f72a9723db7884f188803c100897e7a2912a2d9aff0fd11bc920ad7cf72d7d",
+      "before": "54eb07b0e4be0e15ae36e0870c69a9809d25b7ef4d268c1dfe3f88c1a69add73",
+      "preimage": ".github/checkpoint-preimages/xenon-sidebar-motion-and-chat-loading/chrome/browser/ui/views/toolbar/arc_chat_button.cc"
     }
   },
   "test_plan": "xenon-native-v1"
