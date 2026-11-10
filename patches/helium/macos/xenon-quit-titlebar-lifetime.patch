@@ -1,0 +1,24 @@
+Index: src/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+===================================================================
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -124,7 +124,8 @@
+ }
+ 
+ BrowserFrameViewMac::~BrowserFrameViewMac() {
+-  [helium_fullscreen_controls_ restoreTitlebarButtons];
++  // The NSWindow is closing. Restoring the titlebar buttons here would make
++  // AppKit retile the titlebar while the browser's view tree is being destroyed.
+   if (auto* host = helium_window_controls_host_.view()) {
+     static_cast<views::NativeViewHost*>(host)->Detach();
+   }
+@@ -392,6 +393,9 @@
+ }
+ 
+ void BrowserFrameViewMac::UpdateHeliumFullscreenWindowControls() {
++  if (!GetWidget() || GetWidget()->IsClosed()) {
++    return;
++  }
+   auto* browser_view = GetBrowserView();
+   auto* rail = browser_view->GetIsNormalType() &&
+                        browser_view->ShouldDrawVerticalTabStrip()

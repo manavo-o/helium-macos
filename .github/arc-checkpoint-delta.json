@@ -8,11 +8,15 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "509956f64e63a39fe3da7a4a6612f06fade7cb8b1497dbe0995c3418ce77e28c",
+  "input_sha256": "5d2fc763c6004310185a97379f0b0069632cada6dbd42fde0db619cd8c1a7573",
   "patches": [
     {
       "path": "patches/helium/macos/xenon-embedded-controls-and-first-frame.patch",
       "sha256": "e15e54792ed8840b4cfea30358617f4c56c0d506bc13dc75a895c7988e2fed30"
+    },
+    {
+      "path": "patches/helium/macos/xenon-quit-titlebar-lifetime.patch",
+      "sha256": "21061485af1fa34922c9a9e51518bb55cee34a16e6bc28bc309cbc4402136201"
     }
   ],
   "reuse_generated_build_config": true,
@@ -24,7 +28,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-embedded-controls-and-first-frame/chrome/browser/ui/views/frame/browser_frame_view_mac.h"
     },
     "chrome/browser/ui/views/frame/browser_frame_view_mac.mm": {
-      "after": "062774dbc22e72b9eb9669f3e4315f4e9790cf194759ded1666a1f161810ea0d",
+      "after": "7779225c08ffb3117ca07a7057d778ed2b6838ec933df08fbc33f9e69870faec",
       "before": "306788ace811dbd6c8dbdec1ec1cf01eb006c67d029682b369bd6252afdf2feb",
       "preimage": ".github/checkpoint-preimages/xenon-embedded-controls-and-first-frame/chrome/browser/ui/views/frame/browser_frame_view_mac.mm"
     },
