@@ -33,6 +33,10 @@ fi
 export SISO_PATH="${SISO_PATH:-$_siso_path}"
 _validation_plan=$(python3 -c 'import json,pathlib,sys; p=pathlib.Path(sys.argv[1]); print(json.loads(p.read_text()).get("test_plan", "link-only") if p.is_file() else "link-only")' "$_root_dir/.github/arc-checkpoint-delta.json")
 
+if [ "${XENON_FRESH_SOURCE:-}" = true ]; then
+    _validation_plan=xenon-native-v1
+fi
+
 phase_step() {
     _remaining_time=$(( 270*60 - $(date +%s) + epoch_job_start ))
     if [ "$_remaining_time" -le 0 ]; then
@@ -61,6 +65,11 @@ if [ "$_validation_plan" = xenon-native-v1 ]; then
         _test_result=0
         phase_step python3 "$_root_dir/.github/scripts/github_restore_xenon_test_inputs.py" || _test_result=$?
         check_phase_result "$_test_result"
+        if [ "${XENON_FRESH_SOURCE:-}" = true ]; then
+            phase_step python3 "$_depot_tools_dir/autoninja.py" -C "$_out_dir" \
+                chrome/test/data/webui:build_grd || _test_result=$?
+            check_phase_result "$_test_result"
+        fi
         phase_step python3 "$_depot_tools_dir/autoninja.py" -C "$_out_dir" \
             chrome/browser/ui/views/tabs/vertical:arc_routing_tests \
             ui/views:arc_bubble_lifecycle_tests || _test_result=$?
@@ -99,6 +108,12 @@ if [ "$_error_code" -eq 124 ] || {
     exit 0
 fi
 [ "$_error_code" -ne 0 ] && exit "$_error_code"
+
+if [ "${XENON_FRESH_SOURCE:-}" = true ]; then
+    _link_result=0
+    phase_step python3 "$_root_dir/.github/scripts/github_check_arc_swift_link.py" || _link_result=$?
+    check_phase_result "$_link_result"
+fi
 
 echo $(date +%s) | tee "$_root_dir/build_finished_$_target_cpu.log"
 echo "status=finished" >> $GITHUB_OUTPUT

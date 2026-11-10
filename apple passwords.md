@@ -19,13 +19,20 @@ Because Xenon is an ad-hoc signed fork (`io.github.manavo.helium-sidebar`, `Team
 ## The Workaround
 
 Instead of having Xenon execute the Apple helper directly:
-1. Xenon registers a user-level Native Messaging Host (`com.apple.passwordmanager.json`).
+1. Xenon registers a user-level Native Messaging Host (`com.apple.passwordmanager.json`) exclusively in its isolated profile directory (`~/Library/Application Support/io.github.manavo.helium-sidebar/NativeMessagingHosts/`). Other browsers (Helium, Google Chrome, Brave) are untouched and retain their native direct helpers.
 2. The manifest points to a standalone compiled C binary: `xenon-apple-passwords-bridge`.
 3. The bridge pipes stdin/stdout frames over a local UNIX socket to a lightweight background relay daemon (`daemon.js`).
 4. The daemon runs Google Chrome headlessly with an unpacked copy of the official Apple Passwords extension (`pejdijmoenmkgeppbflobdenhhabjlaj`).
 5. Because Google Chrome is the parent process, macOS AMFI approves the parent launch constraint immediately.
 6. The extension in Chrome connects to Apple's native helper, while the bridge forwards the standard native messaging frames directly between Xenon and the helper.
 7. The user enters the 6-digit verification code in Xenon's extension popup, establishing the SRP-6a / AES-GCM session.
+
+## Silent Background Execution (LaunchAgent)
+
+To prevent Google Chrome from visibly opening or showing in the Dock every time Xenon starts:
+- `setup.sh` registers a user LaunchAgent (`~/Library/LaunchAgents/io.github.manavo.xenon.apple-passwords.plist`).
+- The relay daemon starts once silently at login in the background.
+- When Xenon opens, the bridge connects to the active daemon socket in `< 1ms`—Chrome never launches on-demand when opening Xenon.
 
 ## Update Resilience
 

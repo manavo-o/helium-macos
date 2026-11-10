@@ -1,0 +1,452 @@
+diff --git a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+index 9be80d4a01686923c84c7baca38ca2df1a989074..4919d56c4523cb61db8fa1b88ec68c4fe6052ffa 100644
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -35,6 +35,7 @@
+ #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
+ #include "chrome/browser/ui/views/frame/browser_native_widget.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/themed_background.h"
+ #include "chrome/browser/ui/views/frame/browser_widget.h"
+ #include "chrome/browser/ui/views/frame/caption_button_placeholder_container.h"
+ #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+@@ -598,6 +599,12 @@ FullscreenToolbarStyle GetUserPreferredToolbarStyle(bool always_show) {
+     return;
+   }
+ 
++  if (GetBrowserView()->GetIsNormalType() &&
++      GetBrowserView()->ShouldDrawVerticalTabStrip() &&
++      ThemedBackground::PaintArcTheme(canvas, this, GetBrowserView())) {
++    return;
++  }
++
+   if (helium::ShouldUseNativeFrameMaterials(GetBrowserView())) {
+     return;
+   }
+diff --git a/chrome/browser/ui/views/frame/contents_container_view.cc b/chrome/browser/ui/views/frame/contents_container_view.cc
+index e1a6a14c94a766bf64dac01d67ab579ed29c0caa..890e970762d0102c3a9a61c8b7ab7116ee538924 100644
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -202,7 +202,7 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
+                                                    bool round_bottom_left,
+                                                    bool round_bottom_right) {
+ #if BUILDFLAG(IS_MAC)
+-  if (browser_view_->ShouldDrawVerticalTabStrip() && !is_in_split_) {
++  if (browser_view_->ShouldDrawVerticalTabStrip() && !is_in_split) {
+     should_round_contents = true;
+   }
+ #endif
+@@ -236,6 +236,11 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
+       if (is_in_split) {
+         SetBorder(views::CreateEmptyBorder(gfx::Insets(
+             kSplitViewContentPadding + ContentsContainerOutline::kThickness)));
++      } else if (BUILDFLAG(IS_MAC) &&
++                 browser_view_->ShouldDrawVerticalTabStrip()) {
++        // The toolbar and page share one edge. A second outline makes the
++        // page look inset inside the frame.
++        SetBorder(nullptr);
+       } else {
+         // Reserve the stroke inside the container's existing outer margin.
+         SetBorder(views::CreateEmptyBorder(
+@@ -248,7 +253,9 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
+ 
+     if (is_in_split) {
+       container_outline_->UpdateState(is_active, is_highlighted);
+-    } else if (browser_view_->GetIsNormalType()) {
++    } else if (browser_view_->GetIsNormalType() &&
++               !(BUILDFLAG(IS_MAC) &&
++                 browser_view_->ShouldDrawVerticalTabStrip())) {
+       container_outline_->UpdateState(false, kColorToolbarContentAreaSeparator);
+     } else {
+       container_outline_->SetVisible(false);
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index af76a8ef2ef32c00d0bdb7e20537208d4f62d53b..9017ff6c417dc59dab97b624d8d81fed5760f6ec 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -480,10 +480,12 @@ BrowserViewTabbedLayoutImpl::HorizontalLayout
+ BrowserViewTabbedLayoutImpl::CalculateHorizontalLayout(
+     BrowserLayoutParams& params) const {
+   HorizontalLayout layout;
+-  // Start with some preliminary values.
++  // Keep the macOS vertical layout on the same toolbar path with or without
++  // a content-height panel. The floating strip clears that toolbar.
+   layout.force_top_container_to_top =
+       layout_data_->tab_strip_type != TabStripType::kHorizontal &&
+-      layout_data_->tab_strip_type != TabStripType::kVertical;
++      (BUILDFLAG(IS_MAC) ||
++       layout_data_->tab_strip_type != TabStripType::kVertical);
+ 
+   layout.is_split_view = delegate().IsActiveTabSplit();
+ 
+@@ -888,15 +890,16 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+   const bool infobar_visible = delegate().IsInfobarVisible();
+   const bool should_use_rounded_frame =
+       views().multi_contents_view->ShouldUseRoundedFrame();
+-#if BUILDFLAG(IS_MAC)
+-  if (layout_data_->tab_strip_type == TabStripType::kVertical &&
++  const bool mac_vertical_layout =
++      BUILDFLAG(IS_MAC) && layout_data_->tab_strip_type == TabStripType::kVertical;
++  const bool inset_page_frame =
++      mac_vertical_layout &&
+       (layout_data_->window_state == WindowState::kNormal ||
+-       layout_data_->window_state == WindowState::kMaximized)) {
+-    if (zen.floating_vertical_tab_strip) {
+-      params.Inset(gfx::Insets(8));
+-    }
++       layout_data_->window_state == WindowState::kMaximized);
++  constexpr int kPageFrameInset = 8;
++  if (inset_page_frame && zen.floating_vertical_tab_strip) {
++    params.Inset(gfx::Insets(kPageFrameInset));
+   }
+-#endif
+   const bool vertical_right_aligned =
+       delegate().IsVerticalTabStripRightAligned();
+ 
+@@ -1041,9 +1044,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+                                  GetVerticalTabStripContentOverlap();
+         params.InsetHorizontal(inset_amount,
+                                /*leading=*/!vertical_right_aligned);
+-#if BUILDFLAG(IS_MAC)
+-        params.Inset(gfx::Insets::TLBR(8, 8, 8, 8));
+-#endif
++        if (inset_page_frame) {
++          params.Inset(gfx::Insets(kPageFrameInset));
++        }
+       }
+ 
+       // Let the vertical tab strip animate out over the content.
+@@ -1092,12 +1095,15 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     auto top_container_params =
+         parent_params.InLocalCoordinates(parent_params.visual_client_area);
+ 
++    const bool top_needs_exclusion =
++        mac_vertical_layout ? zen.floating_vertical_tab_strip : needs_exclusion;
+     const gfx::Rect top_container_local_bounds = CalculateTopContainerLayout(
+-        top_container_layout, top_container_params, needs_exclusion);
++        top_container_layout, top_container_params, top_needs_exclusion);
+     top_container_layout.bounds = GetTopContainerBoundsInParent(
+         top_container_local_bounds, parent_params);
+ 
+-    if (layout_data_->tab_strip_type == TabStripType::kVertical &&
++    if (!mac_vertical_layout &&
++        layout_data_->tab_strip_type == TabStripType::kVertical &&
+         !zen.floating_vertical_tab_strip) {
+       auto& top_container_children = top_container_layout.children;
+       auto bookmarks_child = top_container_children.find(views().bookmark_bar);
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+index 0831474fcf453f664f6a81b8df55242f6ba9b98a..e7214da63aabf6f3b6c209ae65aaaf80ba8667c7 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+@@ -11,8 +11,10 @@
+ 
+ #include "base/feature_list.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/run_loop.h"
+ #include "base/scoped_multi_source_observation.h"
+ #include "base/test/scoped_feature_list.h"
++#include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+@@ -555,6 +557,37 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
+       ScreenshotBottom(kSidePanelElementId, "side_panel_bottom", 8));
+ }
+ 
++#if BUILDFLAG(IS_MAC)
++IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
++                       FloatingTabsKeepHeightWhenContentPanelToggles) {
++  tabs::VerticalTabStripStateController::From(browser())
++      ->SetVerticalTabsEnabled(true);
++  auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
++  ASSERT_TRUE(browser_view->IsZenModeEnabledForLayout());
++  if (browser_view->IsZenModeSideChromePinned()) {
++    browser_view->ToggleZenModeSideChrome();
++  }
++  // Home keeps the floating sidebar revealed without depending on the cursor.
++  chrome::AddTabAt(browser(), GURL("chrome://newtab/"), -1, true);
++  base::RunLoop().RunUntilIdle();
++  RunScheduledLayouts();
++  auto* strip = browser_view->vertical_tab_strip_region_view_for_testing();
++  ASSERT_TRUE(strip);
++  ASSERT_FALSE(browser_view->IsZenModeSideChromePinned());
++  ASSERT_TRUE(strip->GetVisible());
++  const int top = strip->bounds().y();
++  const int bottom = strip->bounds().bottom();
++
++  auto check_edges = [&] {
++    EXPECT_TRUE(strip->GetVisible());
++    EXPECT_EQ(top, strip->bounds().y());
++    EXPECT_EQ(bottom, strip->bounds().bottom());
++  };
++  RunTestSequence(ReplaceAndShowSidePanel(SidePanelType::kContent),
++                  Do(check_edges), CloseSidePanel(), Do(check_edges));
++}
++#endif  // BUILDFLAG(IS_MAC)
++
+ // Regression tests to ensure that when the side panel is open and the browser
+ // is at its minimum size, it doesn't go into content-height mode.
+ // Content-height mode is only for cases where the browser is already too small
+diff --git a/chrome/browser/ui/views/frame/themed_background.cc b/chrome/browser/ui/views/frame/themed_background.cc
+index 8b7e2c33db7cf5e4ff2f25172c442f5c13e6c6b4..61025184d9128fb0ec44d74cba9aa8c2b67bd45a 100644
+--- a/chrome/browser/ui/views/frame/themed_background.cc
++++ b/chrome/browser/ui/views/frame/themed_background.cc
+@@ -97,44 +97,7 @@ bool ThemedBackground::PaintThemeCustomImage(gfx::Canvas* canvas,
+                                              const views::View* view,
+                                              const BrowserView* browser_view,
+                                              ThemeChoice theme_choice) {
+-  const auto colors = ArcThemeColors(browser_view);
+-  if (!colors.empty()) {
+-    gfx::Point origin;
+-    views::View::ConvertPointToTarget(view, browser_view, &origin);
+-    const SkPoint points[] = {
+-      SkPoint::Make(-origin.x(), -origin.y()),
+-      SkPoint::Make(browser_view->width() - origin.x(), browser_view->height() - origin.y())};
+-    cc::PaintFlags flags;
+-    if (colors.size() == 1) flags.setColor(colors[0].toSkColor());
+-    else flags.setShader(cc::PaintShader::MakeLinearGradient(points, colors.data(), nullptr,
+-        static_cast<int>(colors.size()), SkTileMode::kClamp));
+-    canvas->DrawRect(view->GetLocalBounds(), flags);
+-    if (browser_view->GetProfile()->GetPrefs()->GetBoolean(helium::kArcThemeGrain)) {
+-      // One static Retina texture, shared across paints. Keep the phase in
+-      // browser coordinates, just like the gradient, so adjacent views join.
+-      static const base::NoDestructor<gfx::ImageSkia> grain([] {
+-        SkBitmap bitmap;
+-        bitmap.allocN32Pixels(128, 128);
+-        for (int y = 0; y < 128; ++y) {
+-          for (int x = 0; x < 128; ++x) {
+-            uint32_t hash = static_cast<uint32_t>(x + y * 128) + 1u;
+-            hash = (hash ^ (hash >> 16)) * 0x7feb352du;
+-            hash = (hash ^ (hash >> 15)) * 0x846ca68bu;
+-            hash ^= hash >> 16;
+-            const int tone = (hash & 1u) ? 255 : 0;
+-            *bitmap.getAddr32(x, y) = SkPreMultiplyARGB(
+-                (hash >> 8) % 15u, tone, tone, tone);
+-          }
+-        }
+-        bitmap.setImmutable();
+-        return gfx::ImageSkia(gfx::ImageSkiaRep(bitmap, 2.0f));
+-      }());
+-      const int start_x = -((origin.x() % 64 + 64) % 64);
+-      const int start_y = -((origin.y() % 64 + 64) % 64);
+-      for (int y = start_y; y < view->height(); y += 64)
+-        for (int x = start_x; x < view->width(); x += 64)
+-          canvas->DrawImageInt(*grain, x, y);
+-    }
++  if (PaintArcTheme(canvas, view, browser_view)) {
+     return true;
+   }
+   int theme_resource_id = GetThemeChoiceInfo(theme_choice, view).first;
+@@ -150,6 +113,53 @@ bool ThemedBackground::PaintThemeCustomImage(gfx::Canvas* canvas,
+   return true;
+ }
+ 
++bool ThemedBackground::PaintArcTheme(gfx::Canvas* canvas,
++                                    const views::View* view,
++                                    const BrowserView* browser_view) {
++  const auto colors = ArcThemeColors(browser_view);
++  if (colors.empty()) {
++    return false;
++  }
++
++  gfx::Point origin;
++  views::View::ConvertPointToTarget(view, browser_view, &origin);
++  const SkPoint points[] = {
++    SkPoint::Make(-origin.x(), -origin.y()),
++    SkPoint::Make(browser_view->width() - origin.x(), browser_view->height() - origin.y())};
++  cc::PaintFlags flags;
++  if (colors.size() == 1) flags.setColor(colors[0].toSkColor());
++  else flags.setShader(cc::PaintShader::MakeLinearGradient(points, colors.data(), nullptr,
++      static_cast<int>(colors.size()), SkTileMode::kClamp));
++  canvas->DrawRect(view->GetLocalBounds(), flags);
++  if (browser_view->GetProfile()->GetPrefs()->GetBoolean(helium::kArcThemeGrain)) {
++    // One static Retina texture, shared across paints. Keep the phase in
++    // browser coordinates, just like the gradient, so adjacent views join.
++    static const base::NoDestructor<gfx::ImageSkia> grain([] {
++      SkBitmap bitmap;
++      bitmap.allocN32Pixels(128, 128);
++      for (int y = 0; y < 128; ++y) {
++        for (int x = 0; x < 128; ++x) {
++          uint32_t hash = static_cast<uint32_t>(x + y * 128) + 1u;
++          hash = (hash ^ (hash >> 16)) * 0x7feb352du;
++          hash = (hash ^ (hash >> 15)) * 0x846ca68bu;
++          hash ^= hash >> 16;
++          const int tone = (hash & 1u) ? 255 : 0;
++          *bitmap.getAddr32(x, y) = SkPreMultiplyARGB(
++              (hash >> 8) % 15u, tone, tone, tone);
++        }
++      }
++      bitmap.setImmutable();
++      return gfx::ImageSkia(gfx::ImageSkiaRep(bitmap, 2.0f));
++    }());
++    const int start_x = -((origin.x() % 64 + 64) % 64);
++    const int start_y = -((origin.y() % 64 + 64) % 64);
++    for (int y = start_y; y < view->height(); y += 64)
++      for (int x = start_x; x < view->width(); x += 64)
++        canvas->DrawImageInt(*grain, x, y);
++  }
++  return true;
++}
++
+ void ThemedBackground::PaintThemeAlignedImage(gfx::Canvas* canvas,
+                                               const views::View* view,
+                                               const BrowserView* browser_view,
+diff --git a/chrome/browser/ui/views/frame/themed_background.h b/chrome/browser/ui/views/frame/themed_background.h
+index 66b5ec2944471b2cd6058f2b0e02099ac29c83d4..f20fc334f48917c0e3926fffd6ded12053f9117f 100644
+--- a/chrome/browser/ui/views/frame/themed_background.h
++++ b/chrome/browser/ui/views/frame/themed_background.h
+@@ -61,6 +61,11 @@ class ThemedBackground : public views::Background {
+                                     const BrowserView* browser_view,
+                                     ThemeChoice theme_choice = kToolbarTheme);
+ 
++  // Paint the profile's Xenon gradient and texture in browser coordinates.
++  static bool PaintArcTheme(gfx::Canvas* canvas,
++                            const views::View* view,
++                            const BrowserView* browser_view);
++
+   // Similar to PaintThemeCustomImage but the image is supplied.
+   static void PaintThemeAlignedImage(gfx::Canvas* canvas,
+                                      const views::View* view,
+diff --git a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+index bfed85ab0e8d39ca85a355ef85410a12e2a248b3..9843d0916a581b301a5aae642eb75ba7789ffe1e 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
++++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
+@@ -24,6 +24,7 @@
+ #include "components/prefs/pref_service.h"
+ #include "ui/gfx/image/image_skia_util_mac.h"
+ #include "ui/views/widget/widget.h"
++#include "ui/views/window/non_client_view.h"
+ #include "ui/views/view_utils.h"
+ #include "ui/gfx/color_utils.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+@@ -287,6 +288,9 @@ NavigateParams navigation(weak_browser.get(),
+           if (name == "density" || name == "tile") RefreshSpacing(view);
+           view->InvalidateLayout();
+           view->SchedulePaint();
++          if (auto* non_client = view->GetWidget()->non_client_view()) {
++            non_client->SchedulePaint();
++          }
+         }
+       }
+       return true;
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index efe771dfdec97f534d2e53c39a91316799f7247f..6dc7d548c731d7e5cb7c4ff39431705ee1f8d485 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -87,13 +87,7 @@
+ #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/custom_corners_background.h"
+-#include "chrome/browser/ui/helium/arc_command_bar.h"
+-#include "content/public/browser/web_contents.h"
+-#include "ui/gfx/skia_util.h"
+-#include "third_party/skia/include/core/SkPath.h"
+-#include "third_party/skia/include/core/SkPathBuilder.h"
+-#include "third_party/skia/include/core/SkRRect.h"
+-#include "cc/paint/paint_flags.h"
++#include "chrome/browser/ui/views/frame/themed_background.h"
+ #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/top_container_view.h"
+ #include "chrome/browser/ui/views/glic/glic_button_interface.h"
+@@ -157,6 +151,7 @@
+ #include "content/public/browser/web_contents.h"
+ #include "third_party/skia/include/core/SkPath.h"
+ #include "third_party/skia/include/core/SkPathBuilder.h"
++#include "third_party/skia/include/core/SkRRect.h"
+ #include "ui/accessibility/ax_node_data.h"
+ #include "ui/actions/actions.h"
+ #include "ui/base/interaction/element_identifier.h"
+@@ -174,6 +169,7 @@
+ #include "ui/gfx/image/canvas_image_source.h"
+ #include "ui/gfx/paint_vector_icon.h"
+ #include "ui/gfx/scoped_canvas.h"
++#include "ui/gfx/skia_util.h"
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/actions/action_view_controller.h"
+ #include "ui/views/background.h"
+@@ -209,60 +205,29 @@ namespace {
+ #if BUILDFLAG(IS_MAC)
+ class ArcIslandToolbarBackground : public views::Background {
+  public:
+-  ArcIslandToolbarBackground(ToolbarView* toolbar, BrowserView* browser_view)
+-      : toolbar_(toolbar), browser_view_(browser_view) {}
++  explicit ArcIslandToolbarBackground(BrowserView* browser_view)
++      : browser_view_(browser_view) {}
+ 
+   void Paint(gfx::Canvas* canvas, views::View* view) const override {
+-    auto* tab_strip_model =
+-        browser_view_ ? browser_view_->browser()->GetTabStripModel() : nullptr;
+-    auto* active_contents =
+-        tab_strip_model ? tab_strip_model->GetActiveWebContents() : nullptr;
+-    const bool is_home = !active_contents || helium::IsArcHome(active_contents);
+-
+-    SkColor bg_color;
+-    if (is_home) {
+-      bg_color = view->GetColorProvider()->GetColor(ui::kColorSysSurface);
+-    } else if (active_contents && active_contents->GetThemeColor().has_value()) {
+-      bg_color = *active_contents->GetThemeColor();
+-    } else {
+-      bg_color = view->GetColorProvider()->GetColor(ui::kColorSysSurface);
+-    }
+-
+-    const gfx::Rect bounds = view->GetLocalBounds();
+-    cc::PaintFlags flags;
+-    flags.setAntiAlias(true);
+-    flags.setStyle(cc::PaintFlags::kFill_Style);
+-    flags.setColor(bg_color);
+-
+     const SkVector radii[4] = {
+         {10.f, 10.f}, {10.f, 10.f}, {0.f, 0.f}, {0.f, 0.f}};
+-    SkRRect rrect;
+-    rrect.setRectRadii(gfx::RectToSkRect(bounds), radii);
+-    SkPathBuilder builder;
+-    builder.addRRect(rrect);
+-    canvas->DrawPath(builder.detach(), flags);
+-
+-    cc::PaintFlags stroke_flags;
+-    stroke_flags.setAntiAlias(true);
+-    stroke_flags.setStyle(cc::PaintFlags::kStroke_Style);
+-    stroke_flags.setStrokeWidth(1.0f);
+-    stroke_flags.setColor(
+-        view->GetColorProvider()->GetColor(kColorToolbarContentAreaSeparator));
+-
+-    gfx::RectF stroke_bounds(bounds);
+-    stroke_bounds.Inset(0.5f);
+-    const SkVector stroke_radii[4] = {
+-        {9.5f, 9.5f}, {9.5f, 9.5f}, {0.f, 0.f}, {0.f, 0.f}};
+-    SkRRect stroke_rrect;
+-    stroke_rrect.setRectRadii(gfx::RectFToSkRect(stroke_bounds), stroke_radii);
+-    SkPathBuilder stroke_builder;
+-    stroke_builder.addRRect(stroke_rrect);
+-    canvas->DrawPath(stroke_builder.detach(), stroke_flags);
++    SkRRect bounds;
++    bounds.setRectRadii(gfx::RectToSkRect(view->GetLocalBounds()), radii);
++    SkPathBuilder clip;
++    clip.addRRect(bounds);
++    gfx::ScopedCanvas scoped(canvas);
++    canvas->ClipPath(clip.detach(), /*do_anti_alias=*/true);
++
++    // Tint the toolbar with the window theme while keeping the standard
++    // toolbar color behind its text and icons.
++    const SkColor surface = view->GetColorProvider()->GetColor(kColorToolbar);
++    const bool themed =
++        ThemedBackground::PaintArcTheme(canvas, view, browser_view_);
++    canvas->DrawColor(themed ? SkColorSetA(surface, 204) : surface);
+   }
+ 
+  private:
+-  raw_ptr<ToolbarView> toolbar_;
+-  raw_ptr<BrowserView> browser_view_;
++  const raw_ptr<BrowserView> browser_view_;
+ };
+ #endif
+ 
+@@ -545,7 +510,8 @@ void ToolbarView::Init() {
+   if (display_mode_ == DisplayMode::kNormal) {
+ #if BUILDFLAG(IS_MAC)
+     if (browser_view_->ShouldDrawVerticalTabStrip()) {
+-      SetBackground(std::make_unique<ArcIslandToolbarBackground>(this, browser_view_));
++      SetBackground(
++          std::make_unique<ArcIslandToolbarBackground>(browser_view_));
+     } else {
+       SetBackground(std::make_unique<CustomCornersBackground>(
+           *this, *browser_view_,

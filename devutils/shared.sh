@@ -51,7 +51,7 @@ prepare_sources() {
   mkdir -p "$_out_dir"
   python3 "$_main_repo/utils/prune_binaries.py" --keep-build-dependencies "$_src_dir" "$_main_repo/pruning.list"
 
-  python3 "$_main_repo/utils/patches.py" apply "$_src_dir" "$_main_repo/patches" "$_root_dir/patches"
+  python3 "$_main_repo/utils/patches.py" apply --no-fuzz "$_src_dir" "$_main_repo/patches" "$_root_dir/patches" || return
   python3 "$_main_repo/utils/domain_substitution.py" apply -r "$_main_repo/domain_regex.list" -f "$_main_repo/domain_substitution.list" "$_src_dir"
   python3 "$_main_repo/utils/name_substitution.py" --sub -t "$_src_dir"
   python3 "$_main_repo/utils/i18n_apply.py" -t "$_src_dir"
@@ -59,6 +59,9 @@ prepare_sources() {
     --tree "$_main_repo" --platform-tree "$_root_dir" --chromium-tree "$_src_dir"
 
   helium_resources
+  if [ "${CI:-}" = true ]; then
+    bash "$_root_dir/resources/compile_xenon_icon.sh" "$_src_dir/chrome/app/theme/chromium/mac"
+  fi
 }
 
 write_gn_args() {
@@ -78,7 +81,11 @@ write_gn_args() {
       echo 'include_branded_entitlements=true' >> "$args"
     fi
     if [ -n "${ARC_MACOS_SPARKLE_ED_PUB_KEY:-}" ]; then
-      echo 'enable_sparkle=true' >> "$args"
+      if ! [[ "$ARC_MACOS_SPARKLE_ED_PUB_KEY" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
+        echo 'Invalid Xenon update public key' >&2
+        return 1
+      fi
+      printf '%s\n' enable_sparkle=true sparkle_automatic_checks=true >> "$args"
       printf 'sparkle_ed_key="%s"\n' "$ARC_MACOS_SPARKLE_ED_PUB_KEY" >> "$args"
     fi
     echo 'symbol_level=1' >> "$args"
@@ -143,7 +150,7 @@ text = branding.read_text()
 branding.write_text(re.sub(r'^MAC_TEAM_ID=.*$', 'MAC_TEAM_ID=' + sys.argv[2],
                            text, flags=re.MULTILINE))
 PYTEAM
-  write_gn_args "$1" "$2"
+  write_gn_args "$1" "$2" || return
   gn_gen
 }
 

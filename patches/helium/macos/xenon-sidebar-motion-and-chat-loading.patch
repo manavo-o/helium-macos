@@ -1,0 +1,536 @@
+Index: src/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+===================================================================
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -436,9 +436,11 @@
+     auto* rail = browser_view->tab_strip_view();
+     gfx::Rect bounds = caption;
+     const gfx::Rect rail_bounds = rail->bounds();
+-    const int inset = CaptionButtonsOnLeadingEdge() ? caption.x()
+-                                                    : width() - caption.right();
+-    bounds.set_x(rail_bounds.x() + inset);
++    if (CaptionButtonsOnLeadingEdge()) {
++      bounds.set_x(rail_bounds.x() + caption.x());
++    } else {
++      bounds.set_x(rail_bounds.right() - (width() - caption.x()));
++    }
+     bounds.Offset(0, rail_bounds.y());
+     helium_fullscreen_controls_host_->SetBoundsRect(bounds);
+     helium_fullscreen_controls_.alphaValue = 1;
+Index: src/chrome/browser/ui/views/frame/browser_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1005,7 +1005,8 @@
+           std::make_unique<ExclusiveAccessContextImpl>(*this)),
+       browser_(browser),
+       zen_top_chrome_animation_(this),
+-      zen_side_chrome_animation_(this) {
++      zen_side_chrome_animation_(this),
++      zen_side_dock_animation_(this) {
+   if (auto* manager = InitialWebUIWindowMetricsManager::From(browser_.get())) {
+     manager->OnBrowserWindowCreated();
+   }
+@@ -1052,6 +1053,10 @@
+       gfx::Animation::RichAnimationDuration(kZenModeRevealAnimationDuration));
+   zen_side_chrome_animation_.SetTweenType(gfx::Tween::FAST_OUT_SLOW_IN_3);
+   zen_side_chrome_animation_.Reset(1);
++  zen_side_dock_animation_.SetSlideDuration(
++      gfx::Animation::RichAnimationDuration(kZenModeRevealAnimationDuration));
++  zen_side_dock_animation_.SetTweenType(gfx::Tween::FAST_OUT_SLOW_IN_3);
++  zen_side_dock_animation_.Reset(1);
+ 
+   browser_->GetTabStripModel()->AddObserver(this);
+ 
+@@ -1735,6 +1740,10 @@
+   return zen_side_chrome_animation_.GetCurrentValue();
+ }
+ 
++float BrowserView::GetSideChromeDockRatio() const {
++  return zen_mode_enabled_ ? zen_side_dock_animation_.GetCurrentValue() : 1.f;
++}
++
+ bool BrowserView::IsZenModeSideChromePinned() const {
+   return zen_mode_enabled_ && browser_->GetProfile()->GetPrefs()->GetBoolean(
+                                   prefs::kHeliumZenModeSidebarPinned);
+@@ -1854,15 +1863,21 @@
+   }
+ 
+   UpdateZenModeExpandOnHoverLock();
++#if BUILDFLAG(IS_MAC)
++  if (IsZenModeSideChromePinned()) {
++    zen_side_chrome_animation_.Show();
++    zen_side_dock_animation_.Show();
++  } else {
++    zen_side_dock_animation_.Hide();
++    UpdateZenModeReveal(GetTopChromeRevealRatio() > 0.0f, false);
++  }
++#else
+   if (IsZenModeSideChromePinned()) {
+     zen_side_chrome_animation_.Reset(1);
+   } else {
+-#if BUILDFLAG(IS_MAC)
+-    UpdateZenModeReveal(GetTopChromeRevealRatio() > 0.0f, false);
+-#else
+     UpdateZenModeRevealFromCursor();
++  }
+ #endif
+-  }
+ 
+   if (vertical_tab_strip_region_view_) {
+     vertical_tab_strip_region_view_->UpdateInteriorMargin();
+@@ -1931,6 +1946,7 @@
+   }
+ 
+   zen_mode_enabled_ = zen_mode_enabled;
++  zen_side_dock_animation_.Reset(IsZenModeSideChromePinned() ? 1 : 0);
+   chrome::BrowserCommandController::From(browser_)->UpdateCommandEnabled(
+       IDC_TOGGLE_ZEN_MODE_TOP_CHROME_PIN, zen_mode_enabled);
+ 
+@@ -6959,6 +6975,10 @@
+ }
+ 
+ void BrowserView::AnimationProgressed(const gfx::Animation* animation) {
++  if (animation == &zen_side_dock_animation_) {
++    InvalidateLayout();
++    return;
++  }
+   if (animation == &zen_top_chrome_animation_ ||
+       animation == &zen_side_chrome_animation_) {
+     const bool top_chrome_animation = animation == &zen_top_chrome_animation_;
+Index: src/chrome/browser/ui/views/frame/browser_view.h
+===================================================================
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -438,6 +438,7 @@
+   bool IsZenModeEnabledForLayout() const;
+   float GetTopChromeRevealRatio() const;
+   float GetSideChromeRevealRatio() const;
++  float GetSideChromeDockRatio() const;
+   bool IsZenModeSideChromePinned() const;
+   bool IsZenModeTopChromePinned() const;
+ 
+@@ -1506,6 +1507,7 @@
+   std::unique_ptr<ExpandOnHoverLock> zen_expand_on_hover_lock_;
+   gfx::SlideAnimation zen_top_chrome_animation_;
+   gfx::SlideAnimation zen_side_chrome_animation_;
++  gfx::SlideAnimation zen_side_dock_animation_;
+   base::OneShotTimer zen_cursor_exit_timer_;
+   std::optional<gfx::Point> zen_last_cursor_;
+   bool zen_mode_enabled_ = false;
+Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -209,6 +209,11 @@
+   const bool split_changed = is_in_split != is_in_split_;
+   const bool rounded_contents_changed =
+       should_round_contents != should_round_contents_;
++  const bool shared_page_frame = BUILDFLAG(IS_MAC) && !is_in_split &&
++                                 browser_view_->ShouldDrawVerticalTabStrip();
++  const bool outline_inset_changed =
++      should_round_contents && !is_in_split &&
++      (GetInsets().top() == 0) != shared_page_frame;
+   const bool corner_state_changed =
+       round_top_left_window_corner_ != round_top_left ||
+       round_top_right_window_corner_ != round_top_right ||
+@@ -232,12 +237,11 @@
+       }
+     }
+   } else {
+-    if (split_changed || rounded_contents_changed) {
++    if (split_changed || rounded_contents_changed || outline_inset_changed) {
+       if (is_in_split) {
+         SetBorder(views::CreateEmptyBorder(gfx::Insets(
+             kSplitViewContentPadding + ContentsContainerOutline::kThickness)));
+-      } else if (BUILDFLAG(IS_MAC) &&
+-                 browser_view_->ShouldDrawVerticalTabStrip()) {
++      } else if (shared_page_frame) {
+         // The toolbar and page share one edge. A second outline makes the
+         // page look inset inside the frame.
+         SetBorder(nullptr);
+@@ -247,15 +251,14 @@
+             gfx::Insets(ContentsContainerOutline::kThickness)));
+       }
+     }
+-    if (split_changed || rounded_contents_changed || corner_state_changed) {
++    if (split_changed || rounded_contents_changed || corner_state_changed ||
++        outline_inset_changed) {
+       UpdateBorderRoundedCorners();
+     }
+ 
+     if (is_in_split) {
+       container_outline_->UpdateState(is_active, is_highlighted);
+-    } else if (browser_view_->GetIsNormalType() &&
+-               !(BUILDFLAG(IS_MAC) &&
+-                 browser_view_->ShouldDrawVerticalTabStrip())) {
++    } else if (browser_view_->GetIsNormalType() && !shared_page_frame) {
+       container_outline_->UpdateState(false, kColorToolbarContentAreaSeparator);
+     } else {
+       container_outline_->SetVisible(false);
+Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -900,7 +900,7 @@
+        layout_data_->window_state == WindowState::kMaximized);
+   const gfx::Rect rail_client_area = params.visual_client_area;
+   constexpr int kPageFrameInset = 8;
+-  if (inset_page_frame && zen.floating_vertical_tab_strip) {
++  if (inset_page_frame) {
+     params.Inset(gfx::Insets(kPageFrameInset));
+   }
+   const bool vertical_right_aligned =
+@@ -1021,7 +1021,8 @@
+       vertical_tab_strip_bounds = {
+           vertical_tab_strip_x, rail_area.y() + top_offset + top_padding,
+           vertical_tab_strip_width, vertical_tab_strip_height};
+-      if (zen.floating_vertical_tab_strip) {
++      if (zen.floating_vertical_tab_strip ||
++          (mac_vertical_layout && zen.enabled)) {
+         vertical_tab_strip_bounds = SlideBoundsFromSide(
+             vertical_tab_strip_bounds, rail_area, zen.side_chrome_ratio,
+             vertical_right_aligned);
+@@ -1040,20 +1041,25 @@
+               : 0.0);
+ 
+       vertical_tab_strip_width = vertical_tab_strip_bounds.width();
+-      if (!zen.floating_vertical_tab_strip) {
+-        // Expand on hover overlaps the contents instead of resizing them.
+-        const int inset_amount = vertical_tab_strip_width -
+-                                 vertical_tab_strip_hover_width -
+-                                 GetVerticalTabStripContentOverlap();
+-        params.InsetHorizontal(inset_amount,
+-                               /*leading=*/!vertical_right_aligned);
+-        if (inset_page_frame) {
+-          params.Inset(gfx::Insets(kPageFrameInset));
+-        }
+-      }
++      const auto* browser_view =
++          mac_vertical_layout
++              ? views::AsViewClass<BrowserView>(views().browser_view.get())
++              : nullptr;
++      const float dock_ratio =
++          browser_view ? browser_view->GetSideChromeDockRatio()
++                       : (zen.floating_vertical_tab_strip ? 0.f : 1.f);
++      // Expand on hover overlaps the contents instead of resizing them.
++      const int inset_amount = ScaleExtent(
++          vertical_tab_strip_width - vertical_tab_strip_hover_width -
++              GetVerticalTabStripContentOverlap(),
++          dock_ratio);
++      params.InsetHorizontal(inset_amount, /*leading=*/!vertical_right_aligned);
+ 
+       // Let the vertical tab strip animate out over the content.
+-      if (vertical_tab_strip_animation.current_motion) {
++      if (mac_vertical_layout) {
++        InsetHorizontal(unclipped_contents_region, inset_amount,
++                        !vertical_right_aligned);
++      } else if (vertical_tab_strip_animation.current_motion) {
+         const bool vertical_tab_strip_resize_animation =
+             vertical_tab_strip_animation.current_motion ==
+                 TabStripAnimations::kExpand ||
+Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+@@ -585,6 +585,9 @@
+       browser_view->ToggleZenModeSideChrome();
+     }
+     ASSERT_EQ(pinned, browser_view->IsZenModeSideChromePinned());
++    ASSERT_TRUE(base::test::RunUntil([&] {
++      return browser_view->GetSideChromeDockRatio() == (pinned ? 1.f : 0.f);
++    }));
+     if (!pinned) {
+       ASSERT_TRUE(base::test::RunUntil(
+           [&] { return browser_view->GetSideChromeRevealRatio() == 0.0f; }));
+Index: src/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -434,6 +434,7 @@
+   available.Inset(interior_margin_);
+ 
+   const bool show_sidebar_toggle = browser_view()->IsZenModeEnabledForLayout();
++  bool caption_on_leading_edge = true;
+   int caption_width = 0;
+   int caption_height = 0;
+ #if BUILDFLAG(IS_MAC)
+@@ -443,7 +444,8 @@
+     const auto* frame = static_cast<const BrowserFrameView*>(
+         widget->non_client_view()->frame_view());
+     const auto params = frame->GetBrowserLayoutParams();
+-    const auto& exclusion = params.leading_exclusion.content.width() > 0
++    caption_on_leading_edge = params.leading_exclusion.content.width() > 0;
++    const auto& exclusion = caption_on_leading_edge
+                                 ? params.leading_exclusion
+                                 : params.trailing_exclusion;
+     if (exclusion.content.width() > 0) {
+@@ -456,7 +458,10 @@
+       caption_width > 0 &&
+       available.width() >= caption_width + kXenonSidebarToggleSize;
+   const int toggle_x = beside_traffic_lights
+-                           ? caption_width
++                           ? (caption_on_leading_edge
++                                  ? caption_width
++                                  : available.width() - caption_width -
++                                        kXenonSidebarToggleSize)
+                            : std::clamp((available.width() -
+                                          kXenonSidebarToggleSize) / 2,
+                                         0, 8);
+Index: src/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
+===================================================================
+--- a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
++++ b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
+@@ -1675,7 +1675,16 @@
+   };
+ 
+   click(chat_button);
+-  ASSERT_TRUE(base::test::RunUntil(is_open));
++  ASSERT_TRUE(is_open());
++  click(chat_button);
++  ASSERT_TRUE(base::test::RunUntil([&] {
++    return !is_open() && chat_button->GetTooltipText() == u"Open Chat";
++  }));
++  base::RunLoop().RunUntilIdle();
++  EXPECT_FALSE(is_open());
++
++  click(chat_button);
++  ASSERT_TRUE(is_open());
+   ASSERT_NO_FATAL_FAILURE(close_from_header());
+   click(chat_button);
+   ASSERT_TRUE(base::test::RunUntil(is_open));
+Index: src/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
+===================================================================
+--- a/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
+@@ -7,12 +7,14 @@
+ #include <memory>
+ #include <utility>
+ 
++#include "base/auto_reset.h"
+ #include "base/check.h"
+ #include "base/check_deref.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+ #include "base/time/time.h"
+ #include "base/trace_event/trace_event.h"
++#include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+@@ -42,7 +44,124 @@
+ #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+ #include "ui/views/view.h"
+ 
++#if BUILDFLAG(IS_MAC)
++#include "base/timer/timer.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/navigation_entry.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/browser/web_contents_observer.h"
++#include "ui/views/controls/button/md_text_button.h"
++#include "ui/views/controls/label.h"
++#include "ui/views/controls/webview/webview.h"
++#include "ui/views/layout/box_layout.h"
++#include "ui/views/layout/fill_layout.h"
++#include "ui/views/view_utils.h"
++#endif
++
+ DEFINE_USER_DATA(SidePanelCoordinator);
++
++#if BUILDFLAG(IS_MAC)
++namespace {
++
++// The standard extension view still owns its renderer and loads normally. This
++// surface fills the space it would otherwise leave blank until its first load.
++class ChatLoadingView final : public views::View,
++                              public content::WebContentsObserver {
++ public:
++  explicit ChatLoadingView(SidePanelNativeView content) {
++    SetLayoutManager(std::make_unique<views::FillLayout>());
++    auto* status = AddChildView(std::make_unique<views::View>());
++    auto* layout = status->SetLayoutManager(std::make_unique<views::BoxLayout>(
++        views::BoxLayout::Orientation::kVertical, gfx::Insets(16), 8));
++    layout->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kCenter);
++    layout->set_cross_axis_alignment(
++        views::BoxLayout::CrossAxisAlignment::kCenter);
++    status_ = status;
++    message_ = status->AddChildView(std::make_unique<views::Label>());
++    message_->SetMultiLine(true);
++    retry_ = status->AddChildView(std::make_unique<views::MdTextButton>(
++        base::BindRepeating(&ChatLoadingView::Retry, base::Unretained(this)),
++        u"Retry"));
++    auto* extension = views::AsViewClass<views::WebView>(content.get());
++    CHECK(extension);
++    extension_view_ = AddChildViewAt(std::move(content), 0);
++    Observe(extension->web_contents());
++    if (web_contents()->IsDocumentOnLoadCompletedInPrimaryMainFrame()) {
++      DidStopLoading();
++    } else {
++      StartLoading();
++    }
++  }
++
++  void RequestFocus() override {
++    if (extension_view_ && extension_view_->GetVisible()) {
++      extension_view_->RequestFocus();
++    } else if (retry_->GetVisible()) {
++      retry_->RequestFocus();
++    }
++  }
++
++ private:
++  void StartLoading() {
++    extension_view_->SetVisible(false);
++    message_->SetText(u"Loading Chat…");
++    retry_->SetVisible(false);
++    timeout_.Start(FROM_HERE, base::Seconds(20),
++                   base::BindOnce(&ChatLoadingView::ShowError,
++                                  base::Unretained(this)));
++  }
++
++  void Retry() {
++    if (!web_contents()) {
++      return;
++    }
++    StartLoading();
++    web_contents()->GetController().Reload(content::ReloadType::NORMAL,
++                                           /*check_for_repost=*/true);
++  }
++
++  void DidStopLoading() override {
++    const auto* committed =
++        web_contents()->GetController().GetLastCommittedEntry();
++    if (!committed || committed->GetPageType() == content::PAGE_TYPE_ERROR) {
++      extension_view_->SetVisible(false);
++      ShowError();
++      return;
++    }
++    timeout_.Stop();
++    Observe(nullptr);
++    status_->SetVisible(false);
++    extension_view_->SetVisible(true);
++  }
++
++  void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override {
++    extension_view_->SetVisible(false);
++    ShowError();
++  }
++
++  void ShowError() {
++    timeout_.Stop();
++    message_->SetText(u"Chat couldn’t load.");
++    retry_->SetVisible(true);
++  }
++
++  raw_ptr<views::View> status_ = nullptr;
++  raw_ptr<views::Label> message_ = nullptr;
++  raw_ptr<views::MdTextButton> retry_ = nullptr;
++  raw_ptr<views::View> extension_view_ = nullptr;
++  base::OneShotTimer timeout_;
++};
++
++}  // namespace
++
++void SidePanelCoordinator::RunExtensionActionWithLoadingView(
++    const SidePanelEntryKey& key,
++    base::OnceClosure action) {
++  base::AutoReset<std::optional<SidePanelEntryKey>> loading_view(
++      &loading_view_key_, key);
++  std::move(action).Run();
++}
++#endif  // BUILDFLAG(IS_MAC)
+ 
+ SidePanelCoordinator::SidePanelCoordinator(BrowserWindowInterface* browser)
+     : SidePanelUIBase(browser),
+@@ -194,6 +313,20 @@
+ 
+   SidePanelMetrics::RecordEntryShowTriggeredMetrics(entry->key().id(),
+                                                     open_trigger);
++
++#if BUILDFLAG(IS_MAC)
++  if (loading_view_key_ == input.key) {
++    waiter()->ResetLoadingEntryIfNecessary();
++    auto content = entry->GetContent();
++    auto* web_view = views::AsViewClass<views::WebView>(content.get());
++    if (web_view && web_view->web_contents()) {
++      content = std::make_unique<ChatLoadingView>(std::move(content));
++    }
++    PopulateSidePanel(suppress_animations, input, open_trigger, entry,
++                      std::move(content));
++    return;
++  }
++#endif
+ 
+   waiter()->WaitForEntry(
+       entry, base::BindOnce(&SidePanelCoordinator::PopulateSidePanel,
+Index: src/chrome/browser/ui/views/side_panel/side_panel_coordinator.h
+===================================================================
+--- a/chrome/browser/ui/views/side_panel/side_panel_coordinator.h
++++ b/chrome/browser/ui/views/side_panel/side_panel_coordinator.h
+@@ -9,10 +9,12 @@
+ #include <optional>
+ 
+ #include "base/callback_list.h"
++#include "base/functional/callback_forward.h"
+ #include "base/memory/raw_ref.h"
+ #include "base/observer_list.h"
+ #include "base/scoped_observation.h"
+ #include "base/time/time.h"
++#include "build/build_config.h"
+ #include "chrome/browser/ui/side_panel/side_panel_entry.h"
+ #include "chrome/browser/ui/side_panel/side_panel_ui_base.h"
+ #include "chrome/browser/ui/tabs/tab_model.h"
+@@ -74,6 +76,12 @@
+   SidePanelEntry* GetLoadingEntryForTesting() const;
+   bool IsEntryShowingOrLoading(const SidePanelEntryKey& key);
+ 
++#if BUILDFLAG(IS_MAC)
++  // Decorates the matching entry if the ordinary extension action opens it.
++  void RunExtensionActionWithLoadingView(const SidePanelEntryKey& key,
++                                         base::OnceClosure action);
++#endif
++
+  private:
+   // Returns the corresponding entry for `entry_key` or a nullptr if this key is
+   // not registered in the currently observed registries. This looks through the
+@@ -109,6 +117,10 @@
+ 
+   SidePanel* GetSidePanel();
+ 
++#if BUILDFLAG(IS_MAC)
++  std::optional<SidePanelEntryKey> loading_view_key_;
++#endif
++
+   const raw_ref<BrowserWindowInterface> browser_;
+ 
+   std::unique_ptr<SidePanelToolbarPinningController>
+Index: src/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+===================================================================
+--- a/chrome/browser/ui/views/toolbar/arc_chat_button.cc
++++ b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+@@ -252,9 +252,24 @@
+       // selects the active (focused split-pane) tab and checks permissions.
+       auto weak = weak_factory_.GetWeakPtr();
+       TRACE_EVENT("browser", "Xenon.ChatButton.DispatchExtensionAction");
++#if BUILDFLAG(IS_MAC)
++      auto action = base::BindOnce(
++          [](ExtensionsToolbarViewModel* model) {
++            model->ExecuteUserAction(
++                kChatExtensionId,
++                ToolbarActionViewModel::InvocationSource::kToolbarButton);
++          },
++          base::Unretained(model));
++      if (coordinator) {
++        coordinator->RunExtensionActionWithLoadingView(key, std::move(action));
++      } else {
++        std::move(action).Run();
++      }
++#else
+       model->ExecuteUserAction(
+           kChatExtensionId,
+           ToolbarActionViewModel::InvocationSource::kToolbarButton);
++#endif
+       if (weak) {
+         weak->Update();
+       }

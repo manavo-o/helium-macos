@@ -14,6 +14,7 @@ rebel/macos/sparkle-integration.patch
 helium/macos/updater/fixup-sparkle-glue.patch
 helium/macos/updater/sparkle2-integration.patch
 helium/macos/updater/disable-default-updater.patch
+helium/macos/updater/xenon-update-consent.patch
 
 helium/macos/applescript-tab-select-command.patch
 helium/macos/open-shortcuts-settings-action.patch
@@ -46,4 +47,14 @@ helium/macos/xenon-native-refinement.patch
 helium/macos/arc-chrome-polish.patch
 helium/macos/arc-home-navigation-visibility.patch
 helium/macos/arc-content-island-borders.patch
-helium/macos/arc-chatgpt-foreground.patch
+helium/macos/xenon-theme-presets.patch
+helium/macos/xenon-arc-frame-layout.patch
+helium/macos/xenon-sidebar-controls.patch
+helium/macos/xenon-sidebar-parity.patch
+helium/macos/xenon-embedded-sidebar.patch
+helium/macos/xenon-full-height-palette.patch
+helium/macos/xenon-chat-stable-rail.patch
+helium/macos/xenon-sidebar-motion-and-chat-loading.patch
+helium/macos/xenon-embedded-controls-and-first-frame.patch
+helium/macos/xenon-quit-titlebar-lifetime.patch
+helium/macos/xenon-shared-page-frame-inset.patch

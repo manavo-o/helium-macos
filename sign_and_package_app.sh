@@ -4,6 +4,11 @@ _root_dir="$(dirname "$(greadlink -f "$0")")"
 _app="out/Default/Xenon.app"
 _packaging="out/Default/Xenon Packaging"
 
+if [ -n "${GITHUB_RUN_ID:-}" ]; then
+  python3 "$_root_dir/.github/scripts/xenon_update_metadata.py" prepare \
+    "$_app/Contents/Info.plist" "$GITHUB_RUN_ID"
+fi
+
 if [ -n "${MACOS_CERTIFICATE_NAME:-}" ]; then
   if [ -n "${PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_PATH:-}" ]; then
     # Chromium embeds this profile from its packaging inputs during signing.

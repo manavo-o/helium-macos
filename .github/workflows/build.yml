@@ -6,6 +6,14 @@ on:
         required: false
         description: "Runner image name"
         default: "xcode-27"
+      xenon-fresh:
+        description: Build and test Xenon from clean pinned source
+        type: boolean
+        default: false
+      xenon-source-run:
+        description: Audited Xenon checkpoint run ID for recovery
+        type: string
+        default: ''
       do-release:
         required: false
         type: boolean
@@ -29,12 +37,14 @@ jobs:
     with:
       arch: ${{ matrix.arch }}
       os: ${{ inputs.runner }}
+      fresh_source: ${{ inputs.xenon-fresh || inputs.xenon-source-run != '' }}
+      source_run: ${{ inputs.xenon-source-run }}
 
   release:
     needs: build
     name: Release macOS binaries of Helium
     runs-on: ${{ inputs.runner }}
-    if: ${{ inputs.do-release }}
+    if: ${{ inputs.do-release && !inputs.xenon-fresh && inputs.xenon-source-run == '' }}
     permissions:
       contents: write
     steps:

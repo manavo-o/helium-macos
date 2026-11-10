@@ -47,7 +47,8 @@ else
   echo "Please install it in Xenon or Chrome from the Chrome Web Store."
 fi
 
-# 4. Install NativeMessagingHosts manifest for Xenon and Chrome
+# 4. Install NativeMessagingHosts manifest for Xenon ONLY
+# Note: Never install into net.imput.helium or Google/Chrome, as they have native Apple entitlements.
 MANIFEST_JSON='{
   "name": "com.apple.passwordmanager",
   "description": "PasswordManagerBrowserExtensionHelper",
@@ -59,14 +60,54 @@ MANIFEST_JSON='{
   ]
 }'
 
-for hosts_dir in \
-  "$HOME/Library/Application Support/io.github.manavo.helium-sidebar/NativeMessagingHosts" \
-  "$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts" \
-  "$HOME/Library/Application Support/Chromium/NativeMessagingHosts" \
-  "$HOME/Library/Application Support/net.imput.helium/NativeMessagingHosts"; do
-  mkdir -p "$hosts_dir"
-  echo "$MANIFEST_JSON" > "$hosts_dir/com.apple.passwordmanager.json"
-done
+# Clean up any accidental entries in Helium or Chrome
+rm -f "$HOME/Library/Application Support/net.imput.helium/NativeMessagingHosts/com.apple.passwordmanager.json" \
+      "$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.apple.passwordmanager.json" \
+      "$HOME/Library/Application Support/Chromium/NativeMessagingHosts/com.apple.passwordmanager.json"
+
+XENON_HOSTS_DIR="$HOME/Library/Application Support/io.github.manavo.helium-sidebar/NativeMessagingHosts"
+mkdir -p "$XENON_HOSTS_DIR"
+echo "$MANIFEST_JSON" > "$XENON_HOSTS_DIR/com.apple.passwordmanager.json"
+
+# 5. Configure silent background LaunchAgent so Chrome never "opens" when Xenon starts
+LAUNCH_AGENT="$HOME/Library/LaunchAgents/io.github.manavo.xenon.apple-passwords.plist"
+if [ "${INSTALL_LAUNCH_AGENT:-1}" = "1" ]; then
+  mkdir -p "$HOME/Library/LaunchAgents"
+  NODE_BIN="$(command -v node || true)"
+  if [ -z "$NODE_BIN" ]; then
+    for p in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node; do
+      if [ -x "$p" ]; then NODE_BIN="$p"; break; fi
+    done
+  fi
+  if [ -n "$NODE_BIN" ]; then
+    cat <<EOF > "$LAUNCH_AGENT"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.manavo.xenon.apple-passwords</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$NODE_BIN</string>
+        <string>$TARGET_DIR/daemon.js</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/xenon_passwords_daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/xenon_passwords_daemon.err</string>
+</dict>
+</plist>
+EOF
+    launchctl unload "$LAUNCH_AGENT" 2>/dev/null || true
+    launchctl load "$LAUNCH_AGENT" 2>/dev/null || true
+    echo "LaunchAgent installed: daemon runs silently in background at login."
+  fi
+fi
 
 echo "=== Setup complete! ==="
 echo "Restart Xenon or reload the Apple Passwords extension in chrome://extensions to pair."

@@ -1,0 +1,28 @@
+name: Check for new Helium releases
+on:
+  schedule:
+    - cron: '38 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: xenon-upstream
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: github.repository == 'manavo-o/helium-macos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arc-helium
+          fetch-depth: 0
+      - name: Pin and dispatch the latest published Helium candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/github_xenon_upstream.py

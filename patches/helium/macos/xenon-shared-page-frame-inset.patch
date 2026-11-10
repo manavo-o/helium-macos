@@ -1,0 +1,19 @@
+Index: src/chrome/browser/ui/views/frame/multi_contents_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -594,9 +594,12 @@
+   available_space =
+       CalculateSeparatorLayouts(available_space, layouts.child_layouts);
+ 
+-  if (IsInSplitView()) {
++  // The shared macOS page frame gets its margin from the outer browser layout.
++  const bool uses_shared_page_frame =
++      BUILDFLAG(IS_MAC) && browser_view_->ShouldDrawVerticalTabStrip();
++  if (is_in_split) {
+     available_space.Inset(split_view_insets_);
+-  } else if (should_use_rounded_frame) {
++  } else if (should_use_rounded_frame && !uses_shared_page_frame) {
+     gfx::Insets single_insets(kSplitViewContentInset);
+     single_insets.set_top(attached_chrome.TopInset());
+     single_insets.set_left(contents_separators_.leading_side_chrome_attached
