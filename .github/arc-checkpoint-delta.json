@@ -8,7 +8,7 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "5d2fc763c6004310185a97379f0b0069632cada6dbd42fde0db619cd8c1a7573",
+  "input_sha256": "3a77427bb58694053caf90b0fdc8997039c48e979bd79b80119d63672b9934d9",
   "patches": [
     {
       "path": "patches/helium/macos/xenon-embedded-controls-and-first-frame.patch",
@@ -17,6 +17,10 @@
     {
       "path": "patches/helium/macos/xenon-quit-titlebar-lifetime.patch",
       "sha256": "21061485af1fa34922c9a9e51518bb55cee34a16e6bc28bc309cbc4402136201"
+    },
+    {
+      "path": "patches/helium/macos/xenon-shared-page-frame-inset.patch",
+      "sha256": "703e300d3c31063d1cb9245d69b1f20439686a6b82debaf406d6cceb1693e7cc"
     }
   ],
   "reuse_generated_build_config": true,
@@ -56,6 +60,11 @@
       "after": "d177d5c8c85abb47b9f433b315ee0f30e87b68e0a431fa82a21a9453a3a9b8e5",
       "before": "021ea8a9a2cb53d1be08dd18a1efe13e7cbfb747dc09d4e4a87068a924b1328a",
       "preimage": ".github/checkpoint-preimages/xenon-embedded-controls-and-first-frame/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc"
+    },
+    "chrome/browser/ui/views/frame/multi_contents_view.cc": {
+      "after": "5624653b72e74775294657de7841957554f56db2e8dc64dcd9356c99d5647f5c",
+      "before": "562769a8895556eb853e6990b30fffe893ac9ee0906eef4c526650d3c1994b3d",
+      "preimage": ".github/checkpoint-preimages/xenon-shared-page-frame-inset/chrome/browser/ui/views/frame/multi_contents_view.cc"
     },
     "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc": {
       "after": "f26d243ae453570d3c1ea64be109d7b2eff2e796b1e84268b0f86d5fe24cd96f",
