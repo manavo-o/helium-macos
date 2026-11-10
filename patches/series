@@ -46,3 +46,4 @@ helium/macos/xenon-native-refinement.patch
 helium/macos/arc-chrome-polish.patch
 helium/macos/arc-home-navigation-visibility.patch
 helium/macos/arc-content-island-borders.patch
+helium/macos/arc-chatgpt-foreground.patch

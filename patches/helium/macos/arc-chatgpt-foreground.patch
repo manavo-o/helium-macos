@@ -1,0 +1,128 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -574,16 +574,6 @@
+                         : match.destination_url;
+     }
+     if (!destination.is_valid()) return;
+-    if (ask_chatgpt) {
+-      // ChatGPT submits the encoded prompt once its page is ready. Keep the
+-      // source tab active and let the palette restore its previous focus.
+-      NavigateParams params(browser_.get(), destination,
+-                            ui::PAGE_TRANSITION_TYPED);
+-      params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+-      GetWidget()->Close();
+-      Navigate(&params);
+-      return;
+-    }
+     restore_focus_ = false;
+     GetWidget()->Close();
+     NavigateTo(destination);
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -21,6 +21,7 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/contents_web_view.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
++#include "chrome/common/pref_names.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/interactive_test_utils.h"
+ #include "chrome/test/base/search_test_utils.h"
+@@ -55,8 +56,12 @@
+   void SetUpCommandLine(base::CommandLine* command_line) override {
+     command_line->AppendSwitch("disable-default-apps");
+   }
+-  views::Widget* OpenPalette() {
+-    EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_NEW_TAB));
++  views::Widget* OpenPalette(bool edit_current = false) {
++    if (edit_current) {
++      EXPECT_TRUE(helium::ShowArcCommandBar(browser(), true));
++    } else {
++      EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_NEW_TAB));
++    }
+     auto* parent =
+         BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+     for (views::Widget* widget :
+@@ -70,6 +75,54 @@
+   void Key(views::Widget* widget, ui::KeyboardCode key, bool command = false) {
+     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
+         widget->GetNativeWindow(), key, false, false, false, command));
++  }
++  void ExpectVisibleChatGPTSubmission(bool reuse_tab, bool edit_current) {
++    auto* profile = browser()->GetProfile();
++    profile->GetPrefs()->SetBoolean(prefs::kHeliumArcQuestionRouting, true);
++    profile->GetPrefs()->SetBoolean(helium::kArcOnlineSuggestions, false);
++    search_test_utils::WaitForTemplateURLServiceToLoad(
++        TemplateURLServiceFactory::GetForProfile(profile));
++
++    auto* tabs = browser()->GetTabStripModel();
++    auto* original = tabs->GetActiveWebContents();
++    const int count = tabs->count();
++    const GURL destination(
++        "https://chatgpt.com/?q=Why%20caf%C3%A9%20%2B%20tea%20%26%20cake%3F"
++        "&hints=search&ref=ext");
++    std::atomic<int> requests{0};
++    content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
++        [&](content::URLLoaderInterceptor::RequestParams* params) {
++          if (params->url_request.url.host() != "chatgpt.com") {
++            return false;
++          }
++          if (params->url_request.url == destination) {
++            ++requests;
++          }
++          content::URLLoaderInterceptor::WriteResponse(
++              "HTTP/1.1 200 OK\nContent-Type: text/html\n\n",
++              "<title>ChatGPT test page</title>", params->client.get());
++          return true;
++        }));
++    content::TestNavigationObserver navigation(destination);
++    navigation.WatchWebContents(original);
++    navigation.StartWatchingNewWebContents();
++
++    auto* palette = OpenPalette(edit_current);
++    ASSERT_TRUE(palette);
++    helium::SetArcCommandBarInputForTesting(browser(), u"Why café + tea & cake?");
++    Key(palette, ui::VKEY_RETURN);
++    navigation.WaitForNavigationFinished();
++
++    EXPECT_TRUE(navigation.last_navigation_succeeded());
++    EXPECT_EQ(1, requests.load());
++    EXPECT_EQ(count + (reuse_tab ? 0 : 1), tabs->count());
++    auto* active = tabs->GetActiveWebContents();
++    ASSERT_TRUE(active);
++    EXPECT_EQ(reuse_tab, active == original);
++    EXPECT_EQ(destination, active->GetLastCommittedURL());
++    auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
++    EXPECT_TRUE(browser_view->multi_contents_view()
++                    ->GetActiveContentsView()->GetVisible());
+   }
+ };
+
+@@ -276,6 +329,24 @@
+   EXPECT_TRUE(contents_view->GetVisible());
+ }
+
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       ChatGPTSubmissionReusesHomeTab) {
++  chrome::AddTabAt(browser(), GURL("chrome://newtab/"), -1, true);
++  ExpectVisibleChatGPTSubmission(/*reuse_tab=*/true, /*edit_current=*/false);
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       ChatGPTSubmissionOpensForegroundTab) {
++  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
++  ExpectVisibleChatGPTSubmission(/*reuse_tab=*/false, /*edit_current=*/false);
++}
++
++IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
++                       ChatGPTSubmissionEditsCurrentTab) {
++  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
++  ExpectVisibleChatGPTSubmission(/*reuse_tab=*/true, /*edit_current=*/true);
++}
++
+ IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest, FinalTabCloseReturnsHome) {
+   auto* tabs = browser()->GetTabStripModel();
+   ASSERT_EQ(1, tabs->count());
