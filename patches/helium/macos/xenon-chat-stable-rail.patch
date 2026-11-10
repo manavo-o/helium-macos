@@ -240,7 +240,7 @@ index 83558d2614f387318767677617295b675851e4cd..a3f68529646f3eaf924d6e77c623a0c5
    [_browserWindow setAppKitFullscreenOverlaySuppressed:YES];
    // Look up current buttons because AppKit can recreate them.
 diff --git a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
-index dfef6e682f177428939d24ac0c4e479bb3adb492..b73bfcb63d7919213e2e4d7896ded1b5e784c173 100644
+index dfef6e682f177428939d24ac0c4e479bb3adb492..f139acde9936e775983c6aec4e9a5076060573d3 100644
 --- a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
 +++ b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
 @@ -17,6 +17,7 @@
@@ -328,7 +328,7 @@ index dfef6e682f177428939d24ac0c4e479bb3adb492..b73bfcb63d7919213e2e4d7896ded1b5
 +    click(close);
 +    ASSERT_TRUE(base::test::RunUntil([&] {
 +      return !is_open() &&
-+             chat_button->GetTooltipText(gfx::Point()) == u"Open Chat";
++             chat_button->GetTooltipText() == u"Open Chat";
 +    }));
 +  };
 +
@@ -343,7 +343,7 @@ index dfef6e682f177428939d24ac0c4e479bb3adb492..b73bfcb63d7919213e2e4d7896ded1b5
 +  auto action_helper = ExtensionActionTestHelper::Create(browser());
 +  action_helper->Press(extension->id());
 +  ASSERT_TRUE(base::test::RunUntil(is_open));
-+  EXPECT_EQ(u"Close Chat", chat_button->GetTooltipText(gfx::Point()));
++  EXPECT_EQ(u"Close Chat", chat_button->GetTooltipText());
 +
 +  // A close immediately followed by a reopen must keep the entry open.
 +  click(chat_button);
@@ -434,7 +434,7 @@ index 9aa237a57280499ce15d2628b1eca91d37ad549f..1cf0ca71720f1d7fdac3b4b6a09fae0a
    CHECK(side_panel);
  
 diff --git a/chrome/browser/ui/views/toolbar/arc_chat_button.cc b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
-index 804f17e8a7c4cef11e693052c1b7717d4cf9c50c..be1502cf317086b6829e02650c26dd953079966a 100644
+index 804f17e8a7c4cef11e693052c1b7717d4cf9c50c..3d46aa37fe5f5be5bd683363606c73e21f2df380 100644
 --- a/chrome/browser/ui/views/toolbar/arc_chat_button.cc
 +++ b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
 @@ -2,14 +2,16 @@
@@ -533,7 +533,7 @@ index 804f17e8a7c4cef11e693052c1b7717d4cf9c50c..be1502cf317086b6829e02650c26dd95
    bool IsAllowed() const {
      return !browser_->GetProfile()->IsOffTheRecord() ||
             extensions::util::IsIncognitoEnabled(kChatExtensionId,
-@@ -183,9 +206,19 @@ class ArcChatButton : public views::MdTextButton,
+@@ -183,9 +206,20 @@ class ArcChatButton : public views::MdTextButton,
      else GetViewAccessibility().SetIsCollapsed();
    }
    void Activate() {
@@ -545,7 +545,8 @@ index 804f17e8a7c4cef11e693052c1b7717d4cf9c50c..be1502cf317086b6829e02650c26dd95
 +    if (allowed && coordinator && coordinator->IsSidePanelEntryShowing(key)) {
 +      auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
 +      if (view && view->side_panel() && view->side_panel()->IsClosing()) {
-+        coordinator->Show(key, SidePanelOpenTrigger::kToolbarButton);
++        coordinator->Show(key, SidePanelOpenTrigger::kToolbarButton,
++                          /*suppress_animations=*/false);
 +        Update();
 +        return;
 +      }
@@ -553,7 +554,7 @@ index 804f17e8a7c4cef11e693052c1b7717d4cf9c50c..be1502cf317086b6829e02650c26dd95
      if (allowed && coordinator && coordinator->IsEntryShowingOrLoading(key)) {
        launch_pending_ = false;
        launch_timeout_.Stop();
-@@ -211,11 +244,13 @@ class ArcChatButton : public views::MdTextButton,
+@@ -211,11 +245,13 @@ class ArcChatButton : public views::MdTextButton,
            [](base::WeakPtr<ArcChatButton> button) {
              if (!button) return;
              button->launch_pending_ = false;
@@ -567,7 +568,7 @@ index 804f17e8a7c4cef11e693052c1b7717d4cf9c50c..be1502cf317086b6829e02650c26dd95
        model->ExecuteUserAction(
            kChatExtensionId,
            ToolbarActionViewModel::InvocationSource::kToolbarButton);
-@@ -258,10 +293,12 @@ class ArcChatButton : public views::MdTextButton,
+@@ -258,10 +294,12 @@ class ArcChatButton : public views::MdTextButton,
    // A separate observer avoids overriding the delegate's final deletion hook.
    struct PanelObserver : views::ViewObserver {
      explicit PanelObserver(ArcChatButton* button) : button(button) {}

@@ -8,11 +8,11 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "28f25e0b9ab7ee38c635f2081f326a8bb0e49bc7db2d6c154fe9fda4562acc80",
+  "input_sha256": "e2b2e9430d4d54ec4dba746f67d6f1e386f3f9a0bccecedfb3e80223a0d22a48",
   "patches": [
     {
       "path": "patches/helium/macos/xenon-chat-stable-rail.patch",
-      "sha256": "8e632054c9e4e3d8f85ade7bbe908d0f073587968319cc617f7494cac49baa60"
+      "sha256": "9581e6ac3d35a05b43a97c17289417957f3b1896b8be69737a4e304699cf18f2"
     }
   ],
   "reuse_generated_build_config": true,
@@ -59,7 +59,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.mm"
     },
     "chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc": {
-      "after": "2d1844775fe8873244dee51ce5bb5682b069b4c954fe0dd1691ae498976c4673",
+      "after": "9a3680664e3b2d2740f6626422759a06478bd2f9dcb21e725d2660b8d0b9c845",
       "before": "86b051fc753a43bee9d30478c8c9fb0a22eed433dfb21babd7c23b7e466e711f",
       "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc"
     },
@@ -74,7 +74,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc"
     },
     "chrome/browser/ui/views/toolbar/arc_chat_button.cc": {
-      "after": "8f5dc406b0d01437c8cf6a572350c5c18be3d3816ffb703b25158c5d1241637c",
+      "after": "54eb07b0e4be0e15ae36e0870c69a9809d25b7ef4d268c1dfe3f88c1a69add73",
       "before": "5d1a2a7e0d72958965d327a04dd74616f94c6a91fbe6377b599454de6ff3fb50",
       "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/toolbar/arc_chat_button.cc"
     },
