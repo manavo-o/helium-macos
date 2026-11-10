@@ -1,0 +1,607 @@
+diff --git a/chrome/browser/ui/views/animations/side_panel_animations.cc b/chrome/browser/ui/views/animations/side_panel_animations.cc
+index bc7c8ed2ea787e39cddc954eea90fc6292619587..f314f226dbb87584209e7dc67905dbb354084ab5 100644
+--- a/chrome/browser/ui/views/animations/side_panel_animations.cc
++++ b/chrome/browser/ui/views/animations/side_panel_animations.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/views/animations/side_panel_animations.h"
+ 
++#include "build/build_config.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "ui/base/interaction/safe_castable.h"
+ #include "ui/gfx/animation/tween.h"
+@@ -50,8 +51,10 @@ SidePanelAnimations::GroupInfos SidePanelAnimations::GenerateAnimations()
+     const {
+   const int kDefaultAnimationMs = features::kSidePanelFlyoverDurationMs.Get();
+   const bool use_flyover = features::UseSidePanelFlyoverAnimation();
+-  const gfx::Tween::Type tween = use_flyover
+-                                     ? gfx::Tween::Type::ACCEL_80_DECEL_20
++  // Start moving early on macOS, where the viewport is clipped during reveal.
++  const gfx::Tween::Type tween =
++      BUILDFLAG(IS_MAC) ? gfx::Tween::Type::FAST_OUT_SLOW_IN
++                       : use_flyover ? gfx::Tween::Type::ACCEL_80_DECEL_20
+                                      : gfx::Tween::Type::ACCEL_45_DECEL_88;
+   const auto show_shadow_sequence =
+       Sequence(kMainAreaShadow, StartingValue(0.0),
+diff --git a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+index 4919d56c4523cb61db8fa1b88ec68c4fe6052ffa..5fb8a2daa3fee228c0578504f9d973cdbfe7e493 100644
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -386,7 +386,11 @@ FullscreenToolbarStyle GetUserPreferredToolbarStyle(bool always_show) {
+ 
+ void BrowserFrameViewMac::UpdateHeliumFullscreenWindowControls() {
+   auto* browser_view = GetBrowserView();
+-  if (!ShouldUseHeliumFullscreenWindowControls()) {
++  const bool controls_in_rail =
++      browser_view->GetIsNormalType() &&
++      browser_view->ShouldDrawVerticalTabStrip() &&
++      browser_view->IsZenModeEnabledForLayout();
++  if (!controls_in_rail && !ShouldUseHeliumFullscreenWindowControls()) {
+     if (helium_fullscreen_controls_) {
+       helium_fullscreen_controls_host_->SetVisible(false);
+       helium_fullscreen_controls_host_->Detach();
+@@ -415,6 +419,9 @@ FullscreenToolbarStyle GetUserPreferredToolbarStyle(bool always_show) {
+     helium_fullscreen_controls_host_->SetVisible(false);
+   }
+   const gfx::Rect caption = gfx::ToEnclosingRect(GetCaptionButtonBounds().bounds);
++  if (caption.IsEmpty()) {
++    return;
++  }
+   if (!helium_fullscreen_controls_) {
+     helium_fullscreen_controls_ = [[HeliumFullscreenWindowControls alloc]
+         initWithWindow:window
+@@ -423,6 +430,23 @@ FullscreenToolbarStyle GetUserPreferredToolbarStyle(bool always_show) {
+         gfx::NativeView(helium_fullscreen_controls_));
+   }
+   [helium_fullscreen_controls_ hideTitlebarButtons];
++  [helium_fullscreen_controls_ setFullscreen:browser_view->IsFullscreen()];
++
++  if (controls_in_rail) {
++    auto* rail = browser_view->tab_strip_view();
++    gfx::Rect bounds = caption;
++    const gfx::Rect rail_bounds = rail->bounds();
++    const int inset = CaptionButtonsOnLeadingEdge() ? caption.x()
++                                                    : width() - caption.right();
++    bounds.set_x(rail_bounds.x() + inset);
++    bounds.Offset(0, rail_bounds.y());
++    helium_fullscreen_controls_host_->SetBoundsRect(bounds);
++    helium_fullscreen_controls_.alphaValue = 1;
++    helium_fullscreen_controls_host_->SetVisible(
++        rail->IsDrawn() && browser_view->GetSideChromeRevealRatio() > 0 &&
++        GetLocalBounds().Intersects(bounds));
++    return;
++  }
+ 
+   const auto* controller =
+       HeliumLayoutStateController::From(browser_view->browser());
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index 005dcc87137b57402bb03bc944d634293b181b81..47b59c0ba0a4a375c7977680391beb652b6122a4 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -6962,9 +6962,6 @@ void BrowserView::AnimationProgressed(const gfx::Animation* animation) {
+   if (animation == &zen_top_chrome_animation_ ||
+       animation == &zen_side_chrome_animation_) {
+     const bool top_chrome_animation = animation == &zen_top_chrome_animation_;
+-    if (!top_chrome_animation) {
+-      UpdateZenCollapseButtonVisibility();
+-    }
+     if (top_chrome_animation && vertical_tab_strip_region_view_) {
+       vertical_tab_strip_region_view_->UpdateInteriorMargin();
+     }
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index ad87ab6f8bc2f9d417c9b8aaa99e8123844ec2a4..0a91d3ccafa781bc8eb4a2385dc81103c5b2a055 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -1094,19 +1094,11 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+         layout.AddChild(views().top_container, gfx::Rect());
+ 
+     // Calculate the params for laying out the top container.
+-    BrowserLayoutParams parent_params = params;
+-    if (mac_vertical_layout && zen.floating_vertical_tab_strip &&
+-        zen.side_chrome_ratio > 0.0f) {
+-      // Only the toolbar yields to the overlay. The website keeps its width.
+-      gfx::Rect covered = vertical_tab_strip_bounds;
+-      covered.Intersect(parent_params.visual_client_area);
+-      parent_params.InsetHorizontal(covered.width(), !vertical_right_aligned);
+-    }
++    const BrowserLayoutParams& parent_params = params;
+     auto top_container_params =
+         parent_params.InLocalCoordinates(parent_params.visual_client_area);
+ 
+-    const bool top_needs_exclusion =
+-        mac_vertical_layout ? zen.floating_vertical_tab_strip : needs_exclusion;
++    const bool top_needs_exclusion = !mac_vertical_layout && needs_exclusion;
+     const gfx::Rect top_container_local_bounds = CalculateTopContainerLayout(
+         top_container_layout, top_container_params, top_needs_exclusion);
+     top_container_layout.bounds = GetTopContainerBoundsInParent(
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+index cc1d5518576d7e5d8a6cb1d99690c7c6fdbed445..92eccb55f9b3d59982aef37a852def06fbd30475 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl_interactive_uitest.cc
+@@ -577,6 +577,8 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
+   auto* toolbar_toggle =
+       browser_view->GetViewByID(VIEW_ID_COLLAPSE_VERTICAL_TABS_BUTTON);
+   ASSERT_TRUE(toolbar_toggle);
++  gfx::Rect hidden_viewport;
++  gfx::Rect hidden_toolbar;
+   for (bool pinned : {true, false}) {
+     SCOPED_TRACE(pinned);
+     if (browser_view->IsZenModeSideChromePinned() != pinned) {
+@@ -587,15 +589,17 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
+       ASSERT_TRUE(base::test::RunUntil(
+           [&] { return browser_view->GetSideChromeRevealRatio() == 0.0f; }));
+       RunScheduledLayouts();
+-      EXPECT_TRUE(toolbar_toggle->GetVisible());
+-      const auto viewport = browser_view->multi_contents_view()->bounds();
++      EXPECT_FALSE(toolbar_toggle->GetVisible());
++      hidden_viewport = browser_view->multi_contents_view()->bounds();
++      hidden_toolbar = browser_view->toolbar()->GetBoundsInScreen();
+       ASSERT_TRUE(ui_test_utils::SendMouseMoveSync(
+           gfx::Point(window.x() + 1, window.CenterPoint().y()),
+           browser_view->GetWidget()->GetNativeWindow()));
+       ASSERT_TRUE(base::test::RunUntil(
+           [&] { return browser_view->GetSideChromeRevealRatio() == 1.0f; }));
+       RunScheduledLayouts();
+-      EXPECT_EQ(viewport, browser_view->multi_contents_view()->bounds());
++      EXPECT_EQ(hidden_viewport, browser_view->multi_contents_view()->bounds());
++      EXPECT_EQ(hidden_toolbar, browser_view->toolbar()->GetBoundsInScreen());
+     }
+     RunScheduledLayouts();
+     ASSERT_TRUE(strip->GetVisible());
+@@ -618,6 +622,15 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTabbedLayoutImplUiTest,
+     RunTestSequence(ReplaceAndShowSidePanel(SidePanelType::kContent),
+                     Do(check_edges), CloseSidePanel(), Do(check_edges));
+   }
++  ASSERT_TRUE(ui_test_utils::SendMouseMoveSync(
++      window.CenterPoint(), browser_view->GetWidget()->GetNativeWindow()));
++  ASSERT_TRUE(base::test::RunUntil(
++      [&] { return browser_view->GetSideChromeRevealRatio() == 0.0f; }));
++  RunScheduledLayouts();
++  EXPECT_FALSE(strip->GetVisible());
++  EXPECT_FALSE(toolbar_toggle->GetVisible());
++  EXPECT_EQ(hidden_viewport, browser_view->multi_contents_view()->bounds());
++  EXPECT_EQ(hidden_toolbar, browser_view->toolbar()->GetBoundsInScreen());
+ }
+ #endif  // BUILDFLAG(IS_MAC)
+ 
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index deaf5f7bcef0e7545a4c19a7a59124ea7001faa7..c0bf23d6f49dabded33bb23c647656b5e201b962 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -443,9 +443,9 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+     const auto* frame = static_cast<const BrowserFrameView*>(
+         widget->non_client_view()->frame_view());
+     const auto params = frame->GetBrowserLayoutParams();
+-    const auto& exclusion = state_controller_->IsTabStripRightAligned()
+-                                ? params.trailing_exclusion
+-                                : params.leading_exclusion;
++    const auto& exclusion = params.leading_exclusion.content.width() > 0
++                                ? params.leading_exclusion
++                                : params.trailing_exclusion;
+     if (exclusion.content.width() > 0) {
+       caption_width = base::ClampCeil(exclusion.ContentWithPadding().width());
+       caption_height = base::ClampCeil(exclusion.ContentWithPadding().height());
+diff --git a/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.h b/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.h
+index 6b89002e7bb2c54707b30bb6c316f53237a326f0..71a23874a3d5761517267f78c6402f97ea934246 100644
+--- a/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.h
++++ b/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.h
+@@ -12,6 +12,7 @@
+ @interface HeliumFullscreenWindowControls : NSView
+ - (instancetype)initWithWindow:(NSWindow*)window size:(NSSize)size;
+ - (void)hideTitlebarButtons;
++- (void)setFullscreen:(BOOL)fullscreen;
+ - (void)restoreTitlebarButtons;
+ @end
+ 
+diff --git a/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.mm b/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.mm
+index 83558d2614f387318767677617295b675851e4cd..a3f68529646f3eaf924d6e77c623a0c53d908b98 100644
+--- a/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.mm
++++ b/chrome/browser/ui/views/helium/fullscreen_window_controls_mac.mm
+@@ -19,6 +19,7 @@ @implementation HeliumFullscreenWindowControls {
+   BrowserNativeWidgetWindow* __weak _browserWindow;
+   NSDictionary<NSNumber*, NSNumber*>* _originalWindowButtonHiddenStates;
+   BOOL _mouseInsideControls;
++  NSButton* __weak _minimizeButton;
+ }
+ 
+ - (instancetype)initWithWindow:(NSWindow*)window size:(NSSize)size {
+@@ -35,8 +36,8 @@ - (instancetype)initWithWindow:(NSWindow*)window size:(NSSize)size {
+   } buttons[] = {
+       {NSWindowCloseButton, @selector(performClose:),
+        (style & NSWindowStyleMaskClosable) != 0},
+-      // Fullscreen windows cannot be minimized.
+-      {NSWindowMiniaturizeButton, @selector(performMiniaturize:), false},
++      {NSWindowMiniaturizeButton, @selector(performMiniaturize:),
++       (style & NSWindowStyleMaskMiniaturizable) != 0},
+       {NSWindowZoomButton, @selector(toggleFullScreen:),
+        (style & NSWindowStyleMaskResizable) != 0},
+   };
+@@ -65,6 +66,9 @@ - (instancetype)initWithWindow:(NSWindow*)window size:(NSSize)size {
+     button.target = window;
+     button.action = entry.action;
+     button.enabled = entry.enabled;
++    if (entry.type == NSWindowMiniaturizeButton) {
++      _minimizeButton = button;
++    }
+     NSRect frame = button.frame;
+     const CGFloat offset = (size.width - frame.size.width) * i / 2;
+     frame.origin.x = rtl ? size.width - frame.size.width - offset : offset;
+@@ -85,6 +89,12 @@ - (instancetype)initWithWindow:(NSWindow*)window size:(NSSize)size {
+   return self;
+ }
+ 
++- (void)setFullscreen:(BOOL)fullscreen {
++  _minimizeButton.enabled =
++      !fullscreen &&
++      (_browserWindow.styleMask & NSWindowStyleMaskMiniaturizable) != 0;
++}
++
+ - (void)hideTitlebarButtons {
+   [_browserWindow setAppKitFullscreenOverlaySuppressed:YES];
+   // Look up current buttons because AppKit can recreate them.
+diff --git a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
+index dfef6e682f177428939d24ac0c4e479bb3adb492..b73bfcb63d7919213e2e4d7896ded1b5e784c173 100644
+--- a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
++++ b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc
+@@ -17,6 +17,7 @@
+ #include "base/test/scoped_feature_list.h"
+ #include "base/threading/thread_restrictions.h"
+ #include "base/values.h"
++#include "build/build_config.h"
+ #include "chrome/browser/extensions/api/side_panel/side_panel_api.h"
+ #include "chrome/browser/extensions/extension_browsertest.h"
+ #include "chrome/browser/extensions/extension_context_menu_model.h"
+@@ -49,6 +50,7 @@
+ #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
+ #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/interaction/browser_elements_views.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+@@ -87,8 +89,11 @@
+ #include "ui/shell_dialogs/select_file_policy.h"
+ #include "ui/shell_dialogs/selected_file_info.h"
+ #include "ui/views/controls/button/image_button.h"
++#include "ui/views/controls/button/md_text_button.h"
+ #include "ui/views/interaction/element_tracker_views.h"
+ #include "ui/views/interaction/interaction_test_util_views.h"
++#include "ui/views/test/button_test_api.h"
++#include "ui/views/view_utils.h"
+ 
+ namespace extensions {
+ namespace {
+@@ -1612,6 +1617,87 @@ IN_PROC_BROWSER_TEST_F(ExtensionSidePanelBrowserTest,
+   EXPECT_FALSE(side_panel_ui->IsSidePanelShowing());
+ }
+ 
++#if BUILDFLAG(IS_MAC)
++IN_PROC_BROWSER_TEST_F(ExtensionSidePanelBrowserTest,
++                       XenonChatReopensAfterHeaderClose) {
++  // The public manifest key gives this local fixture the ChatGPT action ID.
++  constexpr char kPublicKey[] =
++      "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr5M/DZ28sAuOnk9v8C2IPTLN"
++      "EZ0F0pv9qwRzMAbGbE0NB6I6T+wS6Na2n0sbQOK98iezN2FX26dsBWMELXtf4YCETdRi"
++      "FSBOnNhZObZdrxeTTrhk1AhKA/Id5vgDWfSZ3Q+9BjBWHYK9yuTGo3PMK/yOW/CH6cSn"
++      "07btvn7Aq+t+KrAwGOJewCN7gGojOrshJs/YwdxwxpUnb7s6QbFGkPKg9G6as4y4ipQ8"
++      "fiQHRAcKm+mUK/CoCVSL+c4Yog0CSJqEEaruOeh8CgM4V0LX4kw5rs/4THAvTwtYRsW0"
++      "n3faVR7uGj1eadsWuKciQHxpRMI9I4EE7yuaxavv3Agf6QIDAQAB";
++  TestExtensionDir dir;
++  dir.WriteManifest(base::StringPrintf(R"({
++    "name": "Local side panel fixture",
++    "manifest_version": 3,
++    "version": "1",
++    "key": "%s",
++    "permissions": ["sidePanel"],
++    "action": {},
++    "side_panel": {"default_path": "panel.html"}
++  })", kPublicKey));
++  dir.WriteFile(FILE_PATH_LITERAL("panel.html"), "<p>Local side panel</p>");
++  const Extension* extension = LoadExtension(dir.UnpackedPath());
++  ASSERT_TRUE(extension);
++  ASSERT_EQ("hehggadaopoacecdllhhajmbjkdcmajg", extension->id());
++  RunSetPanelBehavior(*extension, /*openPanelOnActionClick=*/true);
++
++  auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
++  views::MdTextButton* chat_button = nullptr;
++  for (auto* child : browser_view->toolbar()->children()) {
++    auto* button = views::AsViewClass<views::MdTextButton>(child);
++    if (button && button->GetText() == u"Chat") {
++      chat_button = button;
++      break;
++    }
++  }
++  ASSERT_TRUE(chat_button);
++  const SidePanelEntry::Key key = GetKey(extension->id());
++  auto* coordinator = SidePanelCoordinator::From(browser());
++  const auto click = [](views::Button* button) {
++    views::test::ButtonTestApi(button).NotifyDefaultMouseClick();
++  };
++  const auto is_open = [&] {
++    return coordinator->IsSidePanelEntryShowing(key);
++  };
++  const auto close_from_header = [&] {
++    auto* close = views::AsViewClass<views::Button>(
++        BrowserElementsViews::From(browser())->GetView(
++            kSidePanelCloseButtonElementId));
++    ASSERT_TRUE(close);
++    click(close);
++    ASSERT_TRUE(base::test::RunUntil([&] {
++      return !is_open() &&
++             chat_button->GetTooltipText(gfx::Point()) == u"Open Chat";
++    }));
++  };
++
++  click(chat_button);
++  ASSERT_TRUE(base::test::RunUntil(is_open));
++  ASSERT_NO_FATAL_FAILURE(close_from_header());
++  click(chat_button);
++  ASSERT_TRUE(base::test::RunUntil(is_open));
++  ASSERT_NO_FATAL_FAILURE(close_from_header());
++
++  // Opening through the ordinary extension action also updates the button.
++  auto action_helper = ExtensionActionTestHelper::Create(browser());
++  action_helper->Press(extension->id());
++  ASSERT_TRUE(base::test::RunUntil(is_open));
++  EXPECT_EQ(u"Close Chat", chat_button->GetTooltipText(gfx::Point()));
++
++  // A close immediately followed by a reopen must keep the entry open.
++  click(chat_button);
++  click(chat_button);
++  ASSERT_TRUE(base::test::RunUntil([&] {
++    return is_open() &&
++           browser_view->side_panel()->state() == SidePanel::State::kOpen;
++  }));
++  ASSERT_NO_FATAL_FAILURE(close_from_header());
++}
++#endif  // BUILDFLAG(IS_MAC)
++
+ // Test that when the openSidePanelOnClick pref is true, clicking the extension
+ // icon will show the extension's entry if it's not shown, or close
+ // the side panel if the extension's entry is shown.
+diff --git a/chrome/browser/ui/views/side_panel/side_panel.cc b/chrome/browser/ui/views/side_panel/side_panel.cc
+index 4585f1956a8a634a2d0dd6939719b3c69cf18760..6df6308667c77aa054db13a6756471a74047ffa5 100644
+--- a/chrome/browser/ui/views/side_panel/side_panel.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel.cc
+@@ -14,6 +14,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/notreached.h"
+ #include "base/values.h"
++#include "base/trace_event/trace_event.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/animation/browser_animation_controller.h"
+ #include "chrome/browser/ui/animation/browser_animation_types.h"
+@@ -506,6 +507,10 @@ gfx::Size SidePanel::GetContentSizeUpperBound() const {
+ }
+ 
+ void SidePanel::OnBoundsChanged(const gfx::Rect& previous_bounds) {
++  if (state_ == State::kOpening || state_ == State::kClosing) {
++    TRACE_EVENT_INSTANT("browser", "SidePanel.AnimatedBounds", "x", x(),
++                        "width", width());
++  }
+   UpdateRoundedCorners();
+ 
+   if (previous_bounds.width() != width() && keyboard_resized_) {
+@@ -523,11 +528,14 @@ void SidePanel::OnAnimationProgressed(
+     BrowserAnimationUpdate status) {
+   switch (status) {
+     case BrowserAnimationUpdate::kStarted:
++      TRACE_EVENT("browser", "SidePanel.AnimationStarted");
++      InvalidateLayout();
+       break;
+     case BrowserAnimationUpdate::kProgressed:
+       InvalidateLayout();
+       break;
+     case BrowserAnimationUpdate::kEnded: {
++      TRACE_EVENT("browser", "SidePanel.AnimationEnded");
+       const auto motion = controller->GetCurrentMotion(kAnimationGroup);
+       if (motion == SidePanelAnimations::kClose) {
+         state_ = State::kClosed;
+@@ -547,6 +555,7 @@ void SidePanel::OnAnimationProgressed(
+         views::ElementTrackerViews::GetInstance()->NotifyCustomEvent(
+             kOpenAnimationCompletedEvent, this);
+       }
++      InvalidateLayout();
+       break;
+     }
+     case BrowserAnimationUpdate::kCanceled:
+diff --git a/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
+index 9aa237a57280499ce15d2628b1eca91d37ad549f..1cf0ca71720f1d7fdac3b4b6a09fae0a3e443fdd 100644
+--- a/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
+@@ -12,6 +12,7 @@
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+ #include "base/time/time.h"
++#include "base/trace_event/trace_event.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+@@ -148,6 +149,7 @@ void SidePanelCoordinator::Show(
+     return;
+   }
+ 
++  TRACE_EVENT("browser", "SidePanelCoordinator::Show");
+   SidePanelEntry* entry = GetEntryForUniqueKey(input);
+ 
+   if (!IsSidePanelShowing()) {
+@@ -271,6 +273,7 @@ void SidePanelCoordinator::PopulateSidePanel(
+     std::optional<SidePanelOpenTrigger> open_trigger,
+     SidePanelEntry* entry,
+     std::optional<SidePanelNativeView> content_view) {
++  TRACE_EVENT("browser", "SidePanelCoordinator::PopulateSidePanel");
+   SidePanel* side_panel = GetSidePanel();
+   CHECK(side_panel);
+ 
+diff --git a/chrome/browser/ui/views/toolbar/arc_chat_button.cc b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+index 804f17e8a7c4cef11e693052c1b7717d4cf9c50c..be1502cf317086b6829e02650c26dd953079966a 100644
+--- a/chrome/browser/ui/views/toolbar/arc_chat_button.cc
++++ b/chrome/browser/ui/views/toolbar/arc_chat_button.cc
+@@ -2,14 +2,16 @@
+ // You can use, redistribute, and/or modify this source code under
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
+-#include "base/timer/timer.h"
+-#include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
+-#include "base/task/single_thread_task_runner.h"
+-#include "base/memory/weak_ptr.h"
+ #include "chrome/browser/ui/views/toolbar/arc_chat_button.h"
+ 
++#include <utility>
++
+ #include "base/functional/bind.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/scoped_observation.h"
++#include "base/task/single_thread_task_runner.h"
++#include "base/timer/timer.h"
++#include "base/trace_event/trace_event.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
+@@ -21,6 +23,7 @@
+ #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel.h"
++#include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/prefs/pref_member.h"
+ #include "components/vector_icons/vector_icons.h"
+@@ -108,10 +111,6 @@ class ArcChatButton : public views::MdTextButton,
+         base::BindRepeating(&ArcChatButton::Update, base::Unretained(this)));
+     registry_observation_.Observe(
+         extensions::ExtensionRegistry::Get(browser_->GetProfile()));
+-    auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
+-    if (view && view->side_panel()) {
+-      panel_observer_.observation.Observe(view->side_panel());
+-    }
+     if (auto* panel = SidePanelUI::From(browser_)) {
+       shown_subscription_ = panel->RegisterSidePanelShown(
+           base::BindRepeating(&ArcChatButton::PanelShown, base::Unretained(this)));
+@@ -133,6 +132,7 @@ class ArcChatButton : public views::MdTextButton,
+     Update();
+   }
+   void PanelShown() {
++    ObservePanel();
+     auto* panel = SidePanelCoordinator::From(browser_);
+     if (panel && panel->IsEntryShowingOrLoading(SidePanelEntryKey(
+         SidePanelEntryId::kExtension, kChatExtensionId))) {
+@@ -146,17 +146,40 @@ class ArcChatButton : public views::MdTextButton,
+     Update();
+   }
+   void PanelVisibilityChanged(bool visible) {
+-    // Visibility notifications arrive before the coordinator clears its key.
+-    // Read state after that transaction, and cancel safely on window teardown.
+-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+-        FROM_HERE, base::BindOnce(&ArcChatButton::Update, weak_factory_.GetWeakPtr()));
+-    if (!visible && restore_focus_ && GetVisible()) {
+-      restore_focus_ = false;
+-      RequestFocus();
++    if (!visible) {
++      launch_pending_ = false;
++      cancel_on_show_ = false;
++      launch_timeout_.Stop();
++      // The coordinator clears the current entry as the close completes.
++      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
++          FROM_HERE, base::BindOnce(&ArcChatButton::PanelClosed,
++                                    weak_factory_.GetWeakPtr()));
+     }
+   }
+ 
+  private:
++  void ObservePanel() {
++    if (panel_observer_.observation.IsObserving()) {
++      return;
++    }
++    auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
++    if (view && view->side_panel()) {
++      panel_observer_.observation.Observe(view->side_panel());
++    }
++  }
++
++  void PanelClosed() {
++    auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
++    if (launch_pending_ || (view && view->side_panel() &&
++                            view->side_panel()->GetVisible())) {
++      return;
++    }
++    if (std::exchange(restore_focus_, false) && GetVisible()) {
++      RequestFocus();
++    }
++    Update();
++  }
++
+   bool IsAllowed() const {
+     return !browser_->GetProfile()->IsOffTheRecord() ||
+            extensions::util::IsIncognitoEnabled(kChatExtensionId,
+@@ -183,9 +206,19 @@ class ArcChatButton : public views::MdTextButton,
+     else GetViewAccessibility().SetIsCollapsed();
+   }
+   void Activate() {
++    TRACE_EVENT("browser", "Xenon.ChatButton.Activate");
++    ObservePanel();
+     const bool allowed = IsAllowed();
+     auto* coordinator = SidePanelCoordinator::From(browser_);
+     const SidePanelEntryKey key(SidePanelEntryId::kExtension, kChatExtensionId);
++    if (allowed && coordinator && coordinator->IsSidePanelEntryShowing(key)) {
++      auto* view = BrowserView::GetBrowserViewForBrowser(browser_);
++      if (view && view->side_panel() && view->side_panel()->IsClosing()) {
++        coordinator->Show(key, SidePanelOpenTrigger::kToolbarButton);
++        Update();
++        return;
++      }
++    }
+     if (allowed && coordinator && coordinator->IsEntryShowingOrLoading(key)) {
+       launch_pending_ = false;
+       launch_timeout_.Stop();
+@@ -211,11 +244,13 @@ class ArcChatButton : public views::MdTextButton,
+           [](base::WeakPtr<ArcChatButton> button) {
+             if (!button) return;
+             button->launch_pending_ = false;
++            button->cancel_on_show_ = false;
+             button->Update();
+           }, weak_factory_.GetWeakPtr()));
+       // Same user-action dispatch as the extension's toolbar icon. Chromium
+       // selects the active (focused split-pane) tab and checks permissions.
+       auto weak = weak_factory_.GetWeakPtr();
++      TRACE_EVENT("browser", "Xenon.ChatButton.DispatchExtensionAction");
+       model->ExecuteUserAction(
+           kChatExtensionId,
+           ToolbarActionViewModel::InvocationSource::kToolbarButton);
+@@ -258,10 +293,12 @@ class ArcChatButton : public views::MdTextButton,
+   // A separate observer avoids overriding the delegate's final deletion hook.
+   struct PanelObserver : views::ViewObserver {
+     explicit PanelObserver(ArcChatButton* button) : button(button) {}
+-    void OnViewVisibilityChanged(views::View*,
+-                                 views::View*,
++    void OnViewVisibilityChanged(views::View* observed_view,
++                                 views::View* starting_view,
+                                  bool visible) override {
+-      button->PanelVisibilityChanged(visible);
++      if (starting_view == observed_view) {
++        button->PanelVisibilityChanged(visible);
++      }
+     }
+     void OnViewIsDeleting(views::View*) override { observation.Reset(); }
+     raw_ptr<ArcChatButton> button;
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index 733011be10d2063c4e5557e5438f56779ec08bf5..56d680d84c8a1dada9ff829119abe20bfe74b594 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -2428,15 +2428,8 @@ void ToolbarView::UpdateVerticalTabsCollapseButton() {
+       tabs::VerticalTabStripStateController::From(browser_view_->browser());
+ #if BUILDFLAG(IS_MAC)
+   if (IsVerticalLayout() && browser_view_->IsZenModeEnabledForLayout()) {
+-    const bool sidebar_owns_toggle =
+-        browser_view_->IsZenModeSideChromePinned() ||
+-        browser_view_->GetSideChromeRevealRatio() > 0.0f;
+-    const bool show_toggle = !sidebar_owns_toggle;
+-    vertical_tabs_collapse_button_->SetVisible(show_toggle);
+-    vertical_tabs_collapse_button_->SetVectorIcon(views::kSidebarLeftIcon);
+-    const std::u16string name = u"Show sidebar (⌘S)";
+-    vertical_tabs_collapse_button_->SetTooltipText(name);
+-    vertical_tabs_collapse_button_->GetViewAccessibility().SetName(name);
++    // The rail owns the toggle, including when temporarily revealed.
++    vertical_tabs_collapse_button_->SetVisible(false);
+     return;
+   }
+ #endif
