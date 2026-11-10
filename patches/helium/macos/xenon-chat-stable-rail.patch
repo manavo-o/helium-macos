@@ -360,7 +360,7 @@ index dfef6e682f177428939d24ac0c4e479bb3adb492..f139acde9936e775983c6aec4e9a5076
  // icon will show the extension's entry if it's not shown, or close
  // the side panel if the extension's entry is shown.
 diff --git a/chrome/browser/ui/views/side_panel/side_panel.cc b/chrome/browser/ui/views/side_panel/side_panel.cc
-index 4585f1956a8a634a2d0dd6939719b3c69cf18760..6df6308667c77aa054db13a6756471a74047ffa5 100644
+index 4585f1956a8a634a2d0dd6939719b3c69cf18760..1016627680585e512e4d30f3f0577d89e720fd28 100644
 --- a/chrome/browser/ui/views/side_panel/side_panel.cc
 +++ b/chrome/browser/ui/views/side_panel/side_panel.cc
 @@ -14,6 +14,7 @@
@@ -386,7 +386,7 @@ index 4585f1956a8a634a2d0dd6939719b3c69cf18760..6df6308667c77aa054db13a6756471a7
      BrowserAnimationUpdate status) {
    switch (status) {
      case BrowserAnimationUpdate::kStarted:
-+      TRACE_EVENT("browser", "SidePanel.AnimationStarted");
++      TRACE_EVENT_INSTANT("browser", "SidePanel.AnimationStarted");
 +      InvalidateLayout();
        break;
      case BrowserAnimationUpdate::kProgressed:

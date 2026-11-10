@@ -8,11 +8,11 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "e2b2e9430d4d54ec4dba746f67d6f1e386f3f9a0bccecedfb3e80223a0d22a48",
+  "input_sha256": "9b6dcff41741abc49b70cf2a8a823d6dc3833121f836bb6260485c6af13c2df6",
   "patches": [
     {
       "path": "patches/helium/macos/xenon-chat-stable-rail.patch",
-      "sha256": "9581e6ac3d35a05b43a97c17289417957f3b1896b8be69737a4e304699cf18f2"
+      "sha256": "e35c3ecb9450dd8943b43a510ce1382ed837fecaaebe6f226ad2db0597a68adc"
     }
   ],
   "reuse_generated_build_config": true,
@@ -64,7 +64,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_browsertest.cc"
     },
     "chrome/browser/ui/views/side_panel/side_panel.cc": {
-      "after": "b4e6a40e7aa55c8f02a3e7d6e4bea86686faaf04689a74c61a88ecb91579f055",
+      "after": "abdc58d035ef10b20435ebff034dfb0b9c4a1f8ccdbcda548a1b13c5a95a1b6f",
       "before": "46774451e70affcdda3bd1cd20f83bb828d410ebabed76d525d770bd716ac0a7",
       "preimage": ".github/checkpoint-preimages/xenon-chat-stable-rail/chrome/browser/ui/views/side_panel/side_panel.cc"
     },
