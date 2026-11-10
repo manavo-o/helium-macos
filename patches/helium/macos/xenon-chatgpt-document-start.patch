@@ -111,10 +111,10 @@ Index: src/chrome/renderer/chrome_render_frame_observer.cc
 +                      ui::PAGE_TRANSITION_IS_REDIRECT_MASK))) {
 +    const GURL url(frame->GetDocument().Url());
 +    constexpr std::string_view kSearchSuffix = "&hints=search&ref=ext";
-+    const auto query = url.query_piece();
++    const auto query = url.query();
 +    mark_chatgpt_search_document_ =
-+        url.SchemeIs(url::kHttpsScheme) && url.host_piece() == "chatgpt.com" &&
-+        !url.has_port() && url.path_piece() == "/" && query.starts_with("q=") &&
++        url.SchemeIs(url::kHttpsScheme) && url.host() == "chatgpt.com" &&
++        !url.has_port() && url.path() == "/" && query.starts_with("q=") &&
 +        query.ends_with(kSearchSuffix) && query.size() > 2 + kSearchSuffix.size() &&
 +        query.find('&') == query.size() - kSearchSuffix.size();
 +  }

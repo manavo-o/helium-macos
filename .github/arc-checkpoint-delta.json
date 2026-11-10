@@ -8,7 +8,7 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "85df8f764bb03551e98fb1fec4468062f333ae2f2cb4d12a0c87abc17711c7f5",
+  "input_sha256": "1c876ec06ed32ae025054ad3c738438c9e0749f4d06432f4e0a943bc181c9046",
   "patches": [
     {
       "path": "patches/helium/macos/xenon-chatgpt-foreground.patch",
@@ -16,7 +16,7 @@
     },
     {
       "path": "patches/helium/macos/xenon-chatgpt-document-start.patch",
-      "sha256": "c1fb3582de4be60de34be1b78d605a42e6e3448e2d3bada373b8f7873a8dfb02"
+      "sha256": "f01f47e9ff5ab3b10a3c97b0d9a0ca03d4fa1bb24a4458fb2c8d6a279726c266"
     }
   ],
   "reuse_generated_build_config": true,
@@ -33,7 +33,7 @@
       "preimage": ".github/checkpoint-preimages/xenon-chatgpt-foreground/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc"
     },
     "chrome/renderer/chrome_render_frame_observer.cc": {
-      "after": "fbfa23c801d13ebfc3aa147952259c92eb1ea9e7e349e28d7783a7058ee89c8c",
+      "after": "958d9780f1a8df67ec6c465e75cb91cc580f140ba2fcee87bf80d0ca97b10036",
       "before": "d1c3495c75e006e075ce2c3898a2e9ea7e808331b3e712f53ed5488394c14a23",
       "preimage": ".github/checkpoint-preimages/xenon-chatgpt-foreground/chrome/renderer/chrome_render_frame_observer.cc"
     },
