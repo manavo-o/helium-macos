@@ -84,32 +84,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN: ${{ inputs.source_run }}
           TARGET_ARCH: ${{ inputs.arch }}
-          PYTHONPATH: .github/scripts
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          import subprocess
-
-          from github_xenon_fresh_checkpoint import download
-
-          run = os.environ['SOURCE_RUN']
-          path = Path('.github/arc-checkpoint-delta.json')
-          manifest = json.loads(path.read_text()) if path.is_file() else {}
-          if (run == manifest.get('source_run') and
-                  manifest.get('checkpoint_artifact_id') and
-                  manifest.get('checkpoint_artifact_sha256')):
-              download({
-                  'artifact': manifest['checkpoint_artifact_id'],
-                  'sha256': manifest['checkpoint_artifact_sha256'],
-              })
-          else:
-              subprocess.run([
-                  'gh', 'run', 'download', run, '--name',
-                  'github_build_artifact_' + os.environ['TARGET_ARCH'],
-              ], check=True)
-          PY
+        run: python3 .github/scripts/github_xenon_fresh_checkpoint.py download-arc
       - name: Download the pinned Xenon recovery artifact
         if: ${{ inputs.resume && inputs.fresh_source && inputs.source_run != '' }}
         env:

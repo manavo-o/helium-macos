@@ -5,10 +5,17 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
+import zipfile
 
-ROOT = Path(__file__).resolve().parents[2]
+# prepare-environment copies this module to the checkout root. Imports from an
+# inline Python step can select that copy before PYTHONPATH. Resolve the owning
+# checkout through Git so both locations have the same meaning.
+ROOT = Path(subprocess.check_output(
+    ["git", "-C", str(Path(__file__).resolve().parent),
+     "rev-parse", "--show-toplevel"], text=True).strip())
 SOURCE = ROOT / "build/src"
 MANIFEST = SOURCE / "out/Default/xenon-fresh-checkpoint.json"
 
@@ -75,6 +82,7 @@ def recovery_policy(run):
 
 
 def download(policy):
+    print(f"Downloading pinned checkpoint {policy['artifact']} into {ROOT}", flush=True)
     with tempfile.TemporaryDirectory(dir=ROOT) as stage:
         archive = Path(stage) / "checkpoint.zip"
         with archive.open("wb") as stream:
@@ -86,8 +94,33 @@ def download(policy):
             actual = hashlib.file_digest(stream, "sha256").hexdigest()
         if actual != policy["sha256"]:
             raise SystemExit("Pinned Xenon artifact ZIP hash differs.")
-        subprocess.run(["unzip", str(archive), "build_src.tar.zst", "sums.txt"],
-                       cwd=ROOT, check=True)
+        # Validate both members before publishing either one. Do not extract
+        # arbitrary archive paths or leave a partial checkpoint after an error.
+        members = ("build_src.tar.zst", "sums.txt")
+        with zipfile.ZipFile(archive) as bundle:
+            for name in members:
+                if bundle.namelist().count(name) != 1 or bundle.getinfo(name).is_dir():
+                    raise SystemExit(f"Pinned checkpoint must contain exactly one {name}.")
+            for name in members:
+                with bundle.open(name) as source, (Path(stage) / name).open("wb") as target:
+                    shutil.copyfileobj(source, target)
+        for name in members:
+            (Path(stage) / name).replace(ROOT / name)
+        print(f"Verified checkpoint ZIP and extracted {', '.join(members)} into {ROOT}",
+              flush=True)
+
+
+def download_arc(run, arch):
+    path = ROOT / ".github/arc-checkpoint-delta.json"
+    manifest = json.loads(path.read_text()) if path.is_file() else {}
+    if (run == manifest.get("source_run") and
+            manifest.get("checkpoint_artifact_id") and
+            manifest.get("checkpoint_artifact_sha256")):
+        download({"artifact": manifest["checkpoint_artifact_id"],
+                  "sha256": manifest["checkpoint_artifact_sha256"]})
+    else:
+        subprocess.run(["gh", "run", "download", run, "--name",
+                        "github_build_artifact_" + arch], cwd=ROOT, check=True)
 
 
 def verify_recovery(policy, retained, current):
@@ -108,9 +141,12 @@ def verify_recovery(policy, retained, current):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=["record", "verify", "download"])
+    parser.add_argument("operation", choices=["record", "verify", "download", "download-arc"])
     args = parser.parse_args()
     source_run = os.environ.get("XENON_SOURCE_RUN")
+    if args.operation == "download-arc":
+        download_arc(os.environ["SOURCE_RUN"], os.environ["TARGET_ARCH"])
+        return
     if args.operation == "download":
         download(recovery_policy(source_run))
         return

@@ -32,6 +32,7 @@ jobs:
           python3 .github/scripts/test_arc_build_budget.py
           python3 .github/scripts/test_arc_checkpoint.py
           python3 .github/scripts/test_arc_completion.py
+          python3 .github/scripts/test_xenon_checkpoint_download.py
           python3 .github/scripts/test_xenon_tests.py
           python3 .github/scripts/test_xenon_test_inputs.py
           python3 .github/scripts/test_webui_types.py
