@@ -1,0 +1,186 @@
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc
+@@ -579,9 +579,10 @@
+     } else if (result.kind == Result::Kind::kCommand) chrome::ExecuteCommand(browser_.get(), result.command);
+     else NavigateTo(result.url);
+   }
+-  void NavigateTo(const GURL& url) {
++  void NavigateTo(const GURL& url,
++                  ui::PageTransition transition = ui::PAGE_TRANSITION_TYPED) {
+     if (!browser_ || !url.is_valid()) return;
+-    NavigateParams params(browser_.get(), url, ui::PAGE_TRANSITION_TYPED);
++    NavigateParams params(browser_.get(), url, transition);
+     if (edit_current_) {
+       // Never redirect an edit into another tab if its original target closed.
+       if (!edit_target_) return;
+@@ -605,6 +606,7 @@
+     const std::u16string text(base::TrimWhitespace(textfield_->GetText(), base::TRIM_ALL));
+     if (text.empty()) return;
+     GURL destination;
++    bool ask_chatgpt = false;
+     if (force_search) {
+       auto* service = TemplateURLServiceFactory::GetForProfile(browser_->GetProfile());
+       if (service) destination = service->GenerateSearchURLForDefaultSearchProvider(text);
+@@ -612,7 +614,7 @@
+       AutocompleteMatch match;
+       AutocompleteClassifierFactory::GetForProfile(browser_->GetProfile())->Classify(
+           text, false, true, metrics::OmniboxEventProto::INVALID_SPEC, &match, nullptr);
+-      const bool ask_chatgpt =
++      ask_chatgpt =
+           AutocompleteMatch::IsSearchType(match.type) && AskChatGPT();
+       destination = ask_chatgpt
+                         ? helium::ChatGPTWebsiteProvider::BuildSubmissionURL(text)
+@@ -621,7 +623,11 @@
+     if (!destination.is_valid()) return;
+     restore_focus_ = false;
+     GetWidget()->Close();
+-    NavigateTo(destination);
++    NavigateTo(destination, ask_chatgpt
++                                ? ui::PageTransitionFromInt(
++                                      ui::PAGE_TRANSITION_GENERATED |
++                                      ui::PAGE_TRANSITION_FROM_ADDRESS_BAR)
++                                : ui::PAGE_TRANSITION_TYPED);
+   }
+   std::unique_ptr<helium::ArcNativeCommandBar> native_;
+   raw_ptr<views::NativeViewHost> native_host_ = nullptr;
+Index: src/chrome/renderer/chrome_render_frame_observer.h
+===================================================================
+--- a/chrome/renderer/chrome_render_frame_observer.h
++++ b/chrome/renderer/chrome_render_frame_observer.h
+@@ -101,6 +101,9 @@
+   void DidFinishLoad() override;
+   void DidCreateNewDocument() override;
+   void DidCommitProvisionalLoad(ui::PageTransition transition) override;
++#if BUILDFLAG(IS_MAC)
++  void DidCreateDocumentElement() override;
++#endif
+   void DidClearWindowObject() override;
+   void DidCreateScriptContext(v8::Local<v8::Context> context,
+                               int32_t world_id) override;
+@@ -214,6 +217,10 @@
+       phishing_image_embedder_ = nullptr;
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++  bool mark_chatgpt_search_document_ = false;
++#endif
++
+   std::unique_ptr<actor::Journal> actor_journal_;
+ 
+   // Owned by ChromeContentRendererClient and outlive us.
+Index: src/chrome/renderer/chrome_render_frame_observer.cc
+===================================================================
+--- a/chrome/renderer/chrome_render_frame_observer.cc
++++ b/chrome/renderer/chrome_render_frame_observer.cc
+@@ -11,6 +11,7 @@
+ #include <map>
+ #include <memory>
+ #include <set>
++#include <string_view>
+ #include <utility>
+ 
+ #include "base/base_switches.h"
+@@ -66,6 +67,7 @@
+ #include "skia/ext/image_operations.h"
+ #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+ #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
++#include "third_party/blink/public/platform/web_string.h"
+ #include "third_party/blink/public/platform/web_url_request.h"
+ #include "third_party/blink/public/web/web_console_message.h"
+ #include "third_party/blink/public/web/web_document.h"
+@@ -329,6 +331,9 @@
+ }
+ 
+ void ChromeRenderFrameObserver::DidCreateNewDocument() {
++#if BUILDFLAG(IS_MAC)
++  mark_chatgpt_search_document_ = false;
++#endif
+ #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
+   DCHECK(render_frame());
+   if (!render_frame()->IsMainFrame())
+@@ -367,6 +372,22 @@
+   if (frame->Parent())
+     return;
+ 
++#if BUILDFLAG(IS_MAC)
++  if (ui::PageTransitionCoreTypeIs(transition, ui::PAGE_TRANSITION_GENERATED) &&
++      (transition & ui::PAGE_TRANSITION_FROM_ADDRESS_BAR) &&
++      !(transition & (ui::PAGE_TRANSITION_FORWARD_BACK |
++                      ui::PAGE_TRANSITION_IS_REDIRECT_MASK))) {
++    const GURL url(frame->GetDocument().Url());
++    constexpr std::string_view kSearchSuffix = "&hints=search&ref=ext";
++    const auto query = url.query_piece();
++    mark_chatgpt_search_document_ =
++        url.SchemeIs(url::kHttpsScheme) && url.host_piece() == "chatgpt.com" &&
++        !url.has_port() && url.path_piece() == "/" && query.starts_with("q=") &&
++        query.ends_with(kSearchSuffix) && query.size() > 2 + kSearchSuffix.size() &&
++        query.find('&') == query.size() - kSearchSuffix.size();
++  }
++#endif
++
+   static crash_reporter::CrashKeyString<8> view_count_key("view-count");
+   view_count_key.Set(base::NumberToString(blink::WebView::GetWebViewCount()));
+ 
+@@ -379,6 +400,21 @@
+   }
+ #endif
+ }
++
++#if BUILDFLAG(IS_MAC)
++void ChromeRenderFrameObserver::DidCreateDocumentElement() {
++  if (!std::exchange(mark_chatgpt_search_document_, false)) {
++    return;
++  }
++  // Match the official ChatGPT Search extension's document-start marker.
++  // The page owns submission and can apply its own signed-in checks.
++  auto root = render_frame()->GetWebFrame()->GetDocument().DocumentElement();
++  if (!root.IsNull()) {
++    root.SetAttribute(blink::WebString::FromAscii("data-search-extension"),
++                      blink::WebString::FromAscii("1"));
++  }
++}
++#endif
+ 
+ void ChromeRenderFrameObserver::DidClearWindowObject() {
+ #if !BUILDFLAG(IS_ANDROID)
+Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+===================================================================
+--- a/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
+@@ -102,7 +102,10 @@
+           }
+           content::URLLoaderInterceptor::WriteResponse(
+               "HTTP/1.1 200 OK\nContent-Type: text/html\n\n",
+-              "<title>ChatGPT navigation test</title>", params->client.get());
++              "<!doctype html><script>"
++              "document.title = document.documentElement.dataset.searchExtension "
++              "=== '1' ? 'marked' : 'unmarked';"
++              "</script>", params->client.get());
+           return true;
+         }));
+ 
+@@ -118,6 +121,8 @@
+     EXPECT_EQ(1, requests.load());
+     EXPECT_EQ(count + (reuse_tab ? 0 : 1), tabs->count());
+     auto* active = tabs->GetActiveWebContents();
++    ASSERT_TRUE(base::test::RunUntil(
++        [&] { return active->GetTitle() == u"marked"; }));
+     EXPECT_EQ(reuse_tab, active == original);
+     EXPECT_EQ(content::Visibility::VISIBLE, active->GetVisibility());
+ 
+@@ -127,6 +132,13 @@
+              view->GetWidget()->GetNativeView())) {
+       EXPECT_FALSE(widget->GetName() == "ArcCommandBar" && !widget->IsClosed());
+     }
++
++    content::TestNavigationObserver reload(active);
++    ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_RELOAD));
++    reload.Wait();
++    ASSERT_TRUE(reload.last_navigation_succeeded());
++    ASSERT_TRUE(base::test::RunUntil(
++        [&] { return active->GetTitle() == u"unmarked"; }));
+   }
+ };
+ 

@@ -843,6 +843,20 @@
         }
       ],
       "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/components/search_engines/template_url_service_test_util.cc"
+    },
+    {
+      "path": "components/search_engines/search_engines_test_environment.cc",
+      "reason": "Pass the URL loader factory required by the Helium TemplateURLService test constructor.",
+      "before_sha256": "1fd72405f6890cdcb6e5e8d5a7c7b5f7838c4007292a562e119f66a36a463535",
+      "after_sha256": "ef7b6633c20e0aee7ad1e5c9097d951e6710919fb75ac97c3ca89409a1b20b4c",
+      "replacements": [
+        {
+          "before": "            environment.pref_service(),\n",
+          "after": "            environment.pref_service(), /*url_loader_factory=*/nullptr,\n",
+          "count": 1
+        }
+      ],
+      "preimage": ".github/checkpoint-preimages/xenon-test-fixtures/components/search_engines/search_engines_test_environment.cc"
     }
   ],
   "previous_policy_sha256": [
@@ -851,6 +865,7 @@
     "184532d1847cee5f6e91d67ba7cb52db659481a66bcd97fedeacc66cfeceb0cc",
     "2dc00d113d3e7735fcd011deaf7254d424f52afe53f1b76fd390789ed13081ea",
     "d0c61fb9d218f504a6df93a3b781814371012fa4b298a50fac6461130dccd376",
-    "f305b3e47fa278de9bc5f33da36798ce351d4082794c63c1a29b1a3fdd4879b4"
+    "f305b3e47fa278de9bc5f33da36798ce351d4082794c63c1a29b1a3fdd4879b4",
+    "3977e846d83cd45ba50711686cc690701ea6bfbb80bee2cc8429bfb81289efa1"
   ]
 }

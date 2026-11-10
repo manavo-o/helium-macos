@@ -8,25 +8,39 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "6118827f5ad4c41f1433363b49b9d0259b0a0d319d5f51c47e6de080eb776529",
+  "input_sha256": "85df8f764bb03551e98fb1fec4468062f333ae2f2cb4d12a0c87abc17711c7f5",
   "patches": [
     {
       "path": "patches/helium/macos/xenon-chatgpt-foreground.patch",
       "sha256": "3c9d5c6abb1ce036c96bcb90655e8f546c6a0a7912704614d02b56c5fbc1d5ae"
+    },
+    {
+      "path": "patches/helium/macos/xenon-chatgpt-document-start.patch",
+      "sha256": "c1fb3582de4be60de34be1b78d605a42e6e3448e2d3bada373b8f7873a8dfb02"
     }
   ],
   "reuse_generated_build_config": true,
   "source_run": "42753847105",
   "sources": {
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc": {
-      "after": "4f2224743e60fd475dbd91f4b2e77a41803330d73d36724a030f851d21d7a542",
+      "after": "894a96c8e121591ade6183a17a32ccf0bc6703324e30960a72deef5491b67b98",
       "before": "a805404629fc184660294a7ffc65dc8752c4ec184edf2fce2af14e35d7ad52f4",
       "preimage": ".github/checkpoint-preimages/xenon-chatgpt-foreground/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc"
     },
     "chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc": {
-      "after": "7e26f95b2ac8db24ba7547181ec3507f72a19fd43e88e236f0d22c18dcebaeca",
+      "after": "b1843926a759f374bbe8de454ad7dbea116083226582283c6023a6fc02482458",
       "before": "5121a193a689f878c0c9b2bb7f436add4da04528b732b7e5304c11d2626a9e04",
       "preimage": ".github/checkpoint-preimages/xenon-chatgpt-foreground/chrome/browser/ui/views/tabs/vertical/arc_command_bar_view.cc"
+    },
+    "chrome/renderer/chrome_render_frame_observer.cc": {
+      "after": "fbfa23c801d13ebfc3aa147952259c92eb1ea9e7e349e28d7783a7058ee89c8c",
+      "before": "d1c3495c75e006e075ce2c3898a2e9ea7e808331b3e712f53ed5488394c14a23",
+      "preimage": ".github/checkpoint-preimages/xenon-chatgpt-foreground/chrome/renderer/chrome_render_frame_observer.cc"
+    },
+    "chrome/renderer/chrome_render_frame_observer.h": {
+      "after": "51d55a810dc69cf7a6165f7689f1706728d82c151476e7abb1d9714846f0aaec",
+      "before": "62366bc9df45dbd7cb934a61d9a344acfdbd081171cc18577064fcf49f60b53d",
+      "preimage": ".github/checkpoint-preimages/xenon-chatgpt-foreground/chrome/renderer/chrome_render_frame_observer.h"
     }
   },
   "test_plan": "xenon-native-v1"

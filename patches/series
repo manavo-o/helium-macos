@@ -59,3 +59,4 @@ helium/macos/xenon-embedded-controls-and-first-frame.patch
 helium/macos/xenon-quit-titlebar-lifetime.patch
 helium/macos/xenon-shared-page-frame-inset.patch
 helium/macos/xenon-chatgpt-foreground.patch
+helium/macos/xenon-chatgpt-document-start.patch
