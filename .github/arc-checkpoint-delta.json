@@ -9,11 +9,11 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "bc0fb49034dddef83f7f2bc950c5f1cbf27673555cae5616babaedc0a87c50d2",
+  "input_sha256": "2ae333411772bd632b6b05e1eac7d0d9cb7515a1076d399cd603a7d0bad48246",
   "patches": [
     {
       "path": "patches/helium/macos/arc-chatgpt-foreground.patch",
-      "sha256": "62f218ae40d75a7408910fee0ff0f44a70d51a5069791d37346c9d902d635358"
+      "sha256": "e52e4da091fecbc2d1c7a012cfe06781a2acaca523159cc19bf7547e3c400bb8"
     }
   ],
   "reuse_generated_build_config": true,

@@ -1,8 +1,8 @@
 {
-  "artifact_id": "13550627053",
-  "artifact_sha256": "76e94dc67d0f3b34f89076903d2c9cc97a84d7d46d7ba8c1f4015533ef061c15",
+  "artifact_id": "13603847853",
+  "artifact_sha256": "8518ba817f9e8b71c0031788944148448430dd90595f33943ea8e22a844e8cdf",
   "source_checkpoint_artifact_id": "13552182064",
-  "source_run": "42315887261",
+  "source_run": "42447401288",
   "chromium_revision": "a21ce95c24ce3964416f09ae1862f53f319eb4d0",
   "source_dependencies": {
     "third_party/lit/v3_0/cr_lit_element.ts": {

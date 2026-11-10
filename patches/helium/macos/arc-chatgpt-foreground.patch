@@ -100,11 +100,11 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_command_bar_browsertest.cc
 +                    ->GetActiveContentsView()->GetVisible());
    }
  };
-
+ 
 @@ -276,6 +329,24 @@
    EXPECT_TRUE(contents_view->GetVisible());
  }
-
+ 
 +IN_PROC_BROWSER_TEST_F(ArcCommandBarBrowserTest,
 +                       ChatGPTSubmissionReusesHomeTab) {
 +  chrome::AddTabAt(browser(), GURL("chrome://newtab/"), -1, true);
