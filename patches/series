@@ -60,3 +60,4 @@ helium/macos/xenon-quit-titlebar-lifetime.patch
 helium/macos/xenon-shared-page-frame-inset.patch
 helium/macos/xenon-chatgpt-foreground.patch
 helium/macos/xenon-chatgpt-document-start.patch
+helium/macos/xenon-grain-and-content-corners.patch
