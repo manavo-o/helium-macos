@@ -9,7 +9,7 @@
     "chrome/browser/ui/views/frame/multi_contents_view.h": "1514a26d41ef0f2f413df94daa4f2699cf8b8f7c6c27df0504cabf9f5f04919c",
     "chrome/browser/ui/views/frame/themed_background.cc": "387aa79a64447913e2aa39530f279a9cd509edb718b16f2378715fa3eb4fc7cd",
     "chrome/browser/ui/views/frame/themed_background.h": "67eb401fe46a5693a3b074d7fd5dc2e737f1c6221b727ebadd0d856abc33dc97",
-    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": "0ba46cbed9bf03dc2723e9ac30a3f907bd6ef0fb66e5e3b08ad4abb8ae37e495",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": "89fd791428263390a4e49fa5ff532c99b9d6283fe6c306900b39e51076c87f2c",
     "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": "d3a8e23a97d46286475b84e76bc7d1978f7296b82d022e1e80d10ece3c3771cb"
   }
 }

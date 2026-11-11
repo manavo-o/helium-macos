@@ -30,9 +30,20 @@ existing per-pane rounding. Content fullscreen disables shared rounding.
 - Shell syntax and `git diff --check`: passed.
 - No local Chromium compilation, linking or preview build was performed.
 
-The source audit, compilation, packaging, visual matrix and runtime measurements
-must be recorded separately; passing script checks do not establish UI or
-performance correctness. The branch retains the base commit's `visual-only`
+Checkpoint audit [42940851186](https://github.com/manavo-o/helium-macos/actions/runs/42940851186)
+verified the archive SHA-256 and extracted all seven sources. Its initial expected
+header included an obsolete sidebar-footer declaration. Independently replaying
+the two tracked header patches with zero fuzz reproduced the archived header
+exactly. The original mismatch report and reconciliation are retained in
+`docs/arc-xenon-evidence/grain-content-corners/`; the build manifest enforces all
+seven extracted preimages and all seven patched postimages.
+
+Compilation and packaging were dispatched in
+[42942086994](https://github.com/manavo-o/helium-macos/actions/runs/42942086994).
+At the user's stopping instruction, checkpoint selection had passed and the
+WebUI preflight was running. Monitoring stopped on request. Packaging, the visual
+matrix and runtime measurements remain unverified; passing script checks do not
+establish UI or performance correctness. The branch retains the base commit's `visual-only`
 validation policy, without presenting retained executables as fresh test builds.
 
 ## Packaged-app comparison
