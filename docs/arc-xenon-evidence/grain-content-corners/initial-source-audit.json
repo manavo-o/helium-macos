@@ -1,0 +1,43 @@
+{
+  "source_run": "42931216255",
+  "source_commit": "85d643fed783b061c366872c01e83f2310978988",
+  "artifact_id": "13818242684",
+  "artifact_sha256": "f2202e42cfce0c503ac6d1adab2f417641bc721f6bd56831d24d8e17413d0a67",
+  "sources": {
+    "chrome/browser/ui/views/frame/contents_container_view.cc": {
+      "expected": "bde203520828d2e4dc6dab2e886fe88f987de9a61c551d25541bc488cd36c41f",
+      "actual": "bde203520828d2e4dc6dab2e886fe88f987de9a61c551d25541bc488cd36c41f",
+      "matches": true
+    },
+    "chrome/browser/ui/views/frame/multi_contents_view.cc": {
+      "expected": "5624653b72e74775294657de7841957554f56db2e8dc64dcd9356c99d5647f5c",
+      "actual": "5624653b72e74775294657de7841957554f56db2e8dc64dcd9356c99d5647f5c",
+      "matches": true
+    },
+    "chrome/browser/ui/views/frame/multi_contents_view.h": {
+      "expected": "1514a26d41ef0f2f413df94daa4f2699cf8b8f7c6c27df0504cabf9f5f04919c",
+      "actual": "1514a26d41ef0f2f413df94daa4f2699cf8b8f7c6c27df0504cabf9f5f04919c",
+      "matches": true
+    },
+    "chrome/browser/ui/views/frame/themed_background.cc": {
+      "expected": "387aa79a64447913e2aa39530f279a9cd509edb718b16f2378715fa3eb4fc7cd",
+      "actual": "387aa79a64447913e2aa39530f279a9cd509edb718b16f2378715fa3eb4fc7cd",
+      "matches": true
+    },
+    "chrome/browser/ui/views/frame/themed_background.h": {
+      "expected": "67eb401fe46a5693a3b074d7fd5dc2e737f1c6221b727ebadd0d856abc33dc97",
+      "actual": "67eb401fe46a5693a3b074d7fd5dc2e737f1c6221b727ebadd0d856abc33dc97",
+      "matches": true
+    },
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": {
+      "expected": "0ba46cbed9bf03dc2723e9ac30a3f907bd6ef0fb66e5e3b08ad4abb8ae37e495",
+      "actual": "89fd791428263390a4e49fa5ff532c99b9d6283fe6c306900b39e51076c87f2c",
+      "matches": false
+    },
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": {
+      "expected": "d3a8e23a97d46286475b84e76bc7d1978f7296b82d022e1e80d10ece3c3771cb",
+      "actual": "d3a8e23a97d46286475b84e76bc7d1978f7296b82d022e1e80d10ece3c3771cb",
+      "matches": true
+    }
+  }
+}

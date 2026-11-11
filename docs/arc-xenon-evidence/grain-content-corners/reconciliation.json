@@ -1,0 +1,14 @@
+{
+  "archive_sha256": "f2202e42cfce0c503ac6d1adab2f417641bc721f6bd56831d24d8e17413d0a67",
+  "audit_run": "42940851186",
+  "reason": "The original local header still declared CreateArcSidebarFooter. Replaying xenon-sidebar-controls.patch and xenon-embedded-sidebar.patch with zero fuzz independently reproduced the extracted archived header. The other six preimages matched initially. All seven extracted preimages are retained and enforced by the build manifest.",
+  "verified_sources": {
+    "chrome/browser/ui/views/frame/contents_container_view.cc": "bde203520828d2e4dc6dab2e886fe88f987de9a61c551d25541bc488cd36c41f",
+    "chrome/browser/ui/views/frame/multi_contents_view.cc": "5624653b72e74775294657de7841957554f56db2e8dc64dcd9356c99d5647f5c",
+    "chrome/browser/ui/views/frame/multi_contents_view.h": "1514a26d41ef0f2f413df94daa4f2699cf8b8f7c6c27df0504cabf9f5f04919c",
+    "chrome/browser/ui/views/frame/themed_background.cc": "387aa79a64447913e2aa39530f279a9cd509edb718b16f2378715fa3eb4fc7cd",
+    "chrome/browser/ui/views/frame/themed_background.h": "67eb401fe46a5693a3b074d7fd5dc2e737f1c6221b727ebadd0d856abc33dc97",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.h": "89fd791428263390a4e49fa5ff532c99b9d6283fe6c306900b39e51076c87f2c",
+    "chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm": "d3a8e23a97d46286475b84e76bc7d1978f7296b82d022e1e80d10ece3c3771cb"
+  }
+}

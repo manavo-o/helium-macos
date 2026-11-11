@@ -2,30 +2,14 @@ Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/contents_container_view.cc
 +++ b/chrome/browser/ui/views/frame/contents_container_view.cc
-@@ -3,6 +3,9 @@
- // found in the LICENSE file.
- 
- #include "chrome/browser/ui/views/frame/contents_container_view.h"
-+
-+#include "chrome/browser/ui/views/frame/themed_background.h"
+@@ -29,0 +30,2 @@
 +#include "chrome/browser/ui/views/frame/multi_contents_view.h"
- 
- #include "base/numerics/safe_conversions.h"
- 
-@@ -205,7 +208,8 @@
-                                                    bool round_bottom_right) {
- #if BUILDFLAG(IS_MAC)
-   if (browser_view_->ShouldDrawVerticalTabStrip() && !is_in_split) {
++#include "chrome/browser/ui/views/frame/themed_background.h"
+@@ -208 +210,2 @@
 -    should_round_contents = true;
 +    should_round_contents =
 +        browser_view_->multi_contents_view()->ShouldUseRoundedFrame();
-   }
- #endif
-   const bool split_changed = is_in_split != is_in_split_;
-@@ -369,12 +373,12 @@
- #if BUILDFLAG(IS_MAC)
-   if (browser_view_->ShouldDrawVerticalTabStrip() && !is_in_split_) {
-     // The website takes over the upper corners as the toolbar slides away.
+@@ -372,6 +375,6 @@
 -    shared_frame_top_radius_ =
 -        base::ClampRound(10 * (1.f - browser_view_->GetTopChromeRevealRatio()));
 -    upper_left_radius = shared_frame_top_radius_;
@@ -38,36 +22,14 @@ Index: src/chrome/browser/ui/views/frame/contents_container_view.cc
 +    upper_right_radius = radii.upper_right();
 +    lower_left_radius = radii.lower_left();
 +    lower_right_radius = radii.lower_right();
-   }
- #endif
- 
-@@ -406,7 +410,7 @@
-   if (should_round_contents_ && !is_in_split_ &&
-       browser_view_->ShouldDrawVerticalTabStrip() &&
-       shared_frame_top_radius_ !=
+@@ -409 +412 @@
 -          base::ClampRound(10 * (1.f - browser_view_->GetTopChromeRevealRatio()))) {
 +          ThemedBackground::GetArcContentRadii(browser_view_).upper_left()) {
-     UpdateBorderRoundedCorners();
-   }
- #endif
 Index: src/chrome/browser/ui/views/frame/multi_contents_view.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
-@@ -33,6 +33,9 @@
- #include "chrome/browser/ui/views/frame/safe_invoke/safe_invoke.h"
- #include "chrome/browser/ui/views/frame/scrim_view.h"
- #include "chrome/browser/ui/views/frame/themed_background.h"
-+#include "third_party/skia/include/core/SkPathBuilder.h"
-+#include "third_party/skia/include/core/SkRRect.h"
-+#include "ui/gfx/skia_util.h"
- #include "chrome/browser/ui/views/new_tab_footer/footer_web_view.h"
- #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
- #include "chrome/common/pref_names.h"
-@@ -648,6 +651,39 @@
- }
- 
- void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
+@@ -650,0 +651,25 @@
 +#if BUILDFLAG(IS_MAC)
 +  const bool shared_page_frame = browser_view_->ShouldDrawVerticalTabStrip() &&
 +                                 !IsInSplitView() && ShouldUseRoundedFrame();
@@ -81,19 +43,11 @@ Index: src/chrome/browser/ui/views/frame/multi_contents_view.cc
 +      SetPaintToLayer(ui::LAYER_NOT_DRAWN);
 +      arc_content_clip_layer_ = true;
 +    }
-+    const SkVector corners[4] = {
-+        {radii.upper_left(), radii.upper_left()},
-+        {radii.upper_right(), radii.upper_right()},
-+        {radii.lower_right(), radii.lower_right()},
-+        {radii.lower_left(), radii.lower_left()}};
-+    SkRRect rounded;
-+    rounded.setRectRadii(gfx::RectToSkRect(gfx::Rect(layout.host_size)), corners);
-+    const SkPath clip = SkPathBuilder().addRRect(rounded).detach();
-+    if (clip_path() != clip) {
-+      SetClipPath(clip);
-+    }
++    layer()->SetRoundedCornerRadius(radii);
++    layer()->SetIsFastRoundedCorner(true);
 +  } else if (arc_content_clip_layer_) {
-+    SetClipPath(SkPath());
++    layer()->SetRoundedCornerRadius(gfx::RoundedCornersF());
++    layer()->SetIsFastRoundedCorner(false);
 +    DestroyLayer();
 +    arc_content_clip_layer_ = false;
 +  }
@@ -101,37 +55,19 @@ Index: src/chrome/browser/ui/views/frame/multi_contents_view.cc
 +  helium::SetArcHomeCornerRadii(arc_home_view_, radii);
 +#endif
 +
-   if (!target_content_bounds_) {
-     for (auto& contents : contents_container_views_) {
-       contents->SetTargetContentBounds(std::nullopt);
 Index: src/chrome/browser/ui/views/frame/multi_contents_view.h
 ===================================================================
 --- a/chrome/browser/ui/views/frame/multi_contents_view.h
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.h
-@@ -306,6 +306,7 @@
-   raw_ptr<BrowserView> browser_view_;
-   std::unique_ptr<MultiContentsViewDelegate> delegate_;
- 
+@@ -308,0 +309 @@
 +  bool arc_content_clip_layer_ = false;
-   raw_ptr<views::View> arc_home_view_ = nullptr;
-   raw_ptr<MultiContentsBackgroundView> background_view_;
- 
 Index: src/chrome/browser/ui/views/frame/themed_background.cc
 ===================================================================
 --- a/chrome/browser/ui/views/frame/themed_background.cc
 +++ b/chrome/browser/ui/views/frame/themed_background.cc
-@@ -8,6 +8,7 @@
- #include "ui/gfx/image/image_skia_rep.h"
- #include "chrome/browser/ui/views/frame/themed_background.h"
- 
+@@ -10,0 +11 @@
 +#include <cmath>
- #include <optional>
- #include <vector>
- #include "base/strings/string_split.h"
-@@ -30,6 +31,15 @@
- #include "ui/color/color_id.h"
- #include "ui/color/color_provider.h"
- #include "ui/gfx/canvas.h"
+@@ -32,0 +34,9 @@
 +
 +gfx::RoundedCornersF ThemedBackground::GetArcContentRadii(
 +    const BrowserView* browser_view) {
@@ -141,13 +77,7 @@ Index: src/chrome/browser/ui/views/frame/themed_background.cc
 +  return gfx::RoundedCornersF(top, top, kArcContentCornerRadius,
 +                             kArcContentCornerRadius);
 +}
- 
- namespace {
- std::vector<SkColor4f> ArcThemeColors(const BrowserView* browser_view) {
-@@ -151,11 +161,8 @@
-       bitmap.setImmutable();
-       return gfx::ImageSkia(gfx::ImageSkiaRep(bitmap, 2.0f));
-     }());
+@@ -154,5 +164,2 @@
 -    const int start_x = -((origin.x() % 64 + 64) % 64);
 -    const int start_y = -((origin.y() % 64 + 64) % 64);
 -    for (int y = start_y; y < view->height(); y += 64)
@@ -155,85 +85,44 @@ Index: src/chrome/browser/ui/views/frame/themed_background.cc
 -        canvas->DrawImageInt(*grain, x, y);
 +    canvas->TileImageInt(*grain, origin.x(), origin.y(), 0, 0,
 +                         view->width(), view->height());
-   }
-   return true;
- }
 Index: src/chrome/browser/ui/views/frame/themed_background.h
 ===================================================================
 --- a/chrome/browser/ui/views/frame/themed_background.h
 +++ b/chrome/browser/ui/views/frame/themed_background.h
-@@ -11,6 +11,7 @@
- #include "chrome/browser/ui/color/chrome_color_id.h"
- #include "third_party/skia/include/core/SkColor.h"
- #include "ui/views/background.h"
+@@ -12,0 +13 @@
 +#include "ui/gfx/geometry/rounded_corners_f.h"
- 
- class BrowserView;
- 
-@@ -20,6 +21,10 @@
- class ThemedBackground : public views::Background {
-  public:
-   enum ThemeChoice { kToolbarTheme, kFrameTheme };
+@@ -22,0 +24,4 @@
 +
 +  // Shared by the website, outer page background and native Xenon Home.
 +  static constexpr int kArcContentCornerRadius = 10;
 +  static gfx::RoundedCornersF GetArcContentRadii(const BrowserView* browser_view);
-   // Construct a themed background for the specified browser.
-   explicit ThemedBackground(BrowserView* browser_view,
-                             ThemeChoice theme_choice = kToolbarTheme);
 Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
 ===================================================================
 --- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
 +++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.h
-@@ -4,6 +4,7 @@
- #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARC_NATIVE_UI_H_
- #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARC_NATIVE_UI_H_
- #include <memory>
+@@ -9,0 +10 @@
 +#include "ui/gfx/geometry/rounded_corners_f.h"
- #include <string>
- #include <vector>
- #include "base/functional/callback.h"
-@@ -34,6 +35,8 @@
- std::unique_ptr<ArcNativeCommandBar> CreateArcNativeCommandBar(ArcNativeEvent event);
- void ShowArcAppearance(BrowserWindowInterface* browser);
- std::unique_ptr<views::View> CreateArcHomeSurface(BrowserWindowInterface* browser);
+@@ -36,0 +38,2 @@
 +void SetArcHomeCornerRadii(views::View* home,
-+                           const gfx::RoundedCornersF& radii);
- std::unique_ptr<views::View> CreateArcSidebarFooter(BrowserWindowInterface* browser);
- std::unique_ptr<views::View> CreateArcAddressDisplay(BrowserWindowInterface* browser);
- void UpdateArcAddressDisplay(views::View* view, BrowserWindowInterface* browser);
++                          const gfx::RoundedCornersF& radii);
 Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 ===================================================================
 --- a/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 +++ b/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
-@@ -2,6 +2,7 @@
- // You can use, redistribute, and/or modify this source code under
- // the terms of the GPL-3.0 license that can be found in the LICENSE file.
- #import <AppKit/AppKit.h>
+@@ -4,0 +5 @@
 +#import <QuartzCore/QuartzCore.h>
- #import <objc/runtime.h>
- #include <algorithm>
- #include "chrome/browser/ui/helium/arc_command_bar.h"
-@@ -97,6 +98,15 @@
-         BrowserView::GetBrowserViewForBrowser(browser), ThemedBackground::kToolbarTheme));
-   }
-   ~NativeHomeSurface() override { [host_ invalidate]; }
+@@ -99,0 +101,10 @@
 +  void SetContentCornerRadii(const gfx::RoundedCornersF& radii) {
++    if (content_radii_ == radii) return;
 +    content_radii_ = radii;
 +    SetNativeViewCornerRadii(radii);
 +    UpdateNativeClip();
 +  }
-+  void Layout(PassKey pass_key) override {
-+    views::NativeViewHost::Layout(pass_key);
++  void Layout(PassKey) override {
++    LayoutSuperclass<views::NativeViewHost>(this);
 +    UpdateNativeClip();
 +  }
-   void OnThemeChanged() override {
-     views::NativeViewHost::OnThemeChanged();
-     if (GetColorProvider()) host_.view.appearance = [NSAppearance appearanceNamed:
-@@ -108,6 +118,47 @@
-     Attach(gfx::NativeView(host_.view));
-   }
-  private:
+@@ -110,0 +122,48 @@
 +  void UpdateNativeClip() {
 +    NSView* view = host_.view;
 +    if (content_radii_.IsEmpty()) {
@@ -241,6 +130,11 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 +      return;
 +    }
 +    view.wantsLayer = YES;
++    if (view.layer.mask == content_mask_ && content_mask_ &&
++        NSEqualRects(content_mask_.frame, view.bounds) &&
++        mask_radii_ == content_radii_) {
++      return;
++    }
 +    const CGFloat w = NSWidth(view.bounds);
 +    const CGFloat h = NSHeight(view.bounds);
 +    const CGFloat limit = std::min(w, h) / 2;
@@ -267,6 +161,7 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 +    [CATransaction setDisableActions:YES];
 +    content_mask_.frame = view.bounds;
 +    content_mask_.path = native_path;
++    mask_radii_ = content_radii_;
 +    view.layer.mask = content_mask_;
 +    [CATransaction commit];
 +    CGPathRelease(native_path);
@@ -274,19 +169,11 @@ Index: src/chrome/browser/ui/views/tabs/vertical/arc_native_ui.mm
 +  }
 +
 +  gfx::RoundedCornersF content_radii_;
++  gfx::RoundedCornersF mask_radii_;
 +  CAShapeLayer* __strong content_mask_;
-   XenonHomeHost* __strong host_;
- };
- class NativeAddressDisplay : public views::NativeViewHost {
-@@ -174,6 +225,11 @@
- @end
- 
- namespace helium {
+@@ -176,0 +236,5 @@
 +void SetArcHomeCornerRadii(views::View* home,
-+                           const gfx::RoundedCornersF& radii) {
++                          const gfx::RoundedCornersF& radii) {
 +  static_cast<NativeHomeSurface*>(home)->SetContentCornerRadii(radii);
 +}
 +
- std::unique_ptr<views::View> CreateArcHomeSurface(BrowserWindowInterface* browser) {
-   return std::make_unique<NativeHomeSurface>(browser);
- }
