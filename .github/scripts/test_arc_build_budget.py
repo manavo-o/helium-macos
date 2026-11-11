@@ -142,6 +142,14 @@ class PhaseBudgetTest(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertFalse((root / 'timeout-args').exists())
 
+    def test_visual_policy_builds_app_without_compiling_browser_tests(self):
+        root, result = self.run_phase(0, 0, plan='visual-only')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse((root / 'restoration-called').exists())
+        self.assertEqual(['chrome', 'chrome/installer/mac'],
+                         (root / 'timeout-args').read_text().splitlines()[-2:])
+        self.assertIn('Visual acceptance remains pending', result.stdout)
+
 
 if __name__ == '__main__':
     unittest.main()

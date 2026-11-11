@@ -33,7 +33,7 @@ fi
 export SISO_PATH="${SISO_PATH:-$_siso_path}"
 _validation_plan=$(python3 -c 'import json,pathlib,sys; p=pathlib.Path(sys.argv[1]); print(json.loads(p.read_text()).get("test_plan", "link-only") if p.is_file() else "link-only")' "$_root_dir/.github/arc-checkpoint-delta.json")
 
-if [ "${XENON_FRESH_SOURCE:-}" = true ]; then
+if [ "${XENON_FRESH_SOURCE:-}" = true ] && [ "$_validation_plan" != visual-only ]; then
     _validation_plan=xenon-native-v1
 fi
 
@@ -83,6 +83,9 @@ if [ "$_validation_plan" = xenon-native-v1 ]; then
     elif [ "$_test_check" -ne 0 ]; then
         exit "$_test_check"
     fi
+elif [ "$_validation_plan" = visual-only ]; then
+    echo 'Browser-test compilation disabled by visual validation policy.'
+    echo 'Visual acceptance remains pending in the GitHub-built macOS app.'
 elif [ "$_validation_plan" != link-only ]; then
     echo "Unknown validation plan: $_validation_plan" >&2
     exit 1

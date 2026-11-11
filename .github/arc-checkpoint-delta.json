@@ -8,7 +8,7 @@
     "helium-chromium/domain_regex.list": "cf128b0f182692dbf90553aaedd0d3ebc1982076dd94ad94f344bb3677455d2c",
     "helium-chromium/domain_substitution.list": "323c72eed553bd702acc49237fe68e173fb908ff231c695a0848b53c5e930255"
   },
-  "input_sha256": "1c876ec06ed32ae025054ad3c738438c9e0749f4d06432f4e0a943bc181c9046",
+  "input_sha256": "0f14ca1522cdf0497191e7b4e16e68d7916a7a6fdce1c42ecb6ebe04fa37359f",
   "patches": [
     {
       "path": "patches/helium/macos/xenon-chatgpt-foreground.patch",
@@ -43,5 +43,5 @@
       "preimage": ".github/checkpoint-preimages/xenon-chatgpt-foreground/chrome/renderer/chrome_render_frame_observer.h"
     }
   },
-  "test_plan": "xenon-native-v1"
+  "test_plan": "visual-only"
 }
